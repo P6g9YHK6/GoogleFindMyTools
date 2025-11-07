@@ -9,6 +9,7 @@ Currently, it is possible to query Find My Device / Find Hub trackers and Androi
 
 > [!CAUTION]
 > Before starting, ensure you have Chrome and Python updated.
+> 
 > **If Chrome is not up to date, the script will NOT work, guaranteed!**
 
 - Clone this repository: `git clone` or download the ZIP file
