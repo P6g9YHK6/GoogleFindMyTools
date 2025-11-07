@@ -6,6 +6,10 @@ This repository includes some useful tools that reimplement parts of Google's Fi
 Currently, it is possible to query Find My Device / Find Hub trackers and Android devices, read out their E2EE keys, and decrypt encrypted locations sent from the Find My Device / Find Hub network. You can also send register your own ESP32- or Zephyr-based trackers, as described below.
 
 ### How to use
+
+> [!CAUTION]
+>Before starting, ensure you have Chrome and Python updated.  If Chrome is not up to date, the script will NOT work!
+
 - Clone this repository: `git clone` or download the ZIP file
 - Change into the directory: `cd GoogleFindMyTools`
 - Optional: Create venv: `python -m venv venv`
