@@ -53,7 +53,8 @@ class FcmReceiver:
 
 
     def stop_listening(self):
-        asyncio.get_event_loop().run_until_complete(self.pc.stop())
+        if self._loop and self._loop.is_running():
+            asyncio.run_coroutine_threadsafe(self.pc.stop(), self._loop)
         self._listening = False
 
 
