@@ -57,7 +57,7 @@ class FcmReceiver:
     def get_android_id(self):
 
         if self.credentials is None:
-            return asyncio.get_event_loop().run_until_complete(self._register_for_fcm_and_listen())
+            return asyncio.run(self._register_for_fcm_and_listen())
 
         return self.credentials['gcm']['android_id']
 
