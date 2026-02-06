@@ -29,12 +29,18 @@ class FcmReceiver:
         api_key = "AIzaSyD_gko3P392v6how2H7UpdeXQ0v2HLettc"
         message_sender_id = "289722593072"
 
+        # APK signing certificate SHA1
+        android_cert_sha1 = "38918a453d07199354f8b19af05ec6562ced5788"
+        bundle_id = "com.google.android.apps.adm"
+
         fcm_config = FcmRegisterConfig(
             project_id=project_id,
             app_id=app_id,
             api_key=api_key,
             messaging_sender_id=message_sender_id,
-            bundle_id="com.google.android.apps.adm",
+            bundle_id=bundle_id,
+            android_package=bundle_id,
+            android_cert_sha1=android_cert_sha1
         )
 
         self.credentials = get_cached_value('fcm_credentials')
