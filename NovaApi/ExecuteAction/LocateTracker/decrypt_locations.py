@@ -129,11 +129,16 @@ def decrypt_location_response_locations(device_update_protobuf):
 
     if not location_time_array:
         print("No locations found.")
-        return
+        return []
+
+    results = []
 
     for loc in location_time_array:
 
-        if loc.status == Common_pb2.Status.SEMANTIC:
+        is_semantic = loc.status == Common_pb2.Status.SEMANTIC
+        latitude = longitude = altitude = None
+
+        if is_semantic:
             print(f"Semantic Location: {loc.name}")
 
         else:
@@ -148,13 +153,26 @@ def decrypt_location_response_locations(device_update_protobuf):
             print(f"Longitude: {longitude}")
             print(f"Altitude: {altitude}")
             print(f"Google Maps Link: {create_google_maps_link(latitude, longitude)}")
-            
+
         print(f"Time: {datetime.datetime.fromtimestamp(loc.time).strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"Status: {loc.status}")
         print(f"Is Own Report: {loc.is_own_report}")
         print("-" * 40)
 
-    pass
+        results.append({
+            "latitude": latitude,
+            "longitude": longitude,
+            "altitude": altitude,
+            "time": loc.time,
+            "is_semantic": is_semantic,
+            "semantic_name": loc.name if is_semantic else None,
+            "status": Common_pb2.Status.Name(loc.status),
+            "accuracy": loc.accuracy,
+            "is_own_report": loc.is_own_report,
+            "google_maps_link": create_google_maps_link(latitude, longitude) if not is_semantic else None,
+        })
+
+    return results
 
 
 if __name__ == '__main__':

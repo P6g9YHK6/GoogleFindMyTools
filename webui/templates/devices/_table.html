@@ -1,0 +1,21 @@
+<table>
+  <thead>
+    <tr><th>Name</th><th>Actions</th><th>Last locate result</th></tr>
+  </thead>
+  <tbody>
+  {% for device in devices %}
+    <tr>
+      <td>{{ device.name }}</td>
+      <td>
+        <button hx-post="/devices/{{ device.canonic_id }}/locate?name={{ device.name | urlencode }}"
+                hx-target="#locate-result-{{ loop.index }}" hx-swap="innerHTML">Locate</button>
+        <button hx-post="/devices/{{ device.canonic_id }}/sound/start">Play sound</button>
+        <button hx-post="/devices/{{ device.canonic_id }}/sound/stop">Stop sound</button>
+      </td>
+      <td id="locate-result-{{ loop.index }}"></td>
+    </tr>
+  {% else %}
+    <tr><td colspan="3">No devices found.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>

@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Register Tracker - GoogleFindMyTools{% endblock %}
+{% block content %}
+<h1>Register ESP32 / Zephyr Tracker</h1>
+<p>Registers a new custom BLE tracker with your Google account. After registering, flash it using the
+   instructions in <code>ESP32Firmware/</code> or <code>ZephyrFirmware/</code>.</p>
+<form hx-post="/register" hx-target="#result" hx-swap="innerHTML">
+  <button type="submit">Register new tracker</button>
+</form>
+<div id="result">
+  {% if result %}
+    <p>Advertisement key (copy it now, it will not be shown again):</p>
+    <p><code>{{ result.eid_hex }}</code></p>
+  {% endif %}
+</div>
+{% endblock %}
