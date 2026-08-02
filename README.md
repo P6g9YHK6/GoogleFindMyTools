@@ -30,24 +30,25 @@ The authentication results are stored in `Auth/secrets.json`. If you intend to r
 
 This repo also includes an optional local web UI (`webui/`) for everyday use: a device list, a live map for locating trackers, sound start/stop, custom tracker registration, and per-device forwarding of decrypted locations to a Traccar or Nextcloud PhoneTrack server on a configurable schedule, instead of keeping local history.
 
-**Quick start (pre-built images):** `docker compose up -d` pulls the images published by this repo's GitHub Actions workflow (`.github/workflows/docker-publish.yml`) from `ghcr.io/p6g9yhk6/googlefindmytools-web` and `ghcr.io/p6g9yhk6/googlefindmytools-browser` - no local build, no Chrome install needed on the host.
+**Quick start (pre-built image):** `docker compose up -d` pulls the image published by this repo's GitHub Actions workflow (`.github/workflows/docker-publish.yml`) from `ghcr.io/p6g9yhk6/googlefindmytools` - no local build, no Chrome install needed on the host.
 
 **Build from source instead:** `docker compose -f docker-compose.dev.yml up --build`.
 
-Either way, this starts two containers:
-- `web`, the FastAPI app, published at `http://localhost:4321` - the only port you need to open
-- `browser`, a Chrome instance (via `undetected_chromedriver`, same as the CLI auth flow) running inside its own Xvfb display with a noVNC viewer. It has no published port; `web` reverse-proxies it through its own origin, so the embedded Chrome login view is served as part of the web UI itself, not a separate site or port you have to reach directly.
+Either way, this is a single container, published at `http://localhost:4321`. Chrome and the Xvfb/x11vnc/noVNC stack used for the Google login are **not** baked into the image - they're installed on demand, into an in-memory (tmpfs) directory, only while a login is actually in progress, and removed again as soon as it finishes (or times out). This keeps the image itself small, but means:
+- The container needs outbound network access (to Debian's package mirrors and `storage.googleapis.com`) whenever a login is triggered, not just when the image was built.
+- The first sign-in after a container start takes roughly 30-90 seconds before the embedded Chrome view appears, while it installs Xvfb/x11vnc/noVNC and downloads a portable Chrome build. The `/auth` page shows live progress for each step over a WebSocket while this happens.
+- Restarting the container (or finishing/abandoning a login) leaves no trace of any of it behind.
 
-To sign in, open `http://localhost:4321/auth`, click "Sign in with Google", and complete the login inside the embedded Chrome view on that same page. The resulting tokens are written to `Auth/secrets.json` in a Docker volume shared by both containers, exactly like copying `secrets.json` between machines as described below, just automated.
+To sign in, open `http://localhost:4321/auth` and click "Sign in with Google" - watch the setup progress, then complete the login in the embedded Chrome view that appears on the same page once it's ready. The resulting tokens are written to `Auth/secrets.json` in a Docker volume, exactly like copying `secrets.json` between machines as described below, just automated.
 
 Set a `WEBUI_PASSWORD` environment variable to require a password (any username, HTTP Basic Auth) for the whole web UI, including the embedded login view. Copy `.env.example` to `.env` and fill it in, or run `WEBUI_PASSWORD=yourpassword docker compose up -d`. It's unset by default.
 
 > [!CAUTION]
 > Even with `WEBUI_PASSWORD` set, this web UI only adds a single shared password and no HTTPS, and it holds long-lived Google account tokens plus live device location data. It is meant for local/LAN use only. Do not port-forward it or otherwise expose it to the public internet.
 
-#### Publishing the images
+#### Publishing the image
 
-Pushing to `main` (or pushing a `v*.*.*` tag) on GitHub runs `.github/workflows/docker-publish.yml`, which builds both images and pushes them to GHCR under this repo automatically - no manual steps beyond a normal `git push`. The first time it runs, GHCR packages are created **private** by default; open the package's settings under your GitHub account's Packages tab and switch visibility to public if you want `docker compose up` to work without `docker login ghcr.io` first.
+Pushing to `main` (or pushing a `v*.*.*` tag) on GitHub runs `.github/workflows/docker-publish.yml`, which builds the image and pushes it to GHCR under this repo automatically - no manual steps beyond a normal `git push`. The first time it runs, the GHCR package is created **private** by default; open the package's settings under your GitHub account's Packages tab and switch visibility to public if you want `docker compose up` to work without `docker login ghcr.io` first.
 
 ### Known Issues
 - "Your encryption data is locked on your device" is shown if you have never set up Find My Device on an Android device. Solution: Login with your Google Account on an Android device, go to Settings > Google > All Services > Find My Device > Find your offline devices > enable "With network in all areas" or "With network in high-traffic areas only". If "Find your offline devices" is not shown in Settings, you will need to download the Find My Device app from Google's Play Store, and pair a real Find My Device tracker with your device to force-enable the Find My Device network.

@@ -1,8 +1,7 @@
-import httpx
 from fastapi import APIRouter, Request
 
 from Auth.token_cache import get_cached_value
-from webui import config
+from webui import browser_provisioning
 from webui.templating import templates
 
 router = APIRouter()
@@ -32,15 +31,9 @@ async def auth_status():
 
 @router.post("/auth/login/start")
 async def auth_login_start():
-    async with httpx.AsyncClient() as client:
-        response = await client.post(f"{config.BROWSER_AGENT_URL}/login/start", timeout=10)
-        response.raise_for_status()
-        return response.json()
+    return await browser_provisioning.start()
 
 
 @router.get("/auth/login/poll")
 async def auth_login_poll():
-    async with httpx.AsyncClient() as client:
-        response = await client.get(f"{config.BROWSER_AGENT_URL}/login/status", timeout=10)
-        response.raise_for_status()
-        return response.json()
+    return browser_provisioning.get_state()

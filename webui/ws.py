@@ -31,3 +31,6 @@ class ConnectionManager:
 
 
 manager = ConnectionManager()
+# Separate channel for browser-provisioning progress (see browser_provisioning.py),
+# kept distinct from device-locate broadcasts above.
+provision_manager = ConnectionManager()

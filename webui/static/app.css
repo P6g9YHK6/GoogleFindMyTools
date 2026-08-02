@@ -36,3 +36,23 @@ label {
   display: block;
   margin: 0.5rem 0;
 }
+
+#provision-bar-track {
+  background: #eee;
+  border-radius: 4px;
+  height: 10px;
+  overflow: hidden;
+  margin: 0.75rem 0 0.25rem;
+}
+
+#provision-bar-fill {
+  background: #2563eb;
+  height: 100%;
+  width: 0;
+  transition: width 0.3s ease;
+}
+
+#provision-log {
+  font-size: 0.85rem;
+  color: #666;
+}
