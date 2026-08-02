@@ -3,6 +3,7 @@ import logging
 import time
 
 from webui import config, ws
+from webui.auth_state import is_logged_in
 from webui.deps import locate_device
 from webui.forwarders import config_store
 from webui.forwarders.phonetrack import forward_to_phonetrack
@@ -39,11 +40,16 @@ async def _poll_device(canonic_id: str):
         name = device_cfg.get("display_name", canonic_id)
         interval = device_cfg.get("poll_interval_seconds") or config.DEFAULT_POLL_INTERVAL_S
 
-        try:
-            locations = await locate_device(canonic_id, name)
-        except Exception as e:
+        if not is_logged_in():
+            # Don't trigger the Google login flow from the background poller -
+            # that's only ever meant to happen from a deliberate /auth click.
             locations = []
-            logger.warning("Locate failed for %s: %s", name, e)
+        else:
+            try:
+                locations = await locate_device(canonic_id, name)
+            except Exception as e:
+                locations = []
+                logger.warning("Locate failed for %s: %s", name, e)
 
         last_status = "no location"
         for location in locations:
