@@ -3,6 +3,7 @@ from fastapi import APIRouter, Request
 from NovaApi.ListDevices.nbe_list_devices import request_device_list
 from ProtoDecoders.decoder import get_canonic_ids, parse_device_list_protobuf
 from SpotApi.UploadPrecomputedPublicKeyIds.upload_precomputed_public_key_ids import refresh_custom_trackers
+from webui.auth_state import is_logged_in
 from webui.deps import run_blocking
 from webui.templating import templates
 
@@ -27,5 +28,7 @@ async def index(request: Request):
 
 @router.get("/devices/table")
 async def devices_table(request: Request):
+    if not is_logged_in():
+        return templates.TemplateResponse(request, "_not_signed_in.html", {})
     devices = await get_devices()
     return templates.TemplateResponse(request, "devices/_table.html", {"devices": devices})

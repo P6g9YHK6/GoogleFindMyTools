@@ -3,6 +3,7 @@ from fastapi import APIRouter, Form, Request
 from NovaApi.ListDevices.nbe_list_devices import request_device_list
 from ProtoDecoders.decoder import get_canonic_ids, parse_device_list_protobuf
 from webui import config, scheduler
+from webui.auth_state import is_logged_in
 from webui.deps import run_blocking
 from webui.forwarders import config_store
 from webui.templating import templates
@@ -32,6 +33,8 @@ async def _rows() -> list[dict]:
 
 @router.get("/settings")
 async def settings_page(request: Request):
+    if not is_logged_in():
+        return templates.TemplateResponse(request, "_not_signed_in.html", {})
     return templates.TemplateResponse(request, "settings/forwarding.html", {"rows": await _rows()})
 
 
@@ -47,6 +50,9 @@ async def update_device_settings(
     phonetrack_base_url: str = Form(""),
     phonetrack_device_name: str = Form(""),
 ):
+    if not is_logged_in():
+        return templates.TemplateResponse(request, "_not_signed_in.html", {})
+
     device_cfg = {
         "display_name": display_name,
         "destination": destination,

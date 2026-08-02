@@ -4,11 +4,22 @@
 #
 
 import os
+import threading
 
 from selenium.webdriver.support.ui import WebDriverWait
 from chrome_driver import create_driver
 
+# create_driver() unconditionally pkills any running "chrome" process before
+# launching a new one, so two overlapping calls would kill each other's
+# browser. This serializes them process-wide instead of racing.
+_flow_lock = threading.Lock()
+
 def request_oauth_account_token_flow():
+    with _flow_lock:
+        return _request_oauth_account_token_flow()
+
+
+def _request_oauth_account_token_flow():
 
     print("""[AuthFlow] This script will now open Google Chrome on your device to login to your Google account.
 > Please make sure that Chrome is installed on your system.

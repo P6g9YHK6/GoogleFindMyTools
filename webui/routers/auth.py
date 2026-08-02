@@ -2,18 +2,16 @@ from fastapi import APIRouter, Request
 
 from Auth.token_cache import get_cached_value
 from webui import browser_provisioning
+from webui.auth_state import is_logged_in
 from webui.templating import templates
 
 router = APIRouter()
 
 
 def _auth_status() -> dict:
-    aas_token = get_cached_value("aas_token")
-    fcm_credentials = get_cached_value("fcm_credentials")
-    username = get_cached_value("username")
     return {
-        "logged_in": bool(aas_token and fcm_credentials),
-        "username": username,
+        "logged_in": is_logged_in(),
+        "username": get_cached_value("username"),
     }
 
 
