@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Forwarding Settings - GoogleFindMyTools{% endblock %}
+{% block content %}
+<h1>Forwarding Settings</h1>
+<p>Configure where each device's location should be pushed automatically. Leave "None" to disable forwarding
+   for a device.</p>
+
+{% for row in rows %}
+<form hx-post="/settings/devices/{{ row.canonic_id }}" hx-target="this" hx-swap="outerHTML">
+  <fieldset>
+    <legend>{{ row.name }}</legend>
+    <input type="hidden" name="display_name" value="{{ row.name }}">
+
+    <label>Destination
+      <select name="destination">
+        <option value="none" {% if row.config.destination == "none" %}selected{% endif %}>None</option>
+        <option value="traccar" {% if row.config.destination == "traccar" %}selected{% endif %}>Traccar</option>
+        <option value="phonetrack" {% if row.config.destination == "phonetrack" %}selected{% endif %}>Nextcloud PhoneTrack</option>
+      </select>
+    </label>
+
+    <label>Poll interval (seconds)
+      <input type="number" min="30" name="poll_interval_seconds" value="{{ row.config.poll_interval_seconds or 300 }}">
+    </label>
+
+    <fieldset>
+      <legend>Traccar (OsmAnd protocol)</legend>
+      <label>Server URL
+        <input type="text" name="traccar_url" placeholder="http://traccar.local:5055"
+               value="{{ row.config.traccar.url if row.config.traccar else '' }}">
+      </label>
+      <label>Device ID
+        <input type="text" name="traccar_device_id"
+               value="{{ row.config.traccar.device_id if row.config.traccar else '' }}">
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Nextcloud PhoneTrack</legend>
+      <label>HTTP-GET base URL (from the PhoneTrack session)
+        <input type="text" name="phonetrack_base_url" placeholder="https://nc.local/apps/phonetrack/logGet/&lt;token&gt;"
+               value="{{ row.config.phonetrack.base_url if row.config.phonetrack else '' }}">
+      </label>
+      <label>Device name
+        <input type="text" name="phonetrack_device_name"
+               value="{{ row.config.phonetrack.device_name if row.config.phonetrack else '' }}">
+      </label>
+    </fieldset>
+
+    {% if row.config.last_forward_status %}
+      <p>Last forward: {{ row.config.last_forward_status }}</p>
+    {% endif %}
+
+    <button type="submit">Save</button>
+  </fieldset>
+</form>
+{% endfor %}
+{% endblock %}

@@ -4,6 +4,9 @@
 /DULT/OwnerLookup/Results
 /Auth/secrets.json
 /example_data.json
+/webui/data/
+__pycache__/
+.env
 
 # Created by https://www.toptal.com/developers/gitignore/api/macos,xcode,swift,swiftpackagemanager,objective-c
 # Edit at https://www.toptal.com/developers/gitignore?templates=macos,xcode,swift,swiftpackagemanager,objective-c

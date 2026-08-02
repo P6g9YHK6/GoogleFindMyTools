@@ -1,0 +1,16 @@
+{% if locations %}
+  <ul>
+  {% for loc in locations %}
+    <li>
+      {% if loc.is_semantic %}
+        {{ loc.semantic_name }}
+      {% else %}
+        {{ "%.5f"|format(loc.latitude) }}, {{ "%.5f"|format(loc.longitude) }}
+        (<a href="{{ loc.google_maps_link }}" target="_blank" rel="noopener">map</a>)
+      {% endif %}
+    </li>
+  {% endfor %}
+  </ul>
+{% else %}
+  <span>No location received.</span>
+{% endif %}

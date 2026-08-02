@@ -1,0 +1,38 @@
+# Ready-to-use setup: pulls pre-built images published by GitHub Actions to
+# ghcr.io (see .github/workflows/docker-publish.yml) instead of building
+# locally. To build from source instead, use:
+#   docker compose -f docker-compose.dev.yml up --build
+#
+# LAN-only setup: no HTTPS in front of either service, and no password
+# unless WEBUI_PASSWORD is set (e.g. via a .env file, see .env.example).
+# See the "Web UI" section in README.md before exposing this beyond your
+# own network.
+services:
+  web:
+    image: ghcr.io/p6g9yhk6/googlefindmytools-web:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - BROWSER_AGENT_URL=http://browser:8001
+      - BROWSER_NOVNC_URL=http://browser:6901
+      - WEBUI_PASSWORD=${WEBUI_PASSWORD:-}
+    volumes:
+      - secrets:/app/Auth/secrets.json
+      - ./webui/data:/app/webui/data
+    depends_on:
+      - browser
+    restart: unless-stopped
+
+  browser:
+    image: ghcr.io/p6g9yhk6/googlefindmytools-browser:latest
+    # Chrome under Xvfb needs more than Docker's default 64MB /dev/shm.
+    shm_size: "1g"
+    # No published ports: the web service proxies noVNC through its own
+    # origin, so this container is only reachable from other containers on
+    # the compose network.
+    volumes:
+      - secrets:/app/Auth/secrets.json
+    restart: unless-stopped
+
+volumes:
+  secrets:

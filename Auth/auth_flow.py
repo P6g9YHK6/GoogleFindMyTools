@@ -3,6 +3,8 @@
 #  Copyright © 2024 Leon Böttger. All rights reserved.
 #
 
+import os
+
 from selenium.webdriver.support.ui import WebDriverWait
 from chrome_driver import create_driver
 
@@ -13,8 +15,9 @@ def request_oauth_account_token_flow():
 > For macOS users only: Make that you allow Python (or PyCharm) to control Chrome if prompted. 
     """)
 
-    # Press enter to continue
-    input("[AuthFlow] Press Enter to continue...")
+    # Press enter to continue (skipped when driven non-interactively, e.g. from the web UI's browser container)
+    if os.environ.get("GFMT_NONINTERACTIVE") != "1":
+        input("[AuthFlow] Press Enter to continue...")
 
     # Automatically install and set up the Chrome driver
     print("[AuthFlow] Installing ChromeDriver...")
