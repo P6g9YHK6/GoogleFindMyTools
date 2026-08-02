@@ -11,11 +11,19 @@
   {% endif %}
 </div>
 
-<button hx-post="/auth/login/start" hx-target="#login-status" hx-swap="innerHTML">Sign in with Google</button>
+<button id="signin-btn">Sign in with Google</button>
 <button hx-get="/auth/status" hx-target="#login-status" hx-swap="innerHTML">Refresh status</button>
 
-<p>Complete the Google sign-in below, then refresh the status above. This embedded Chrome view is served by
-   this app itself (proxied from the browser container), not a separate site or port.</p>
-<iframe title="Embedded Chrome login" src="/vnc/vnc.html?autoconnect=true&resize=scale&path=vnc/websockify"
-        style="width:100%; height:600px; border:1px solid #ccc;"></iframe>
+<p>Signing in installs a temporary Chrome + virtual display just for this login, shown below, and removes it
+   again once you're done - the first sign-in of a session takes roughly 30-90 seconds to set up.</p>
+
+<div id="provision-panel" style="display:none;">
+  <div id="provision-bar-track"><div id="provision-bar-fill"></div></div>
+  <p id="provision-message"></p>
+  <ul id="provision-log"></ul>
+</div>
+
+<div id="vnc-container"></div>
+
+<script src="/static/provision.js"></script>
 {% endblock %}

@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 
-from webui import scheduler, ws
+from webui import browser_provisioning, scheduler, ws
 from webui.auth_middleware import BasicAuthMiddleware
 from webui.routers import auth, devices, locate, register, settings, sound, vnc_proxy
 
@@ -16,6 +16,7 @@ async def lifespan(app: FastAPI):
     scheduler.start_all()
     yield
     scheduler.stop_all()
+    await browser_provisioning.on_shutdown()
 
 
 app = FastAPI(title="GoogleFindMyTools Web UI", lifespan=lifespan)
@@ -40,3 +41,13 @@ async def ws_locations(websocket: WebSocket):
             await websocket.receive_text()
     except WebSocketDisconnect:
         await ws.manager.disconnect(websocket)
+
+
+@app.websocket("/ws/provision")
+async def ws_provision(websocket: WebSocket):
+    await ws.provision_manager.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        await ws.provision_manager.disconnect(websocket)

@@ -1,9 +1,15 @@
 # Build-from-source setup: docker compose -f docker-compose.dev.yml up --build
-# For the ready-to-use setup that pulls pre-built images, use docker-compose.yml
+# For the ready-to-use setup that pulls the pre-built image, use docker-compose.yml
 # instead.
 #
-# LAN-only setup: no auth/HTTPS in front of either service. See the "Web UI"
-# section in README.md before exposing these ports beyond your own network.
+# Single container: Chrome/Xvfb/x11vnc/noVNC are installed on demand only
+# while a login is in progress, into a tmpfs mount, and removed again
+# afterward - see webui/browser_provisioning.py. That means this container
+# needs outbound network access (Debian mirrors + storage.googleapis.com)
+# whenever a login is triggered, not just at image build time.
+#
+# LAN-only setup: no auth/HTTPS in front of the service. See the "Web UI"
+# section in README.md before exposing this beyond your own network.
 services:
   web:
     build:
@@ -11,29 +17,18 @@ services:
       dockerfile: docker/web/Dockerfile
     ports:
       - "4321:4321"
+    # Chrome under Xvfb needs more than Docker's default 64MB /dev/shm.
+    shm_size: "1g"
+    tmpfs:
+      - /run/gfmt-browser
     environment:
-      - BROWSER_AGENT_URL=http://browser:8001
-      - BROWSER_NOVNC_URL=http://browser:6901
       # Set this to protect the web UI (and the embedded Chrome login it
-      # proxies) with a password. Leave unset only on a fully trusted LAN.
+      # shows) with a password. Leave unset only on a fully trusted LAN.
       - WEBUI_PASSWORD=${WEBUI_PASSWORD:-}
     volumes:
       - secrets:/data/auth
       - ./webui/data:/app/webui/data
-    depends_on:
-      - browser
-
-  browser:
-    build:
-      context: .
-      dockerfile: docker/browser/Dockerfile
-    # Chrome under Xvfb needs more than Docker's default 64MB /dev/shm.
-    shm_size: "1g"
-    # No published ports: the web service proxies noVNC through its own
-    # origin (webui/routers/vnc_proxy.py), so this container is only
-    # reachable from other containers on the compose network.
-    volumes:
-      - secrets:/data/auth
+    restart: unless-stopped
 
 volumes:
   secrets:
