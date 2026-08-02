@@ -3,7 +3,8 @@ FROM python:3.11-slim
 
 ENV DEBIAN_FRONTEND=noninteractive \
     DISPLAY=:99 \
-    GFMT_NONINTERACTIVE=1
+    GFMT_NONINTERACTIVE=1 \
+    GFMT_SECRETS_DIR=/data/auth
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         wget gnupg ca-certificates fonts-liberation \
@@ -24,12 +25,7 @@ COPY . /app
 COPY docker/browser/browser_agent.py /app/browser_agent.py
 COPY docker/browser/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY docker/browser/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh \
-    # Auth/secrets.json is gitignored and not present at build time. Bake in an
-    # empty placeholder so the docker-compose `secrets` volume (mounted at this
-    # exact file path, shared with the web container) initializes as a file
-    # mount instead of Docker defaulting to an empty directory mount.
-    && test -f /app/Auth/secrets.json || echo '{}' > /app/Auth/secrets.json
+RUN chmod +x /entrypoint.sh
 
 EXPOSE 6901 8001
 

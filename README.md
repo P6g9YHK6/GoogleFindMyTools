@@ -35,10 +35,10 @@ This repo also includes an optional local web UI (`webui/`) for everyday use: a 
 **Build from source instead:** `docker compose -f docker-compose.dev.yml up --build`.
 
 Either way, this starts two containers:
-- `web`, the FastAPI app, published at `http://localhost:8080` - the only port you need to open
+- `web`, the FastAPI app, published at `http://localhost:4321` - the only port you need to open
 - `browser`, a Chrome instance (via `undetected_chromedriver`, same as the CLI auth flow) running inside its own Xvfb display with a noVNC viewer. It has no published port; `web` reverse-proxies it through its own origin, so the embedded Chrome login view is served as part of the web UI itself, not a separate site or port you have to reach directly.
 
-To sign in, open `http://localhost:8080/auth`, click "Sign in with Google", and complete the login inside the embedded Chrome view on that same page. The resulting tokens are written to `Auth/secrets.json` in a Docker volume shared by both containers, exactly like copying `secrets.json` between machines as described below, just automated.
+To sign in, open `http://localhost:4321/auth`, click "Sign in with Google", and complete the login inside the embedded Chrome view on that same page. The resulting tokens are written to `Auth/secrets.json` in a Docker volume shared by both containers, exactly like copying `secrets.json` between machines as described below, just automated.
 
 Set a `WEBUI_PASSWORD` environment variable to require a password (any username, HTTP Basic Auth) for the whole web UI, including the embedded login view. Copy `.env.example` to `.env` and fill it in, or run `WEBUI_PASSWORD=yourpassword docker compose up -d`. It's unset by default.
 

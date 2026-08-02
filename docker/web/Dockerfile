@@ -8,12 +8,10 @@ RUN pip install --no-cache-dir -r requirements.txt -r requirements-web.txt
 
 COPY . /app
 
-# Auth/secrets.json is gitignored and not present at build time. Bake in an
-# empty placeholder so the docker-compose `secrets` volume (mounted at this
-# exact file path, shared with the browser container) initializes as a file
-# mount instead of Docker defaulting to an empty directory mount.
-RUN test -f /app/Auth/secrets.json || echo '{}' > /app/Auth/secrets.json
+# Secrets live in a mounted directory shared with the browser container
+# (see Auth/token_cache.py), not at a fixed path inside the image.
+ENV GFMT_SECRETS_DIR=/data/auth
 
-EXPOSE 8080
+EXPOSE 4321
 
-CMD ["uvicorn", "webui.main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uvicorn", "webui.main:app", "--host", "0.0.0.0", "--port", "4321"]

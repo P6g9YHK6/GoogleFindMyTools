@@ -10,7 +10,7 @@ services:
       context: .
       dockerfile: docker/web/Dockerfile
     ports:
-      - "8080:8080"
+      - "4321:4321"
     environment:
       - BROWSER_AGENT_URL=http://browser:8001
       - BROWSER_NOVNC_URL=http://browser:6901
@@ -18,7 +18,7 @@ services:
       # proxies) with a password. Leave unset only on a fully trusted LAN.
       - WEBUI_PASSWORD=${WEBUI_PASSWORD:-}
     volumes:
-      - secrets:/app/Auth/secrets.json
+      - secrets:/data/auth
       - ./webui/data:/app/webui/data
     depends_on:
       - browser
@@ -33,7 +33,7 @@ services:
     # origin (webui/routers/vnc_proxy.py), so this container is only
     # reachable from other containers on the compose network.
     volumes:
-      - secrets:/app/Auth/secrets.json
+      - secrets:/data/auth
 
 volumes:
   secrets:
