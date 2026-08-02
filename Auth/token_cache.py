@@ -52,5 +52,12 @@ def set_cached_value(name: str, value: str):
 
 
 def _get_secrets_file():
+    # Lets the secrets file live in a mounted directory (e.g. in Docker)
+    # instead of always sitting next to this script.
+    secrets_dir = os.environ.get("GFMT_SECRETS_DIR")
+    if secrets_dir:
+        os.makedirs(secrets_dir, exist_ok=True)
+        return os.path.join(secrets_dir, SECRETS_FILE)
+
     script_dir = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(script_dir, SECRETS_FILE)

@@ -6,7 +6,7 @@ BROWSER_AGENT_URL = os.environ.get("BROWSER_AGENT_URL", "http://browser:8001")
 # webui/routers/vnc_proxy.py) so the embedded Chrome view is served as part
 # of the web UI itself, not a separately exposed port/origin.
 BROWSER_NOVNC_URL = os.environ.get("BROWSER_NOVNC_URL", "http://browser:6901")
-WEBUI_PORT = int(os.environ.get("WEBUI_PORT", "8080"))
+WEBUI_PORT = int(os.environ.get("WEBUI_PORT", "4321"))
 DEFAULT_POLL_INTERVAL_S = int(os.environ.get("DEFAULT_POLL_INTERVAL_S", "300"))
 LOCATE_CONCURRENCY = int(os.environ.get("LOCATE_CONCURRENCY", "5"))
 LOCATE_TIMEOUT_S = int(os.environ.get("LOCATE_TIMEOUT_S", "60"))
