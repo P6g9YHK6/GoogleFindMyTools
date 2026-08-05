@@ -60,11 +60,30 @@ def retrieve_identity_key(device_registration: DeviceRegistration) -> bytes:
         print("-" * 40)
 
         if encrypted_user_secrets.ownerKeyVersion < current_owner_key_version:
-            print(f"Failed to decrypt E2EE data. This tracker was encrypted with owner key version {encrypted_user_secrets.ownerKeyVersion}, but the current owner key version is {current_owner_key_version}.\nThis happens if you reset your end-to-end-encrypted data in the past.\nThe tracker cannot be decrypted anymore, and it is recommended to remove it in the Find My Device app.")
-            exit(1)
+            message = (
+                f"Failed to decrypt E2EE data. This tracker was encrypted with owner key version "
+                f"{encrypted_user_secrets.ownerKeyVersion}, but the current owner key version is "
+                f"{current_owner_key_version}.\nThis happens if you reset your end-to-end-encrypted "
+                f"data in the past.\nThe tracker cannot be decrypted anymore, and it is recommended "
+                f"to remove it in the Find My Device app."
+            )
         else:
-            print(f"Failed to decrypt identity key encrypted with owner key version {encrypted_user_secrets.ownerKeyVersion}, current owner key version is {current_owner_key_version}.\nThis may happen if you reset your end-to-end-encrypted data. To resolve this issue, open the folder 'Auth' and delete the file 'secrets.json'.")
-            exit(1)
+            message = (
+                f"Failed to decrypt identity key encrypted with owner key version "
+                f"{encrypted_user_secrets.ownerKeyVersion}, current owner key version is "
+                f"{current_owner_key_version}.\nThis may happen if the cached owner key is stale "
+                f"(e.g. after re-doing the Google sign-in). To resolve this issue, clear the "
+                f"'owner_key' entry from 'Auth/secrets.json' so it gets re-derived, or delete the "
+                f"whole file to sign in again from scratch."
+            )
+        print(message)
+        # exit(1) here would raise SystemExit, which is fine for the CLI scripts this
+        # was originally written for but fatal when called from a web request thread
+        # (asyncio.to_thread) - it doesn't stop the server, just crashes that one
+        # request with a bare "Internal Server Error" and no indication why. Raise a
+        # normal exception instead so callers (e.g. the web UI's locate endpoint) can
+        # show `message` to the user.
+        raise RuntimeError(message)
 
 
 def decrypt_location_response_locations(device_update_protobuf):
