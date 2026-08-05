@@ -17,6 +17,16 @@ CHROME_FOR_TESTING_JSON_URL = (
     "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json"
 )
 X_PACKAGES = ["xvfb", "x11vnc", "novnc", "websockify"]
+# Chrome for Testing is downloaded as a bare binary (see _download_chrome), so
+# the shared libraries it dlopen's at startup have to come from apt instead -
+# without these the launch fails with a "Chrome was not detected" error even
+# though the binary is right there and executable.
+CHROME_DEPS = [
+    "fonts-liberation", "libasound2", "libatk-bridge2.0-0", "libatk1.0-0",
+    "libcups2", "libdrm2", "libgbm1", "libgtk-3-0", "libnspr4", "libnss3",
+    "libpango-1.0-0", "libpangocairo-1.0-0", "libx11-xcb1", "libxcomposite1",
+    "libxdamage1", "libxfixes3", "libxkbcommon0", "libxrandr2", "xdg-utils",
+]
 # Bounds every apt-get/pkill call so a stuck lock, dead mirror, or hung
 # process can never wedge the whole provisioning/teardown flow forever.
 _SUBPROCESS_TIMEOUT_S = 180
@@ -118,12 +128,12 @@ async def _install_x_stack():
     await _wait(proc)
 
     proc = await asyncio.create_subprocess_exec(
-        "apt-get", "install", "-y", "--no-install-recommends", *X_PACKAGES,
+        "apt-get", "install", "-y", "--no-install-recommends", *X_PACKAGES, *CHROME_DEPS,
         env=env, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
     )
     rc = await _wait(proc)
     if rc != 0:
-        raise RuntimeError("apt-get install of xvfb/x11vnc/novnc/websockify failed")
+        raise RuntimeError("apt-get install of xvfb/x11vnc/novnc/websockify/chrome-deps failed")
 
     await _set_state("installing", "X server and VNC tools installed.", 35)
 
@@ -209,7 +219,7 @@ async def _teardown(final_phase: str, message: str, error: str | None = None):
     try:
         env = {**os.environ, "DEBIAN_FRONTEND": "noninteractive"}
         proc = await asyncio.create_subprocess_exec(
-            "apt-get", "purge", "-y", "--autoremove", *X_PACKAGES,
+            "apt-get", "purge", "-y", "--autoremove", *X_PACKAGES, *CHROME_DEPS,
             env=env, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
         )
         await _wait(proc)
