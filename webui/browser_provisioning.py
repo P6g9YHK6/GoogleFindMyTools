@@ -261,7 +261,14 @@ async def _download_chrome() -> str:
 async def _start_x_stack():
     await _set_state("launching", "Starting virtual display...", 75)
     _processes["xvfb"] = await asyncio.create_subprocess_exec(
-        "Xvfb", ":99", "-screen", "0", "1280x900x24", "-nolisten", "tcp",
+        # undetected_chromedriver unconditionally forces --window-size=1920,1080
+        # on the Chrome it launches (it appends its own options after ours, and
+        # that flag wins), and there's no window manager here to honor
+        # --start-maximized and resize it back down. A smaller Xvfb screen just
+        # crops that window instead of shrinking it, so what x11vnc shows is an
+        # off-center sliver of a bigger window rather than the whole thing -
+        # match Xvfb's resolution to it so the full, centered window is visible.
+        "Xvfb", ":99", "-screen", "0", "1920x1080x24", "-nolisten", "tcp",
         stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
     )
     await asyncio.sleep(1)
