@@ -56,6 +56,14 @@ async def start() -> dict:
 async def on_shutdown():
     if _state["phase"] in _ACTIVE_PHASES:
         await _teardown("error", "Shut down while provisioning.")
+    # _teardown() (see its comment) deliberately leaves the installed
+    # packages and Chrome binary in place between individual sign-in
+    # attempts so retries are fast - but that cache is only ever valid for
+    # this running container. On a real app/container shutdown, remove it
+    # for real: a `docker stop` without a `rm` preserves the writable layer,
+    # so without this a later `docker start` would wrongly find it "already
+    # installed" against what could be a different image/base layer.
+    await _full_cleanup()
 
 
 async def _set_state(phase: str, message: str, percent: int, error: str | None = None):
@@ -193,7 +201,28 @@ async def _report_apt_progress(proc: asyncio.subprocess.Process, packages: list[
         pass
 
 
+async def _packages_installed(packages: list[str]) -> bool:
+    """dpkg -s reports non-zero if any of these packages is missing or only
+    partially configured, so this doubles as a single cheap "is there
+    anything left to do" check before touching apt/the network at all."""
+    proc = await asyncio.create_subprocess_exec(
+        "dpkg", "-s", *packages,
+        stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+    )
+    rc = await _wait(proc, timeout=10)
+    return rc == 0
+
+
 async def _install_x_stack():
+    packages = [*X_PACKAGES, *CHROME_DEPS]
+    # _teardown no longer purges these (see comment there), so on every
+    # attempt after the first in a container's lifetime they're already
+    # here - skip apt entirely instead of paying for an update+install
+    # (and a network round-trip) that would just confirm what we already know.
+    if await _packages_installed(packages):
+        await _set_state("installing", "X server, VNC tools, and Chrome dependencies already installed.", 35)
+        return
+
     await _set_state("installing", "Updating package lists...", 5)
     env = {**os.environ, "DEBIAN_FRONTEND": "noninteractive"}
 
@@ -203,7 +232,6 @@ async def _install_x_stack():
     )
     await _wait(proc)
 
-    packages = [*X_PACKAGES, *CHROME_DEPS]
     await _set_state("installing", f"Installing X server and VNC tools... (0/{len(packages)})", 8)
 
     proc = await asyncio.create_subprocess_exec(
@@ -224,6 +252,14 @@ async def _install_x_stack():
 
 
 async def _download_chrome() -> str:
+    # _teardown no longer deletes chrome-linux64 between attempts (see comment
+    # there), so if a previous attempt already fetched it in this container's
+    # lifetime, reuse it instead of re-downloading/re-extracting the zip.
+    cached_bin = os.path.join(_runtime_dir(), "chrome-linux64", "chrome")
+    if os.path.exists(cached_bin) and os.access(cached_bin, os.X_OK):
+        await _set_state("extracting", "Chrome already downloaded.", 70)
+        return cached_bin
+
     await _set_state("downloading", "Looking up the latest Chrome for Testing build...", 40)
 
     def _fetch_json():
@@ -289,6 +325,13 @@ async def _start_x_stack():
 
 
 async def _teardown(final_phase: str, message: str, error: str | None = None):
+    """Ends one sign-in attempt: stops the chrome/Xvfb/x11vnc/websockify
+    *processes* only. Deliberately does NOT purge the apt packages or delete
+    the downloaded Chrome binary - both are left in place so the next sign-in
+    attempt in this same container can skip straight past _install_x_stack/
+    _download_chrome instead of repeating a ~30-90s install+download every
+    single time. That cache is only ever cleaned up for real in
+    _full_cleanup(), on an actual app/container shutdown (see on_shutdown)."""
     global _chrome_bin
 
     if _chrome_bin:
@@ -307,7 +350,17 @@ async def _teardown(final_phase: str, message: str, error: str | None = None):
     for proc in _processes.values():
         await _wait(proc, timeout=5)
     _processes.clear()
+    _chrome_bin = None
 
+    await _set_state(final_phase, message, 100, error)
+
+
+async def _full_cleanup():
+    """Undoes everything _install_x_stack/_download_chrome left in place -
+    the apt packages and the extracted Chrome binary - for a real app/
+    container shutdown. Only called from on_shutdown(); _teardown() above
+    intentionally leaves this cache alone between individual sign-in
+    attempts within the same container's lifetime."""
     try:
         env = {**os.environ, "DEBIAN_FRONTEND": "noninteractive"}
         proc = await asyncio.create_subprocess_exec(
@@ -320,6 +373,3 @@ async def _teardown(final_phase: str, message: str, error: str | None = None):
 
     chrome_dir = os.path.join(config.GFMT_BROWSER_RUNTIME_DIR, "chrome-linux64")
     shutil.rmtree(chrome_dir, ignore_errors=True)
-    _chrome_bin = None
-
-    await _set_state(final_phase, message, 100, error)
