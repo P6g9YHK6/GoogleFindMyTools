@@ -1,4 +1,6 @@
-{% if locations %}
+{% if error %}
+  <span style="color:#c00;">Locate failed: {{ error }}</span>
+{% elif locations %}
   <ul>
   {% for loc in locations %}
     <li>
