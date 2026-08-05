@@ -4,11 +4,7 @@
 <h1>Account</h1>
 
 <div id="login-status">
-  {% if status.logged_in %}
-    <p>Signed in{% if status.username %} as {{ status.username }}{% endif %}.</p>
-  {% else %}
-    <p>Not signed in.</p>
-  {% endif %}
+  {% include "auth/_status.html" %}
 </div>
 
 <button id="signin-btn">Sign in with Google</button>

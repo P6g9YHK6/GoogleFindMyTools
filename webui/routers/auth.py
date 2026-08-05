@@ -12,6 +12,10 @@ def _auth_status() -> dict:
     return {
         "logged_in": is_logged_in(),
         "username": get_cached_value("username"),
+        # The account sign-in and the E2EE shared-key confirmation are two
+        # separate steps (see webui/browser_provisioning.py) - surface both,
+        # since being "logged in" alone doesn't mean locate will work yet.
+        "shared_key_ready": get_cached_value("shared_key") is not None,
     }
 
 
@@ -23,8 +27,12 @@ async def auth_page(request: Request):
 
 
 @router.get("/auth/status")
-async def auth_status():
-    return _auth_status()
+async def auth_status(request: Request):
+    # Returns the same HTML fragment used on /auth (not raw JSON) - its only
+    # caller is the "Refresh status" button's hx-get/hx-swap into #login-status.
+    return templates.TemplateResponse(request, "auth/_status.html", {
+        "status": _auth_status(),
+    })
 
 
 @router.post("/auth/login/start")

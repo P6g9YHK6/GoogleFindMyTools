@@ -88,7 +88,12 @@ document.addEventListener("DOMContentLoaded", () => {
     } else if (msg.phase === "done") {
       vncContainer.innerHTML = "";
       delete vncContainer.dataset.shown;
-      loginStatus.innerHTML = "<p>Signed in.</p>";
+      // Pull the real status fragment (username, E2EE confirmation state)
+      // instead of a hardcoded "Signed in." that doesn't reflect either.
+      fetch("/auth/status")
+        .then(resp => resp.text())
+        .then(html => { loginStatus.innerHTML = html; })
+        .catch(() => { loginStatus.innerHTML = "<p>Signed in.</p>"; });
     } else if (msg.phase === "error" || msg.phase === "timeout") {
       vncContainer.innerHTML = "";
       delete vncContainer.dataset.shown;

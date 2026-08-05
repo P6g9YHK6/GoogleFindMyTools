@@ -1,0 +1,14 @@
+{% if status.logged_in %}
+  <p>Signed in{% if status.username %} as {{ status.username }}{% endif %}.</p>
+  <p>
+    End-to-end encryption (needed to locate devices):
+    {% if status.shared_key_ready %}
+      confirmed.
+    {% else %}
+      <strong>not yet confirmed</strong> - click "Sign in with Google" again to complete the second,
+      encryption-confirmation step.
+    {% endif %}
+  </p>
+{% else %}
+  <p>Not signed in.</p>
+{% endif %}
