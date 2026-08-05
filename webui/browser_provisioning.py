@@ -9,6 +9,7 @@ import zipfile
 from Auth import auth_flow
 from Auth.aas_token_retrieval import get_aas_token
 from Auth.token_cache import get_cached_value
+from KeyBackup.shared_key_retrieval import get_shared_key
 from webui import config
 from webui.ws import provision_manager
 
@@ -110,13 +111,34 @@ async def _run_flow():
                 asyncio.to_thread(get_aas_token),
                 timeout=config.GFMT_BROWSER_IDLE_TIMEOUT_S,
             )
-            logged_in = bool(get_cached_value("aas_token") and get_cached_value("fcm_credentials"))
+            account_signed_in = bool(get_cached_value("aas_token") and get_cached_value("fcm_credentials"))
+
+            if account_signed_in:
+                # Locating a device also needs a "shared key" to decrypt its
+                # end-to-end encrypted location reports, which requires its own
+                # separate Google sign-in (see KeyBackup/shared_key_flow.py) -
+                # do it now, in the same browser/VNC session, rather than
+                # leaving it to fail later the first time something calls
+                # locate_device outside of any browser session at all.
+                await _set_state(
+                    "logging_in",
+                    "Signed in. Google needs one more confirmation to allow decrypting "
+                    f"end-to-end encrypted location reports - complete it below within "
+                    f"{auth_flow.SIGN_IN_WAIT_S // 60} minutes.",
+                    97,
+                )
+                await asyncio.wait_for(
+                    asyncio.to_thread(get_shared_key),
+                    timeout=config.GFMT_BROWSER_IDLE_TIMEOUT_S,
+                )
+                logged_in = bool(get_cached_value("shared_key"))
         except TimeoutError as e:
             # Note: since Python 3.11, asyncio.TimeoutError *is* TimeoutError, so this
-            # catches both Auth/auth_flow.py's own "you took too long to sign in"
-            # TimeoutError (which has a specific message) and asyncio.wait_for's outer
-            # safety-net timeout (which doesn't) - fall back to a generic message only
-            # for the latter, rather than showing a blank/wrong one for either.
+            # catches both the sign-in flows' own "you took too long" TimeoutErrors
+            # (each with its own specific message, whichever step it came from) and
+            # asyncio.wait_for's outer safety-net timeout (which doesn't) - fall back
+            # to a generic message only for the latter, rather than showing a blank
+            # or misleading one for either.
             timeout_message = str(e) or (
                 f"Timed out waiting for sign-in - no sign-in activity detected within "
                 f"{config.GFMT_BROWSER_IDLE_TIMEOUT_S}s of the browser being ready. "

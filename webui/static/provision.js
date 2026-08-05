@@ -9,7 +9,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const vncContainer = document.getElementById("vnc-container");
   const loginStatus = document.getElementById("login-status");
 
-  const ACTIVE_PHASES = ["starting", "installing", "downloading", "extracting", "launching", "ready"];
+  const ACTIVE_PHASES = ["starting", "installing", "downloading", "extracting", "launching", "ready", "logging_in"];
   // Backstops the websocket: as long as a job looks active we keep polling
   // /auth/login/poll too, so a dropped/reconnecting socket (or a tab that was
   // backgrounded and throttled) can never leave the page stuck showing stale
@@ -72,7 +72,11 @@ document.addEventListener("DOMContentLoaded", () => {
       stopPolling();
     }
 
-    if (msg.phase === "ready") {
+    if (msg.phase === "ready" || msg.phase === "logging_in") {
+      // Same embedded VNC view serves both the account sign-in ("ready") and
+      // the follow-up encryption confirmation ("logging_in") - it's the same
+      // display, just a second Chrome window opening on it, so leave an
+      // already-shown iframe alone instead of tearing it down and back up.
       if (!vncContainer.dataset.shown) {
         vncContainer.innerHTML =
           "<p>Complete the Google sign-in below:</p>" +
