@@ -139,8 +139,40 @@ async def _run_flow():
         )
 
 
+async def _report_apt_progress(proc: asyncio.subprocess.Process, packages: list[str]):
+    """Turns apt's "Setting up <pkg>" lines into incremental phase updates, so
+    a ~20-package install doesn't just sit on one static message for the
+    better part of a minute. Runs concurrently with _wait(proc) below, since
+    something has to keep draining stdout or apt can deadlock writing to a
+    full pipe once its output outgrows the OS pipe buffer."""
+    total = len(packages)
+    installed = 0
+    base_percent, cap_percent = 8, 33
+    try:
+        while True:
+            line = await proc.stdout.readline()
+            if not line:
+                break
+            text = line.decode(errors="replace").strip()
+            if text.startswith("Setting up "):
+                installed += 1
+                # "Setting up libgtk-3-0:amd64 (3.24.38-2ubuntu1) ..." -> "libgtk-3-0"
+                name = text[len("Setting up "):].split(" ", 1)[0].split(":")[0]
+                # Transitive dependencies not in our own list also print a
+                # "Setting up" line, so `installed` can exceed `total` - clamp
+                # both the percent and the displayed counter for that case.
+                percent = min(base_percent + round(installed / total * (cap_percent - base_percent)), cap_percent)
+                await _set_state(
+                    "installing",
+                    f"Installing X server and VNC tools... ({min(installed, total)}/{total}: {name})",
+                    percent,
+                )
+    except asyncio.CancelledError:
+        pass
+
+
 async def _install_x_stack():
-    await _set_state("installing", "Installing X server and VNC tools...", 5)
+    await _set_state("installing", "Updating package lists...", 5)
     env = {**os.environ, "DEBIAN_FRONTEND": "noninteractive"}
 
     proc = await asyncio.create_subprocess_exec(
@@ -149,11 +181,20 @@ async def _install_x_stack():
     )
     await _wait(proc)
 
+    packages = [*X_PACKAGES, *CHROME_DEPS]
+    await _set_state("installing", f"Installing X server and VNC tools... (0/{len(packages)})", 8)
+
     proc = await asyncio.create_subprocess_exec(
-        "apt-get", "install", "-y", "--no-install-recommends", *X_PACKAGES, *CHROME_DEPS,
-        env=env, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+        "apt-get", "install", "-y", "--no-install-recommends", *packages,
+        env=env, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
     )
+    progress_task = asyncio.create_task(_report_apt_progress(proc, packages))
     rc = await _wait(proc)
+    progress_task.cancel()
+    try:
+        await progress_task
+    except asyncio.CancelledError:
+        pass
     if rc != 0:
         raise RuntimeError("apt-get install of xvfb/x11vnc/novnc/websockify/chrome-deps failed")
 
