@@ -25,8 +25,11 @@ services:
       - "4321:4321"
     # Chrome under Xvfb needs more than Docker's default 64MB /dev/shm.
     shm_size: "1g"
+    # Docker's tmpfs mounts default to noexec, which silently blocks running
+    # the Chrome binary extracted into this directory ("Permission denied",
+    # not an actual file permission issue) - exec overrides that default.
     tmpfs:
-      - /run/gfmt-browser
+      - /run/gfmt-browser:rw,exec,nosuid,size=1g
     stop_grace_period: 30s
     environment:
       - WEBUI_PASSWORD=${WEBUI_PASSWORD:-}
