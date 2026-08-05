@@ -6,6 +6,7 @@ import shutil
 import urllib.request
 import zipfile
 
+from Auth import auth_flow
 from Auth.aas_token_retrieval import get_aas_token
 from Auth.token_cache import get_cached_value
 from webui import config
@@ -96,25 +97,46 @@ async def _run_flow():
         os.environ["GFMT_NONINTERACTIVE"] = "1"
         os.environ["HOME"] = home_dir
 
-        await _set_state("ready", "Ready - complete the Google sign-in below.", 95)
+        await _set_state(
+            "ready",
+            f"Ready - complete the Google sign-in below within {auth_flow.SIGN_IN_WAIT_S // 60} minutes.",
+            95,
+        )
 
         logged_in = False
+        timeout_message = None
         try:
             await asyncio.wait_for(
                 asyncio.to_thread(get_aas_token),
                 timeout=config.GFMT_BROWSER_IDLE_TIMEOUT_S,
             )
             logged_in = bool(get_cached_value("aas_token") and get_cached_value("fcm_credentials"))
-        except asyncio.TimeoutError:
-            logged_in = False
+        except TimeoutError as e:
+            # Note: since Python 3.11, asyncio.TimeoutError *is* TimeoutError, so this
+            # catches both Auth/auth_flow.py's own "you took too long to sign in"
+            # TimeoutError (which has a specific message) and asyncio.wait_for's outer
+            # safety-net timeout (which doesn't) - fall back to a generic message only
+            # for the latter, rather than showing a blank/wrong one for either.
+            timeout_message = str(e) or (
+                f"Timed out waiting for sign-in - no sign-in activity detected within "
+                f"{config.GFMT_BROWSER_IDLE_TIMEOUT_S}s of the browser being ready. "
+                f"Click \"Sign in with Google\" again to retry."
+            )
 
         if logged_in:
-            await _teardown("done", "Signed in. Cleaning up...")
+            await _teardown("done", "Signed in successfully. Removing the temporary browser...")
+        elif timeout_message:
+            await _teardown("timeout", timeout_message)
         else:
-            await _teardown("timeout", "Timed out waiting for sign-in.")
+            await _teardown("timeout", "Sign-in did not complete. Click \"Sign in with Google\" again to retry.")
     except Exception as e:
         logger.exception("Browser provisioning failed")
-        await _teardown("error", f"Provisioning failed: {e}", error=str(e))
+        detail = str(e) or "no further details available, check server logs"
+        await _teardown(
+            "error",
+            f"Provisioning failed ({type(e).__name__}): {detail}",
+            error=str(e),
+        )
 
 
 async def _install_x_stack():
