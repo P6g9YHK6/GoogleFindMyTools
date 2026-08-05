@@ -10,11 +10,23 @@ document.addEventListener("DOMContentLoaded", () => {
   const loginStatus = document.getElementById("login-status");
 
   const ACTIVE_PHASES = ["starting", "installing", "downloading", "extracting", "launching", "ready"];
+  // Backstops the websocket: as long as a job looks active we keep polling
+  // /auth/login/poll too, so a dropped/reconnecting socket (or a tab that was
+  // backgrounded and throttled) can never leave the page stuck showing stale
+  // progress - the next poll tick always drags it back in sync with the
+  // server's actual state.
+  const POLL_INTERVAL_MS = 2000;
+  // How long to wait before retrying a dropped websocket, so a reconnect
+  // storm can't pile up if the server is briefly unreachable.
+  const SOCKET_RETRY_MS = 3000;
 
   let socket = null;
   let lastPhase = null;
+  let pollTimer = null;
+  let wantSocket = false;
 
   function ensureSocket() {
+    wantSocket = true;
     if (socket && socket.readyState <= WebSocket.OPEN) return;
 
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
@@ -23,6 +35,22 @@ document.addEventListener("DOMContentLoaded", () => {
       const msg = JSON.parse(event.data);
       if (msg.type === "provision") handleUpdate(msg);
     };
+    socket.onclose = () => {
+      if (wantSocket) setTimeout(ensureSocket, SOCKET_RETRY_MS);
+    };
+  }
+
+  function startPolling() {
+    if (pollTimer) return;
+    pollTimer = setInterval(pollState, POLL_INTERVAL_MS);
+  }
+
+  function stopPolling() {
+    wantSocket = false;
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
   }
 
   function handleUpdate(msg) {
@@ -36,6 +64,12 @@ document.addEventListener("DOMContentLoaded", () => {
       li.textContent = msg.message;
       logEl.appendChild(li);
       lastPhase = msg.phase;
+    }
+
+    if (ACTIVE_PHASES.includes(msg.phase)) {
+      startPolling();
+    } else {
+      stopPolling();
     }
 
     if (msg.phase === "ready") {
@@ -57,16 +91,21 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  async function syncCurrentState() {
+  async function pollState() {
     ensureSocket();
     try {
       const resp = await fetch("/auth/login/poll");
       const state = await resp.json();
       if (state.phase && state.phase !== "idle") {
         handleUpdate({ type: "provision", ...state });
+      } else {
+        // Nothing in flight - no need to keep polling until sign-in is
+        // started again (handleUpdate will restart it via startPolling).
+        stopPolling();
       }
     } catch (e) {
-      // ignore - live updates will still arrive over the websocket once it's open
+      // Network hiccup - the next poll tick (or the websocket, once it
+      // reconnects) will drag the page back in sync.
     }
   }
 
@@ -81,6 +120,8 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // Reflects an already-in-progress setup immediately, e.g. after navigating
-  // away from /auth and back, instead of showing a blank page until clicked.
-  syncCurrentState();
+  // away from /auth and back (or a plain page refresh) instead of showing a
+  // blank page until clicked; keeps polling on its own for as long as the
+  // job stays active, see startPolling/stopPolling above.
+  pollState();
 });
