@@ -34,10 +34,10 @@ This repo also includes an optional local web UI (`webui/`) for everyday use: a 
 
 **Build from source instead:** `docker compose -f docker-compose.dev.yml up --build`.
 
-Either way, this is a single container, published at `http://localhost:4321`. Chrome and the Xvfb/x11vnc/noVNC stack used for the Google login are **not** baked into the image - they're installed on demand, into an in-memory (tmpfs) directory, only while a login is actually in progress, and removed again as soon as it finishes (or times out). This keeps the image itself small, but means:
-- The container needs outbound network access (to Debian's package mirrors and `storage.googleapis.com`) whenever a login is triggered, not just when the image was built.
-- The first sign-in after a container start takes roughly 30-90 seconds before the embedded Chrome view appears, while it installs Xvfb/x11vnc/noVNC and downloads a portable Chrome build. The `/auth` page shows live progress for each step over a WebSocket while this happens.
-- Restarting the container (or finishing/abandoning a login) leaves no trace of any of it behind.
+Either way, this is a single container, published at `http://localhost:4321`. Chrome and the Xvfb/x11vnc/noVNC stack used for the Google login are **not** baked into the image - they're installed on demand, into an in-memory (tmpfs) directory, the first time a login is triggered, then left in place for the rest of that container's life so later logins skip straight past setup. This keeps the image itself small, but means:
+- The container needs outbound network access (to Debian's package mirrors and `storage.googleapis.com`) the first time a login is triggered, not just when the image was built.
+- The first sign-in after a container start takes roughly 30-90 seconds before the embedded Chrome view appears, while it installs Xvfb/x11vnc/noVNC and downloads a portable Chrome build. The `/auth` page shows live progress for each step over a WebSocket while this happens. Later sign-ins in the same container are much faster - only the browser/VNC processes themselves restart, not the install.
+- A clean container shutdown removes all of it again, leaving no trace behind; give it a bit of time to do so (`docker compose down`/`stop` already wait long enough via `stop_grace_period` in the compose files - if you stop the container manually, use e.g. `docker stop -t 30` rather than a bare `docker stop`).
 
 To sign in, open `http://localhost:4321/auth` and click "Sign in with Google" - watch the setup progress, then complete the login in the embedded Chrome view that appears on the same page once it's ready. The resulting tokens are written to `Auth/secrets.json` in a Docker volume, exactly like copying `secrets.json` between machines as described below, just automated.
 

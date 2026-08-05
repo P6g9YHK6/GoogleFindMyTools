@@ -3,11 +3,17 @@
 # locally. To build from source instead, use:
 #   docker compose -f docker-compose.dev.yml up --build
 #
-# Single container: Chrome/Xvfb/x11vnc/noVNC are installed on demand only
-# while a login is in progress, into a tmpfs mount, and removed again
-# afterward - see webui/browser_provisioning.py. That means this container
-# needs outbound network access (Debian mirrors + storage.googleapis.com)
-# whenever a login is triggered, not just at image build time.
+# Single container: Chrome/Xvfb/x11vnc/noVNC are installed on demand into a
+# tmpfs mount the first time a login is triggered, then left in place for the
+# rest of this container's life so later logins skip straight past that
+# ~30-90s setup - only removed for real on a clean shutdown (see
+# webui/browser_provisioning.py). That means this container needs outbound
+# network access (Debian mirrors + storage.googleapis.com) the first time a
+# login is triggered, not just at image build time.
+#
+# stop_grace_period: that shutdown-time cleanup (apt purge + removing the
+# downloaded Chrome build) can take longer than Docker's default 10s SIGKILL
+# timeout - give it real room to finish instead of getting killed mid-purge.
 #
 # LAN-only setup: no HTTPS in front of the service, and no password unless
 # WEBUI_PASSWORD is set (e.g. via a .env file, see .env.example). See the
@@ -21,6 +27,7 @@ services:
     shm_size: "1g"
     tmpfs:
       - /run/gfmt-browser
+    stop_grace_period: 30s
     environment:
       - WEBUI_PASSWORD=${WEBUI_PASSWORD:-}
     volumes:
