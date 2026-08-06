@@ -24,7 +24,7 @@
 
     <button type="button" class="btn-secondary"
             hx-get="/settings/devices/{{ row.canonic_id }}/endpoints/blank"
-            hx-target="closest .endpoints-container"
+            hx-target="previous .endpoints-container"
             hx-swap="beforeend">+ Add endpoint</button>
 
     <button type="submit">Save</button>
