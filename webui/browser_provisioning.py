@@ -2,7 +2,6 @@ import asyncio
 import json
 import logging
 import os
-import shutil
 import urllib.request
 import zipfile
 
@@ -35,7 +34,7 @@ _SUBPROCESS_TIMEOUT_S = 180
 
 _ACTIVE_PHASES = {"starting", "installing", "downloading", "extracting", "launching", "ready", "logging_in"}
 
-_state = {"phase": "idle", "message": "", "percent": 0, "error": None}
+_state = {"phase": "idle", "message": "", "percent": 0, "error": None, "cleanup_warning": None}
 _processes: dict[str, asyncio.subprocess.Process] = {}
 _chrome_bin: str | None = None
 
@@ -52,6 +51,9 @@ async def start() -> dict:
     if _state["phase"] in _ACTIVE_PHASES:
         return {"started": False, "state": get_state()}
 
+    # Clear any warning left over from a previous attempt's teardown - the
+    # Account page should only ever reflect the most recent one.
+    _state["cleanup_warning"] = None
     await _set_state("starting", "Starting...", 0)
     asyncio.create_task(_run_flow())
     return {"started": True, "state": get_state()}
@@ -60,14 +62,6 @@ async def start() -> dict:
 async def on_shutdown():
     if _state["phase"] in _ACTIVE_PHASES:
         await _teardown("error", "Shut down while provisioning.")
-    # _teardown() (see its comment) deliberately leaves the installed
-    # packages and Chrome binary in place between individual sign-in
-    # attempts so retries are fast - but that cache is only ever valid for
-    # this running container. On a real app/container shutdown, remove it
-    # for real: a `docker stop` without a `rm` preserves the writable layer,
-    # so without this a later `docker start` would wrongly find it "already
-    # installed" against what could be a different image/base layer.
-    await _full_cleanup()
 
 
 async def _set_state(phase: str, message: str, percent: int, error: str | None = None):
@@ -328,52 +322,67 @@ async def _start_x_stack():
     await asyncio.sleep(1)
 
 
+async def _kill_chrome() -> str | None:
+    """pkill only *sends* the signal - it doesn't confirm the target actually
+    exited - so poll briefly for it to actually be gone before deciding
+    whether it needs reporting as a warning. Returns "Chrome" if it never
+    went away, else None."""
+    if not _chrome_bin:
+        return None
+    try:
+        proc = await asyncio.create_subprocess_exec("pkill", "-f", _chrome_bin)
+        await _wait(proc, timeout=5)
+    except FileNotFoundError:
+        return None
+
+    for _ in range(10):  # ~5s total
+        check = await asyncio.create_subprocess_exec(
+            "pgrep", "-f", _chrome_bin,
+            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+        )
+        rc = await _wait(check, timeout=1)
+        if rc != 0:  # pgrep: 0 = still found a match, 1 = none found
+            return None
+        await asyncio.sleep(0.5)
+    return "Chrome"
+
+
+async def _kill_tracked(name: str, proc: asyncio.subprocess.Process) -> str | None:
+    if proc.returncode is None:
+        try:
+            proc.terminate()
+        except ProcessLookupError:
+            return None
+    return name if await _wait(proc, timeout=5) == -1 else None
+
+
 async def _teardown(final_phase: str, message: str, error: str | None = None):
     """Ends one sign-in attempt: stops the chrome/Xvfb/x11vnc/websockify
-    *processes* only. Deliberately does NOT purge the apt packages or delete
-    the downloaded Chrome binary - both are left in place so the next sign-in
-    attempt in this same container can skip straight past _install_x_stack/
-    _download_chrome instead of repeating a ~30-90s install+download every
-    single time. That cache is only ever cleaned up for real in
-    _full_cleanup(), on an actual app/container shutdown (see on_shutdown)."""
+    processes only. Deliberately does NOT purge the apt packages or delete
+    the downloaded Chrome binary - both are left in place for the rest of
+    this container's life (including across a plain `docker stop`/`start`,
+    not just between attempts within one "up") so the next sign-in can skip
+    straight past _install_x_stack/_download_chrome instead of repeating a
+    ~30-90s install+download. That's safe to leave persisted indefinitely:
+    every real way this image gets updated (`docker compose up` after a
+    pull, a `docker run` recreate, Unraid's own Update button) replaces the
+    container outright, discarding this cache along with it regardless."""
     global _chrome_bin
 
-    if _chrome_bin:
-        try:
-            proc = await asyncio.create_subprocess_exec("pkill", "-f", _chrome_bin)
-            await _wait(proc, timeout=10)
-        except FileNotFoundError:
-            pass
-
-    for proc in _processes.values():
-        if proc.returncode is None:
-            try:
-                proc.terminate()
-            except ProcessLookupError:
-                pass
-    for proc in _processes.values():
-        await _wait(proc, timeout=5)
+    # Run every kill/wait concurrently rather than stacking them sequentially,
+    # so a full teardown reliably finishes in one ~5s window instead of up to
+    # 5s per process - comfortably inside Docker's default stop grace period.
+    results = await asyncio.gather(
+        _kill_chrome(),
+        *(_kill_tracked(name, proc) for name, proc in _processes.items()),
+    )
     _processes.clear()
     _chrome_bin = None
 
+    unclean = [name for name in results if name]
+    _state["cleanup_warning"] = (
+        f"{', '.join(unclean)} did not exit cleanly after the last sign-in and had to be "
+        "force-killed. If this keeps happening, restart the container."
+    ) if unclean else None
+
     await _set_state(final_phase, message, 100, error)
-
-
-async def _full_cleanup():
-    """Undoes everything _install_x_stack/_download_chrome left in place -
-    the apt packages and the extracted Chrome binary - for a real app/
-    container shutdown. Only called from on_shutdown(); _teardown() above
-    intentionally leaves this cache alone between individual sign-in
-    attempts within the same container's lifetime."""
-    try:
-        env = {**os.environ, "DEBIAN_FRONTEND": "noninteractive"}
-        proc = await asyncio.create_subprocess_exec(
-            "apt-get", "purge", "-y", "--autoremove", *X_PACKAGES, *CHROME_DEPS,
-            env=env, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
-        )
-        await _wait(proc)
-    except FileNotFoundError:
-        pass
-
-    chrome_dir = os.path.join(config.GFMT_BROWSER_RUNTIME_DIR, "chrome-linux64")
-    shutil.rmtree(chrome_dir, ignore_errors=True)
