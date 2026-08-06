@@ -12,3 +12,12 @@
 {% else %}
   <p>Not signed in.</p>
 {% endif %}
+
+<details>
+  <summary>Diagnostic info</summary>
+  <ul>
+    {% for item in status.diagnostics %}
+      <li>{{ item.name }}: {% if item.present %}present{% else %}<em>missing</em>{% endif %}</li>
+    {% endfor %}
+  </ul>
+</details>

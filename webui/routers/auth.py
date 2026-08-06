@@ -1,11 +1,20 @@
 from fastapi import APIRouter, Request
 
-from Auth.token_cache import get_cached_value
+from Auth.fcm_receiver import FcmReceiver
+from Auth.token_cache import clear_all_cached_values, get_cached_value
 from webui import browser_provisioning
 from webui.auth_state import is_logged_in
 from webui.templating import templates
 
 router = APIRouter()
+
+# Every credential the sign-in flow can produce - shown as a per-key present/
+# missing breakdown on the account page instead of just one pass/fail bit, so
+# a partial failure (e.g. aas_token cached but fcm_credentials never got
+# written) is visible at a glance instead of needing to shell in and read
+# secrets.json by hand to find out, as happened repeatedly while chasing that
+# exact bug.
+_DIAGNOSTIC_KEYS = ["username", "aas_token", "fcm_credentials", "shared_key", "owner_key"]
 
 
 def _auth_status() -> dict:
@@ -16,6 +25,10 @@ def _auth_status() -> dict:
         # separate steps (see webui/browser_provisioning.py) - surface both,
         # since being "logged in" alone doesn't mean locate will work yet.
         "shared_key_ready": get_cached_value("shared_key") is not None,
+        "diagnostics": [
+            {"name": name, "present": get_cached_value(name) is not None}
+            for name in _DIAGNOSTIC_KEYS
+        ],
     }
 
 
@@ -30,6 +43,22 @@ async def auth_page(request: Request):
 async def auth_status(request: Request):
     # Returns the same HTML fragment used on /auth (not raw JSON) - its only
     # caller is the "Refresh status" button's hx-get/hx-swap into #login-status.
+    return templates.TemplateResponse(request, "auth/_status.html", {
+        "status": _auth_status(),
+    })
+
+
+@router.post("/auth/clear")
+async def auth_clear(request: Request):
+    clear_all_cached_values()
+    # FcmReceiver is an in-process singleton that reads fcm_credentials from
+    # the cache once, at first use, and never again - clearing the file alone
+    # would leave it silently serving its old in-memory copy forever, so the
+    # very next sign-in would look successful but never actually re-register
+    # (exactly the bug chased earlier: aas_token comes back fine, fcm_credentials
+    # never does, with no error either time). Reset it too so a fresh sign-in
+    # right after this button actually starts clean.
+    FcmReceiver().clear()
     return templates.TemplateResponse(request, "auth/_status.html", {
         "status": _auth_status(),
     })

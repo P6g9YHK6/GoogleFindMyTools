@@ -79,6 +79,17 @@ class FcmReceiver:
         self._listening = False
 
 
+    def clear(self):
+        """Resets this singleton so the next FcmReceiver() call re-registers
+        from scratch, e.g. after the web UI's "Clear credentials" button wipes
+        fcm_credentials from secrets.json. Without this, __init__ only ever
+        reads the cache once (at first instantiation) and this instance would
+        keep silently serving its old in-memory self.credentials forever,
+        never noticing the file changed underneath it."""
+        self.stop_listening()
+        FcmReceiver._instance = None
+
+
     def get_android_id(self):
 
         if self.credentials is None:

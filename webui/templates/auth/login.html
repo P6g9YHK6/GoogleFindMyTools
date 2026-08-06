@@ -9,6 +9,10 @@
 
 <button id="signin-btn">Sign in with Google</button>
 <button hx-get="/auth/status" hx-target="#login-status" hx-swap="innerHTML">Refresh status</button>
+<button hx-post="/auth/clear" hx-target="#login-status" hx-swap="innerHTML"
+        hx-confirm="Clear all saved credentials? You'll need to sign in again.">
+  Clear credentials
+</button>
 
 <p>Signing in installs a temporary Chrome + virtual display just for this login, shown below, and removes it
    again once you're done - the first sign-in of a session takes roughly 30-90 seconds to set up.
