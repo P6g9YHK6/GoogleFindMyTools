@@ -11,8 +11,10 @@ from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support.ui import WebDriverWait
 
 from Auth.auth_flow import SIGN_IN_WAIT_S
+from Auth.token_cache import set_cached_value
 from KeyBackup.response_parser import get_fmdn_shared_key
 from KeyBackup.shared_key_request import get_security_domain_request_url
+from KeyBackup.vault_web_api import fetch_vault_keys_via_web_app
 from chrome_driver import create_driver
 
 
@@ -37,6 +39,23 @@ def request_shared_key_flow():
                 f"with Google\" again to retry."
             ) from None
         print("[SharedKeyFlow] Signed in successfully.")
+
+        # Best-effort: also pull every owner key version via the same internal
+        # RPC the real Find My Device web app uses (see KeyBackup/vault_web_api.py).
+        # GetEidInfoForE2eeDevices (the endpoint the rest of this codebase uses)
+        # always hands back only its own idea of "current", regardless of what
+        # version is requested - this is the only way found so far to reach
+        # the others. Each entry is itself still encrypted with the account's
+        # one stable shared key (confirmed empirically: decrypting one with
+        # get_shared_key() reproduces the exact owner key already cached from
+        # the normal flow), so cache the raw blobs now and unwrap them lazily
+        # wherever get_shared_key() is actually available - see
+        # SpotApi/GetEidInfoForE2eeDevices/get_owner_key.py's
+        # get_owner_key_from_wrapped_blob(). Any failure here is non-fatal to
+        # sign-in; the unlock-page flow below is still the primary path.
+        for entry in fetch_vault_keys_via_web_app(driver):
+            if entry["domain"] == "finder_hw":
+                set_cached_value(f"encrypted_owner_key_v{entry['version']}", entry["key"].hex())
 
         # Open the security domain request URL
         security_url = get_security_domain_request_url()

@@ -13,10 +13,11 @@ from ProtoDecoders import DeviceUpdate_pb2
 from ProtoDecoders import Common_pb2
 from ProtoDecoders.DeviceUpdate_pb2 import DeviceRegistration
 from ProtoDecoders.decoder import parse_device_update_protobuf
+from Auth.token_cache import get_cached_values_with_prefix
 from SpotApi.CreateBleDevice.config import mcu_fast_pair_model_id
 from SpotApi.CreateBleDevice.util import flip_bits
 from SpotApi.GetEidInfoForE2eeDevices.get_eid_info_request import get_eid_info
-from SpotApi.GetEidInfoForE2eeDevices.get_owner_key import get_owner_key
+from SpotApi.GetEidInfoForE2eeDevices.get_owner_key import get_owner_key, get_owner_key_from_wrapped_blob
 
 
 def create_google_maps_link(latitude, longitude):
@@ -61,6 +62,24 @@ def retrieve_identity_key(device_registration: DeviceRegistration) -> bytes:
     except Exception:
         pass
 
+    # Last resort: GetEidInfoForE2eeDevices always hands back its own idea of
+    # "current" regardless of which version we ask it for (both attempts
+    # above confirmed that empirically) - so try every owner-key blob fetched
+    # directly from the real Find My Device web app's own API during sign-in
+    # instead (see KeyBackup/vault_web_api.py). Each is still encrypted with
+    # this account's one stable shared key; verified that unwrapping the
+    # "current" version's blob this way reproduces the exact owner key the
+    # normal path above already derives, so the same unwrap applied to every
+    # other cached version is expected to yield each of those real keys too.
+    for name, blob_hex in get_cached_values_with_prefix("encrypted_owner_key_v").items():
+        try:
+            owner_key = get_owner_key_from_wrapped_blob(bytes.fromhex(blob_hex))
+            identity_key = decrypt_eik(owner_key, encrypted_identity_key)
+            print(f"[DecryptLocations] Decrypted using {name}.")
+            return identity_key
+        except Exception:
+            continue
+
     e2eeData = get_eid_info()
     current_owner_key_version = e2eeData.encryptedOwnerKeyAndMetadata.ownerKeyVersion
 
@@ -78,14 +97,17 @@ def retrieve_identity_key(device_registration: DeviceRegistration) -> bytes:
             f"to remove it in the Find My Device app."
         )
     else:
+        tried_versions = ", ".join(sorted(get_cached_values_with_prefix("encrypted_owner_key_v").keys())) or "none cached"
         message = (
             f"Failed to decrypt identity key encrypted with owner key version "
             f"{encrypted_user_secrets.ownerKeyVersion}, current owner key version is "
             f"{current_owner_key_version}. Also retried by explicitly requesting owner key "
-            f"version {needed_version}, which also failed to decrypt.\nThis may happen if the "
-            f"cached owner key is stale (e.g. after re-doing the Google sign-in). To resolve "
-            f"this issue, clear the 'owner_key' entry from 'Auth/secrets.json' so it gets "
-            f"re-derived, or delete the whole file to sign in again from scratch."
+            f"version {needed_version}, and by trying every vault key version fetched from the "
+            f"Find My Device web app during sign-in ({tried_versions}) - all failed to decrypt."
+            f"\nThis may happen if the cached owner key is stale (e.g. after re-doing the Google "
+            f"sign-in). To resolve this issue, clear the 'owner_key' entry from "
+            f"'Auth/secrets.json' so it gets re-derived, or delete the whole file to sign in "
+            f"again from scratch."
         )
     print(message)
     # exit(1) here would raise SystemExit, which is fine for the CLI scripts this

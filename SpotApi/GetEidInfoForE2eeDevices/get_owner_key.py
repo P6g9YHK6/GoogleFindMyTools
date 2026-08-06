@@ -22,6 +22,21 @@ def _retrieve_owner_key(owner_key_version: int) -> str:
     return owner_key.hex()
 
 
+def get_owner_key_from_wrapped_blob(encrypted_owner_key: bytes) -> bytes:
+    """Decrypts a specific owner-key blob (e.g. one fetched for a particular
+    version via KeyBackup/vault_web_api.py, since GetEidInfoForE2eeDevices
+    always hands back only its own idea of "current" regardless of what
+    version is requested - confirmed empirically, see
+    NovaApi/ExecuteAction/LocateTracker/decrypt_locations.py's retry chain)
+    using the account's one stable shared key. Verified against this account:
+    decrypting the "current" version's blob this way reproduces the exact
+    owner key GetEidInfoForE2eeDevices's own default path already derives, so
+    the same operation applied to a *different* version's blob is expected to
+    yield that version's real owner key instead of guessing at request
+    parameters the server evidently ignores."""
+    return decrypt_owner_key(get_shared_key(), encrypted_owner_key)
+
+
 def get_owner_key(owner_key_version: int = -1) -> bytes:
     # -1 (the default) means "whatever the account-level endpoint considers
     # current" - kept under the original flat 'owner_key' cache key for
