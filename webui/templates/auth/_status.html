@@ -13,6 +13,10 @@
   <p>Not signed in.</p>
 {% endif %}
 
+{% if clear_error %}
+  <p style="color:#c00;">{{ clear_error }}</p>
+{% endif %}
+
 <details>
   <summary>Diagnostic info</summary>
   <ul>

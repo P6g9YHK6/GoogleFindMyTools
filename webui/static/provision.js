@@ -2,6 +2,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const signinBtn = document.getElementById("signin-btn");
   if (!signinBtn) return;
 
+  const clearBtn = document.getElementById("clear-btn");
+
   const panel = document.getElementById("provision-panel");
   const barFill = document.getElementById("provision-bar-fill");
   const messageEl = document.getElementById("provision-message");
@@ -58,6 +60,10 @@ document.addEventListener("DOMContentLoaded", () => {
     barFill.style.width = `${msg.percent}%`;
     messageEl.textContent = msg.message;
     signinBtn.disabled = ACTIVE_PHASES.includes(msg.phase);
+    // Clearing credentials mid-flow wipes state out from under an in-progress
+    // sign-in (the server rejects it too, see webui/routers/auth.py, but
+    // disabling it here means the button doesn't even offer the footgun).
+    if (clearBtn) clearBtn.disabled = ACTIVE_PHASES.includes(msg.phase);
 
     if (msg.phase !== lastPhase) {
       const li = document.createElement("li");

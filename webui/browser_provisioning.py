@@ -44,6 +44,10 @@ def get_state() -> dict:
     return dict(_state)
 
 
+def is_active() -> bool:
+    return _state["phase"] in _ACTIVE_PHASES
+
+
 async def start() -> dict:
     if _state["phase"] in _ACTIVE_PHASES:
         return {"started": False, "state": get_state()}
