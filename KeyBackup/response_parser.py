@@ -21,6 +21,16 @@ def get_fmdn_shared_key(vault_keys):
             if not json_array:
                 continue
 
+            # Diagnostic: dump every field Google's vault page actually sends per
+            # entry (redacting only the key material) - comparing against the real
+            # Find My Device web app's equivalent response showed entries carrying
+            # a *separate* per-entry "version" number distinct from "epoch" (two
+            # entries can share one epoch but differ in version), which would
+            # fully explain why selecting by epoch alone doesn't pick the right key.
+            for item in json_array:
+                redacted = {k: (f"<{len(v)} chars>" if k == "key" else v) for k, v in item.items()}
+                print(f"[ResponseParser] finder_hw entry fields: {redacted}")
+
             # Google's vault can hold multiple key generations ("epochs") for this
             # security domain if the account's FMDN owner key was ever rotated -
             # always take the newest one instead of whichever entry the array lists
