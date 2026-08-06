@@ -44,46 +44,57 @@ def retrieve_identity_key(device_registration: DeviceRegistration) -> bytes:
     encrypted_identity_key = flip_bits(
         encrypted_user_secrets.encryptedIdentityKey,
         is_mcu)
-    owner_key = get_owner_key()
 
     try:
-        identity_key = decrypt_eik(owner_key, encrypted_identity_key)
-        return identity_key
-    except Exception as e:
+        return decrypt_eik(get_owner_key(), encrypted_identity_key)
+    except Exception:
+        pass
 
-        e2eeData = get_eid_info()
-        current_owner_key_version = e2eeData.encryptedOwnerKeyAndMetadata.ownerKeyVersion
+    # The account-level "current" owner key (owner_key_version=-1) didn't decrypt
+    # this tracker's identity key - retry by asking explicitly for the version the
+    # tracker's own data says it needs, instead of trusting whatever "-1" happened
+    # to resolve to. An account can have trackers on more than one owner key
+    # generation; see SpotApi/GetEidInfoForE2eeDevices/get_owner_key.py.
+    needed_version = encrypted_user_secrets.ownerKeyVersion
+    try:
+        return decrypt_eik(get_owner_key(owner_key_version=needed_version), encrypted_identity_key)
+    except Exception:
+        pass
 
-        print("")
-        print("-" * 40)
-        print("Attention:")
-        print("-" * 40)
+    e2eeData = get_eid_info()
+    current_owner_key_version = e2eeData.encryptedOwnerKeyAndMetadata.ownerKeyVersion
 
-        if encrypted_user_secrets.ownerKeyVersion < current_owner_key_version:
-            message = (
-                f"Failed to decrypt E2EE data. This tracker was encrypted with owner key version "
-                f"{encrypted_user_secrets.ownerKeyVersion}, but the current owner key version is "
-                f"{current_owner_key_version}.\nThis happens if you reset your end-to-end-encrypted "
-                f"data in the past.\nThe tracker cannot be decrypted anymore, and it is recommended "
-                f"to remove it in the Find My Device app."
-            )
-        else:
-            message = (
-                f"Failed to decrypt identity key encrypted with owner key version "
-                f"{encrypted_user_secrets.ownerKeyVersion}, current owner key version is "
-                f"{current_owner_key_version}.\nThis may happen if the cached owner key is stale "
-                f"(e.g. after re-doing the Google sign-in). To resolve this issue, clear the "
-                f"'owner_key' entry from 'Auth/secrets.json' so it gets re-derived, or delete the "
-                f"whole file to sign in again from scratch."
-            )
-        print(message)
-        # exit(1) here would raise SystemExit, which is fine for the CLI scripts this
-        # was originally written for but fatal when called from a web request thread
-        # (asyncio.to_thread) - it doesn't stop the server, just crashes that one
-        # request with a bare "Internal Server Error" and no indication why. Raise a
-        # normal exception instead so callers (e.g. the web UI's locate endpoint) can
-        # show `message` to the user.
-        raise RuntimeError(message)
+    print("")
+    print("-" * 40)
+    print("Attention:")
+    print("-" * 40)
+
+    if encrypted_user_secrets.ownerKeyVersion < current_owner_key_version:
+        message = (
+            f"Failed to decrypt E2EE data. This tracker was encrypted with owner key version "
+            f"{encrypted_user_secrets.ownerKeyVersion}, but the current owner key version is "
+            f"{current_owner_key_version}.\nThis happens if you reset your end-to-end-encrypted "
+            f"data in the past.\nThe tracker cannot be decrypted anymore, and it is recommended "
+            f"to remove it in the Find My Device app."
+        )
+    else:
+        message = (
+            f"Failed to decrypt identity key encrypted with owner key version "
+            f"{encrypted_user_secrets.ownerKeyVersion}, current owner key version is "
+            f"{current_owner_key_version}. Also retried by explicitly requesting owner key "
+            f"version {needed_version}, which also failed to decrypt.\nThis may happen if the "
+            f"cached owner key is stale (e.g. after re-doing the Google sign-in). To resolve "
+            f"this issue, clear the 'owner_key' entry from 'Auth/secrets.json' so it gets "
+            f"re-derived, or delete the whole file to sign in again from scratch."
+        )
+    print(message)
+    # exit(1) here would raise SystemExit, which is fine for the CLI scripts this
+    # was originally written for but fatal when called from a web request thread
+    # (asyncio.to_thread) - it doesn't stop the server, just crashes that one
+    # request with a bare "Internal Server Error" and no indication why. Raise a
+    # normal exception instead so callers (e.g. the web UI's locate endpoint) can
+    # show `message` to the user.
+    raise RuntimeError(message)
 
 
 def decrypt_location_response_locations(device_update_protobuf):
