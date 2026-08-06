@@ -11,7 +11,8 @@
   </label>
 
   {% for type_key, ftype in forwarder_types.items() %}
-    <fieldset>
+    <fieldset class="destination-fields" data-forwarder-type="{{ type_key }}"
+              {% if endpoint.type != type_key %}style="display:none"{% endif %}>
       <legend>{{ ftype.label }}</legend>
       {% for field in ftype.fields %}
         <label>{{ field.label }}
