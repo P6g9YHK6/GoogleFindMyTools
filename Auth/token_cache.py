@@ -35,6 +35,21 @@ def get_cached_value(name: str):
     return None
 
 
+def get_cached_values_with_prefix(prefix: str) -> dict:
+    """Returns {name: value} for every cached entry whose name starts with
+    prefix, e.g. all shared_key_v* entries cached per vault key version by
+    KeyBackup/vault_web_api.py."""
+    secrets_file = _get_secrets_file()
+    if not os.path.exists(secrets_file):
+        return {}
+    with open(secrets_file, 'r') as file:
+        try:
+            data = json.load(file)
+        except json.JSONDecodeError:
+            return {}
+    return {name: value for name, value in data.items() if name.startswith(prefix)}
+
+
 def clear_all_cached_values():
     """Wipes every cached credential (aas_token, fcm_credentials, shared_key,
     owner_key, username, ...), e.g. for the web UI's "Clear credentials"
