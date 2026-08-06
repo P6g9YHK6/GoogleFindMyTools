@@ -4,35 +4,25 @@
 
   <label>Type
     <select name="endpoint_type">
-      <option value="traccar" {% if endpoint.type == "traccar" %}selected{% endif %}>Traccar</option>
-      <option value="phonetrack" {% if endpoint.type == "phonetrack" %}selected{% endif %}>Nextcloud PhoneTrack</option>
+      {% for type_key, ftype in forwarder_types.items() %}
+        <option value="{{ type_key }}" {% if endpoint.type == type_key %}selected{% endif %}>{{ ftype.label }}</option>
+      {% endfor %}
     </select>
   </label>
 
-  <fieldset>
-    <legend>Traccar (OsmAnd protocol)</legend>
-    <label>Server URL
-      <input type="text" name="traccar_url" class="url-input" placeholder="http://traccar.local:5055"
-             value="{{ endpoint.traccar.url if endpoint.traccar else '' }}">
-    </label>
-    <label>Device ID
-      <input type="text" name="traccar_device_id"
-             value="{{ endpoint.traccar.device_id if endpoint.traccar else '' }}">
-    </label>
-  </fieldset>
-
-  <fieldset>
-    <legend>Nextcloud PhoneTrack</legend>
-    <label>HTTP-GET base URL (from the PhoneTrack session)
-      <input type="text" name="phonetrack_base_url" class="url-input"
-             placeholder="https://nc.local/apps/phonetrack/logGet/&lt;token&gt;"
-             value="{{ endpoint.phonetrack.base_url if endpoint.phonetrack else '' }}">
-    </label>
-    <label>Device name
-      <input type="text" name="phonetrack_device_name"
-             value="{{ endpoint.phonetrack.device_name if endpoint.phonetrack else '' }}">
-    </label>
-  </fieldset>
+  {% for type_key, ftype in forwarder_types.items() %}
+    <fieldset>
+      <legend>{{ ftype.label }}</legend>
+      {% for field in ftype.fields %}
+        <label>{{ field.label }}
+          <input type="text" name="{{ ftype.form_field_name(field.name) }}"
+                 {% if field.wide %}class="url-input"{% endif %}
+                 {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}
+                 value="{{ (endpoint.get(type_key) or {}).get(field.name, '') }}">
+        </label>
+      {% endfor %}
+    </fieldset>
+  {% endfor %}
 
   {% set cron_value = endpoint.cron or '*/5 * * * *' %}
   {% set cron_parts = (cron_value.split() + ['*', '*', '*', '*', '*'])[:5] %}
