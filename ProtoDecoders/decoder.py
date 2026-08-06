@@ -4,14 +4,14 @@
 #
 
 import binascii
+import datetime
 import subprocess
 
-from google.protobuf import text_format
-import datetime
 import pytz
+from google.protobuf import text_format
 
-from ProtoDecoders import DeviceUpdate_pb2, LocationReportsUpload_pb2
 from example_data_provider import get_example_data
+from ProtoDecoders import DeviceUpdate_pb2, LocationReportsUpload_pb2
 
 
 # Custom message formatter to print the Protobuf byte fields as hex strings

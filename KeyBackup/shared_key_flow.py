@@ -12,10 +12,10 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 from Auth.auth_flow import SIGN_IN_WAIT_S
 from Auth.token_cache import set_cached_value
+from chrome_driver import create_driver
 from KeyBackup.response_parser import get_fmdn_shared_key
 from KeyBackup.shared_key_request import get_security_domain_request_url
 from KeyBackup.vault_web_api import fetch_vault_keys_via_web_app
-from chrome_driver import create_driver
 
 
 def request_shared_key_flow():

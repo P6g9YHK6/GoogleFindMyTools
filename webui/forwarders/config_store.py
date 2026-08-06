@@ -59,7 +59,7 @@ def load() -> dict:
         if not config.FORWARDING_CONFIG_PATH.exists():
             return _empty()
         try:
-            with open(config.FORWARDING_CONFIG_PATH, "r") as f:
+            with open(config.FORWARDING_CONFIG_PATH) as f:
                 data = json.load(f)
         except (json.JSONDecodeError, OSError):
             return _empty()

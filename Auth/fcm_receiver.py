@@ -3,8 +3,9 @@ import base64
 import binascii
 import threading
 
-from Auth.firebase_messaging import FcmRegisterConfig, FcmPushClient
-from Auth.token_cache import set_cached_value, get_cached_value
+from Auth.firebase_messaging import FcmPushClient, FcmRegisterConfig
+from Auth.token_cache import get_cached_value, set_cached_value
+
 
 class FcmReceiver:
 
@@ -15,7 +16,7 @@ class FcmReceiver:
 
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
-            cls._instance = super(FcmReceiver, cls).__new__(cls, *args, **kwargs)
+            cls._instance = super().__new__(cls, *args, **kwargs)
         return cls._instance
 
     def __init__(self):
@@ -137,7 +138,7 @@ class FcmReceiver:
         while fcm_token is None:
             try:
                 fcm_token = await self.pc.checkin_or_register()
-            except Exception as e:
+            except Exception:
                 await self.pc.stop()
                 print("[FCMReceiver] Failed to register with FCM. Retrying...")
                 await asyncio.sleep(5)

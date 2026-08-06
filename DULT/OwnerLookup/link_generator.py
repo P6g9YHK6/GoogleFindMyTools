@@ -4,10 +4,11 @@
 #
 from binascii import unhexlify
 
-from FMDNCrypto.eid_generator import generate_eid, ROTATION_PERIOD
+from example_data_provider import get_example_data
+from FMDNCrypto.eid_generator import ROTATION_PERIOD, generate_eid
 from FMDNCrypto.key_derivation import FMDNOwnerOperations
 from FMDNCrypto.sha import calculate_hmac_sha256
-from example_data_provider import get_example_data
+
 
 def getOwnerLoopUpLink(eik: bytes, offset: int) -> (str, str):
 

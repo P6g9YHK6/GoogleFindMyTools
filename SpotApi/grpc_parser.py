@@ -4,6 +4,7 @@
 #
 import struct
 
+
 class GrpcParser:
     @staticmethod
     def extract_grpc_payload(grpc: bytes) -> bytes:

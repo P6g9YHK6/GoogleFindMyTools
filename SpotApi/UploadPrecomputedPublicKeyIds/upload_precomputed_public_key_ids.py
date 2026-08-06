@@ -5,8 +5,8 @@
 import time
 
 from FMDNCrypto.eid_generator import ROTATION_PERIOD, generate_eid
-from NovaApi.ExecuteAction.LocateTracker.decrypt_locations import retrieve_identity_key, is_mcu_tracker
-from ProtoDecoders.DeviceUpdate_pb2 import DevicesList, UploadPrecomputedPublicKeyIdsRequest, PublicKeyIdList
+from NovaApi.ExecuteAction.LocateTracker.decrypt_locations import is_mcu_tracker, retrieve_identity_key
+from ProtoDecoders.DeviceUpdate_pb2 import DevicesList, PublicKeyIdList, UploadPrecomputedPublicKeyIdsRequest
 from SpotApi.CreateBleDevice.config import max_truncated_eid_seconds_server
 from SpotApi.CreateBleDevice.util import hours_to_seconds
 from SpotApi.spot_request import spot_request

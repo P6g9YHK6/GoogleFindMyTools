@@ -4,12 +4,14 @@
 #
 
 import csv
+import os
+import struct
 import time
 from binascii import unhexlify
 from datetime import datetime
-import os
-import struct
+
 import requests
+
 from DULT.OwnerLookup.link_generator import getOwnerLoopUpLink
 from example_data_provider import get_example_data
 

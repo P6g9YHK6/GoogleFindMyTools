@@ -7,13 +7,13 @@ import secrets
 from binascii import unhexlify
 
 from Cryptodome.Cipher import AES
-from ecdsa import SECP160r1
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from ecdsa import SECP160r1
 from ecdsa.ellipticcurve import Point
 
-from FMDNCrypto.eid_generator import generate_eid, calculate_r
 from example_data_provider import get_example_data
+from FMDNCrypto.eid_generator import calculate_r, generate_eid
 
 
 def rx_to_ry(Rx: int, curve) -> int:

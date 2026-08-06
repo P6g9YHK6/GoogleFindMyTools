@@ -3,9 +3,10 @@
 #  Copyright © 2024 Leon Böttger. All rights reserved.
 #
 import hashlib
+import time
 from binascii import unhexlify
 from concurrent.futures import ProcessPoolExecutor
-import time
+
 import pyscrypt
 
 from example_data_provider import get_example_data
