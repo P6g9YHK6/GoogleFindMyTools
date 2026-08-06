@@ -35,6 +35,15 @@ def get_cached_value(name: str):
     return None
 
 
+def clear_all_cached_values():
+    """Wipes every cached credential (aas_token, fcm_credentials, shared_key,
+    owner_key, username, ...), e.g. for the web UI's "Clear credentials"
+    button. Writes an empty object rather than deleting the file, matching
+    what get_cached_value/set_cached_value already expect to find."""
+    with open(_get_secrets_file(), 'w') as file:
+        json.dump({}, file)
+
+
 def set_cached_value(name: str, value: str):
     secrets_file = _get_secrets_file()
 
