@@ -5,11 +5,12 @@
 
 import csv
 
+
 def analyze_csv(file_path):
     data = {}
 
     # Read the CSV file and collect values in arrays based on the time offset
-    with open(file_path, mode='r') as file:
+    with open(file_path) as file:
         reader = csv.reader(file)
         for row in reader:
             time_offset = int(row[0])

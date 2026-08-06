@@ -3,10 +3,10 @@
 #  Copyright © 2024 Leon Böttger. All rights reserved.
 #
 from Auth.fcm_receiver import FcmReceiver
+from example_data_provider import get_example_data
 from NovaApi.ExecuteAction.PlaySound.sound_request import create_sound_request
 from NovaApi.nova_request import nova_request
 from NovaApi.scopes import NOVA_ACTION_API_SCOPE
-from example_data_provider import get_example_data
 
 
 def stop_sound_request(canonic_device_id, gcm_registration_id):

@@ -6,6 +6,7 @@
 import threading
 
 from Auth.fcm_receiver import FcmReceiver
+from example_data_provider import get_example_data
 from NovaApi.ExecuteAction.LocateTracker.decrypt_locations import decrypt_location_response_locations
 from NovaApi.ExecuteAction.nbe_execute_action import create_action_request, serialize_action_request
 from NovaApi.nova_request import nova_request
@@ -13,7 +14,7 @@ from NovaApi.scopes import NOVA_ACTION_API_SCOPE
 from NovaApi.util import generate_random_uuid
 from ProtoDecoders import DeviceUpdate_pb2
 from ProtoDecoders.decoder import parse_device_update_protobuf
-from example_data_provider import get_example_data
+
 
 def create_location_request(canonic_device_id, fcm_registration_id, request_uuid):
 

@@ -6,14 +6,13 @@
 import datetime
 import hashlib
 
-from FMDNCrypto.foreign_tracker_cryptor import decrypt
-from KeyBackup.cloud_key_decryptor import decrypt_eik, decrypt_aes_gcm
-from NovaApi.ExecuteAction.LocateTracker.decrypted_location import WrappedLocation
-from ProtoDecoders import DeviceUpdate_pb2
-from ProtoDecoders import Common_pb2
-from ProtoDecoders.DeviceUpdate_pb2 import DeviceRegistration
-from ProtoDecoders.decoder import parse_device_update_protobuf
 from Auth.token_cache import get_cached_values_with_prefix
+from FMDNCrypto.foreign_tracker_cryptor import decrypt
+from KeyBackup.cloud_key_decryptor import decrypt_aes_gcm, decrypt_eik
+from NovaApi.ExecuteAction.LocateTracker.decrypted_location import WrappedLocation
+from ProtoDecoders import Common_pb2, DeviceUpdate_pb2
+from ProtoDecoders.decoder import parse_device_update_protobuf
+from ProtoDecoders.DeviceUpdate_pb2 import DeviceRegistration
 from SpotApi.CreateBleDevice.config import mcu_fast_pair_model_id
 from SpotApi.CreateBleDevice.util import flip_bits
 from SpotApi.GetEidInfoForE2eeDevices.get_eid_info_request import get_eid_info

@@ -2,11 +2,13 @@
 #  GoogleFindMyTools - A set of tools to interact with the Google Find My API
 #  Copyright © 2024 Leon Böttger. All rights reserved.
 #
-import undetected_chromedriver as uc
 import os
-import shutil
 import platform
+import shutil
 import time
+
+import undetected_chromedriver as uc
+
 
 def find_chrome():
     """Find Chrome executable using known paths and system commands."""
@@ -58,7 +60,7 @@ def create_driver():
             else:
                 os.system("pkill -f chrome")
             time.sleep(2)  # Wait for processes to close
-        except:
+        except Exception:
             pass
             
         chrome_options = get_options()

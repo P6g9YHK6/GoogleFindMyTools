@@ -2,9 +2,9 @@
 #  GoogleFindMyTools - A set of tools to interact with the Google Find My API
 #  Copyright © 2024 Leon Böttger. All rights reserved.
 #
-from ProtoDecoders import Common_pb2
-from ProtoDecoders import DeviceUpdate_pb2
+from ProtoDecoders import Common_pb2, DeviceUpdate_pb2
 from SpotApi.spot_request import spot_request
+
 
 def get_eid_info(owner_key_version: int = -1):
     # owner_key_version=-1 (the default) asks for whatever the account-level
