@@ -7,6 +7,7 @@ import json
 
 from example_data_provider import get_example_data
 
+
 def _transform_to_byte_array(json_object):
     byte_array = bytearray(json_object[str(i)] for i in range(len(json_object)))
     return byte_array

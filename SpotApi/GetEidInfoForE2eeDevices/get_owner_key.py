@@ -9,6 +9,7 @@ from KeyBackup.cloud_key_decryptor import decrypt_owner_key
 from KeyBackup.shared_key_retrieval import get_shared_key
 from SpotApi.GetEidInfoForE2eeDevices.get_eid_info_request import get_eid_info
 
+
 def _retrieve_owner_key(owner_key_version: int) -> str:
     eid_info = get_eid_info(owner_key_version)
     shared_key = get_shared_key()

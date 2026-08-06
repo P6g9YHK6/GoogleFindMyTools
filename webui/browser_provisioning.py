@@ -80,7 +80,7 @@ async def _wait(proc: asyncio.subprocess.Process, timeout: float = _SUBPROCESS_T
     instead of letting a stuck apt lock/pkill/etc. block forever."""
     try:
         return await asyncio.wait_for(proc.wait(), timeout=timeout)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.warning("Subprocess timed out after %ss, killing it", timeout)
         try:
             proc.kill()

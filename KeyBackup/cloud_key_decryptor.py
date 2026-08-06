@@ -3,17 +3,17 @@
 #  Copyright © 2024 Leon Böttger. All rights reserved.
 #
 import secrets
+from binascii import unhexlify
 
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from binascii import unhexlify
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.hashes import SHA256
-from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
-from KeyBackup.lskf_hasher import ascii_to_bytes, get_lskf_hash
 from example_data_provider import get_example_data
+from KeyBackup.lskf_hasher import ascii_to_bytes, get_lskf_hash
 
 # Constants
 VERSION = b'\x02\x00'

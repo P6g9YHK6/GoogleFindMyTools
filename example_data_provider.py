@@ -6,9 +6,10 @@
 import json
 import os
 
+
 def get_example_data(identifier: str) -> str:
     try:
-        with open(_get_example_file(), 'r') as file:
+        with open(_get_example_file()) as file:
             data = json.load(file)
             value = data.get(identifier)
 

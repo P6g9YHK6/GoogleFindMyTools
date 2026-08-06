@@ -6,11 +6,16 @@
 import secrets
 import time
 
-from FMDNCrypto.key_derivation import FMDNOwnerOperations
 from FMDNCrypto.eid_generator import ROTATION_PERIOD, generate_eid
+from FMDNCrypto.key_derivation import FMDNOwnerOperations
 from KeyBackup.cloud_key_decryptor import encrypt_aes_gcm
-from ProtoDecoders.DeviceUpdate_pb2 import DeviceComponentInformation, SpotDeviceType, RegisterBleDeviceRequest, PublicKeyIdList
-from SpotApi.CreateBleDevice.config import mcu_fast_pair_model_id, max_truncated_eid_seconds_server
+from ProtoDecoders.DeviceUpdate_pb2 import (
+    DeviceComponentInformation,
+    PublicKeyIdList,
+    RegisterBleDeviceRequest,
+    SpotDeviceType,
+)
+from SpotApi.CreateBleDevice.config import max_truncated_eid_seconds_server, mcu_fast_pair_model_id
 from SpotApi.CreateBleDevice.util import flip_bits
 from SpotApi.GetEidInfoForE2eeDevices.get_owner_key import get_owner_key
 from SpotApi.spot_request import spot_request

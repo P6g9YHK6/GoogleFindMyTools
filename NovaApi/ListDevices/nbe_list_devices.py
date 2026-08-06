@@ -4,12 +4,13 @@
 #
 
 import binascii
+
 from NovaApi.ExecuteAction.LocateTracker.location_request import get_location_data_for_device
 from NovaApi.nova_request import nova_request
 from NovaApi.scopes import NOVA_LIST_DEVICS_API_SCOPE
 from NovaApi.util import generate_random_uuid
 from ProtoDecoders import DeviceUpdate_pb2
-from ProtoDecoders.decoder import parse_device_list_protobuf, get_canonic_ids
+from ProtoDecoders.decoder import get_canonic_ids, parse_device_list_protobuf
 from SpotApi.CreateBleDevice.create_ble_device import register_esp32
 from SpotApi.UploadPrecomputedPublicKeyIds.upload_precomputed_public_key_ids import refresh_custom_trackers
 

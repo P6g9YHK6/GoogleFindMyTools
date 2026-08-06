@@ -6,6 +6,7 @@
 from NovaApi.ExecuteAction.nbe_execute_action import create_action_request, serialize_action_request
 from ProtoDecoders import DeviceUpdate_pb2
 
+
 def create_sound_request(should_start, canonic_device_id, gcm_registration_id):
 
     action_request = create_action_request(canonic_device_id, gcm_registration_id)

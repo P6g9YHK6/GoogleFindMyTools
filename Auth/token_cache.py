@@ -24,7 +24,7 @@ def get_cached_value(name: str):
     secrets_file = _get_secrets_file()
 
     if os.path.exists(secrets_file):
-        with open(secrets_file, 'r') as file:
+        with open(secrets_file) as file:
             try:
                 data = json.load(file)
                 value = data.get(name)
@@ -42,7 +42,7 @@ def get_cached_values_with_prefix(prefix: str) -> dict:
     secrets_file = _get_secrets_file()
     if not os.path.exists(secrets_file):
         return {}
-    with open(secrets_file, 'r') as file:
+    with open(secrets_file) as file:
         try:
             data = json.load(file)
         except json.JSONDecodeError:
@@ -63,7 +63,7 @@ def set_cached_value(name: str, value: str):
     secrets_file = _get_secrets_file()
 
     if os.path.exists(secrets_file):
-        with open(secrets_file, 'r') as file:
+        with open(secrets_file) as file:
             try:
                 data = json.load(file)
             except json.JSONDecodeError:
