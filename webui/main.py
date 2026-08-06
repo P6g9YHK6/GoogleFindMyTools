@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 from webui import browser_provisioning, scheduler, ws
 from webui.auth_middleware import BasicAuthMiddleware
-from webui.routers import auth, devices, locate, register, settings, sound, vnc_proxy
+from webui.routers import auth, devices, locate, logs, register, settings, sound, vnc_proxy
 
 BASE_DIR = pathlib.Path(__file__).parent
 
@@ -29,6 +29,7 @@ app.include_router(sound.router)
 app.include_router(register.router)
 app.include_router(auth.router)
 app.include_router(settings.router)
+app.include_router(logs.router)
 app.include_router(vnc_proxy.router)
 
 

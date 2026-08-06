@@ -411,3 +411,18 @@ details ul {
   border-color: var(--danger);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 18%, transparent);
 }
+
+/* Forwarding log */
+.log-ok {
+  color: var(--success);
+  font-weight: 500;
+}
+
+.log-error {
+  color: var(--danger);
+  font-weight: 500;
+}
+
+.log-skipped {
+  color: var(--text-muted);
+}

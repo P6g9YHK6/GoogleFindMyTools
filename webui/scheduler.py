@@ -8,9 +8,7 @@ from croniter import croniter
 from webui import ws
 from webui.auth_state import is_logged_in
 from webui.deps import locate_device
-from webui.forwarders import config_store
-from webui.forwarders.phonetrack import forward_to_phonetrack
-from webui.forwarders.traccar import forward_to_traccar
+from webui.forwarders import FORWARDER_TYPES, config_store, log_store
 
 logger = logging.getLogger("webui.scheduler")
 
@@ -28,20 +26,27 @@ def _next_run(cron_expr: str, base: datetime) -> datetime | None:
 
 
 def _forward_one(endpoint_cfg: dict, location: dict) -> str:
-    etype = endpoint_cfg.get("type")
+    """Dispatches to whichever forwarder type this endpoint is configured for.
+    Adding a new destination type never touches this function - see
+    webui/forwarders/registry.py."""
+    ftype = FORWARDER_TYPES.get(endpoint_cfg.get("type"))
+    if ftype is None:
+        return "skipped"
     try:
-        if etype == "traccar":
-            t_cfg = endpoint_cfg.get("traccar") or {}
-            ok = forward_to_traccar(t_cfg.get("url", ""), t_cfg.get("device_id", ""), location)
-        elif etype == "phonetrack":
-            p_cfg = endpoint_cfg.get("phonetrack") or {}
-            ok = forward_to_phonetrack(p_cfg.get("base_url", ""), p_cfg.get("device_name", ""), location)
-        else:
-            return "skipped"
+        cfg = endpoint_cfg.get(ftype.key) or {}
+        ok = ftype.forward(cfg, location)
         return "ok" if ok else "skipped"
     except Exception as e:
         logger.warning("Forwarding failed: %s", e)
         return f"error: {e}"
+
+
+def _endpoint_target(endpoint_cfg: dict) -> str:
+    """Short human-readable destination summary, for the forwarding log."""
+    ftype = FORWARDER_TYPES.get(endpoint_cfg.get("type"))
+    if ftype is None:
+        return ""
+    return ftype.target_label(endpoint_cfg.get(ftype.key) or {})
 
 
 async def _poll_device(canonic_id: str):
@@ -79,7 +84,15 @@ async def _poll_device(canonic_id: str):
         statuses = {}
         for location in locations:
             for i in due_indices:
-                statuses[i] = await asyncio.to_thread(_forward_one, endpoints[i], location)
+                status = await asyncio.to_thread(_forward_one, endpoints[i], location)
+                statuses[i] = status
+                log_store.append(
+                    canonic_id=canonic_id,
+                    device_name=name,
+                    endpoint_type=endpoints[i].get("type", ""),
+                    target=_endpoint_target(endpoints[i]),
+                    status=status,
+                )
         for i in due_indices:
             statuses.setdefault(i, "no location")
 

@@ -26,3 +26,5 @@ WEBUI_PASSWORD = os.environ.get("WEBUI_PASSWORD")
 # next to this module - see Auth/token_cache.py for the same pattern.
 DATA_DIR = pathlib.Path(os.environ.get("GFMT_DATA_DIR") or (pathlib.Path(__file__).parent / "data"))
 FORWARDING_CONFIG_PATH = DATA_DIR / "forwarding_config.json"
+FORWARD_LOG_PATH = DATA_DIR / "forward_log.json"
+FORWARD_LOG_MAX_ENTRIES = int(os.environ.get("FORWARD_LOG_MAX_ENTRIES", "1000"))
