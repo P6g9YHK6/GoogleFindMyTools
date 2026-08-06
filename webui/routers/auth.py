@@ -50,6 +50,19 @@ async def auth_status(request: Request):
 
 @router.post("/auth/clear")
 async def auth_clear(request: Request):
+    if browser_provisioning.is_active():
+        # Clearing mid-flow is exactly how the "aas_token present but
+        # fcm_credentials missing" split-brain state kept happening: a sign-in
+        # already past its own FCM registration step gets its cache wiped out
+        # from under it, then goes on to write a fresh aas_token into the now-
+        # empty file with nothing left to re-populate fcm_credentials. Refuse
+        # instead, matching the same guard start() already uses.
+        return templates.TemplateResponse(request, "auth/_status.html", {
+            "status": _auth_status(),
+            "clear_error": "A sign-in is currently in progress - let it finish, time out, "
+                            "or fail before clearing credentials.",
+        })
+
     clear_all_cached_values()
     # FcmReceiver is an in-process singleton that reads fcm_credentials from
     # the cache once, at first use, and never again - clearing the file alone
