@@ -1,3 +1,7 @@
+{% if status.cleanup_warning %}
+  <p class="form-error">⚠ {{ status.cleanup_warning }}</p>
+{% endif %}
+
 {% if status.logged_in %}
   <p>Signed in{% if status.username %} as {{ status.username }}{% endif %}.</p>
   <p>

@@ -4,15 +4,18 @@
 #
 # Single container: Chrome/Xvfb/x11vnc/noVNC are installed on demand into a
 # tmpfs mount the first time a login is triggered, then left in place for the
-# rest of this container's life so later logins skip straight past that
-# ~30-90s setup - only removed for real on a clean shutdown (see
-# webui/browser_provisioning.py). That means this container needs outbound
-# network access (Debian mirrors + storage.googleapis.com) the first time a
-# login is triggered, not just at image build time.
+# rest of this container's life (including across a plain `docker stop`/
+# `start`, not just within one "up") so later logins skip straight past that
+# ~30-90s setup - see webui/browser_provisioning.py. That means this
+# container needs outbound network access (Debian mirrors +
+# storage.googleapis.com) the first time a login is triggered, not just at
+# image build time. Shutdown itself only stops those processes (no apt
+# purge), so Docker's default stop grace period is plenty; if a process ever
+# fails to exit cleanly, the Account page (/auth) shows a warning instead.
 #
-# stop_grace_period: that shutdown-time cleanup (apt purge + removing the
-# downloaded Chrome build) can take longer than Docker's default 10s SIGKILL
-# timeout - give it real room to finish instead of getting killed mid-purge.
+# One volume: Google auth tokens (GFMT_SECRETS_DIR) and per-device forwarding
+# config (GFMT_DATA_DIR) both live under /data in the image's default env
+# (see docker/web/Dockerfile), so a single volume mounted there covers both.
 #
 # LAN-only setup: no auth/HTTPS in front of the service. See the "Web UI"
 # section in README.md before exposing this beyond your own network.
@@ -30,15 +33,13 @@ services:
     # not an actual file permission issue) - exec overrides that default.
     tmpfs:
       - /run/gfmt-browser:rw,exec,nosuid,size=1g
-    stop_grace_period: 30s
     environment:
       # Set this to protect the web UI (and the embedded Chrome login it
       # shows) with a password. Leave unset only on a fully trusted LAN.
       - WEBUI_PASSWORD=${WEBUI_PASSWORD:-}
     volumes:
-      - secrets:/data/auth
-      - ./webui/data:/app/webui/data
+      - data:/data
     restart: unless-stopped
 
 volumes:
-  secrets:
+  data:
