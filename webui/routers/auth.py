@@ -29,6 +29,10 @@ def _auth_status() -> dict:
             {"name": name, "present": get_cached_value(name) is not None}
             for name in _DIAGNOSTIC_KEYS
         ],
+        # Set if the browser/X11 processes from the last sign-in attempt
+        # didn't all exit cleanly on their own - see _teardown() in
+        # webui/browser_provisioning.py.
+        "cleanup_warning": browser_provisioning.get_state().get("cleanup_warning"),
     }
 
 

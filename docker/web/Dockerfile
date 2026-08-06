@@ -20,6 +20,7 @@ COPY . /app
 ENV DISPLAY=:99 \
     GFMT_BROWSER_RUNTIME_DIR=/run/gfmt-browser \
     GFMT_SECRETS_DIR=/data/auth \
+    GFMT_DATA_DIR=/data/webui \
     GFMT_NONINTERACTIVE=1
 
 EXPOSE 4321
