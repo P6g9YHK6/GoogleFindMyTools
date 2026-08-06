@@ -35,8 +35,9 @@ import secrets
 import time
 import uuid
 from base64 import b64encode, urlsafe_b64encode
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 from aiohttp import ClientSession, ClientTimeout
 from cryptography.hazmat.primitives import serialization

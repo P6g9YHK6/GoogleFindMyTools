@@ -1,5 +1,7 @@
 # GoogleFindMyTools
 
+[![Lint and test](https://github.com/P6g9YHK6/GoogleFindMyTools/actions/workflows/test.yml/badge.svg)](https://github.com/P6g9YHK6/GoogleFindMyTools/actions/workflows/test.yml)
+
 This repository includes some useful tools that reimplement parts of Google's Find My Device Network (now called Find Hub Network). Note that the code of this repo is still very experimental.
 
 ### What's possible?
@@ -49,6 +51,16 @@ Set a `WEBUI_PASSWORD` environment variable to require a password (any username,
 #### Publishing the image
 
 Pushing to `main` (or pushing a `v*.*.*` tag) on GitHub runs `.github/workflows/docker-publish.yml`, which builds the image and pushes it to GHCR under this repo automatically - no manual steps beyond a normal `git push`. The first time it runs, the GHCR package is created **private** by default; open the package's settings under your GitHub account's Packages tab and switch visibility to public if you want `docker compose up` to work without `docker login ghcr.io` first.
+
+### Development
+
+`.github/workflows/test.yml` lints and runs the test suite against the web UI on every push and
+pull request. To run it locally:
+```
+pip install -r requirements.txt -r requirements-web.txt -r requirements-dev.txt
+ruff check .
+pytest
+```
 
 ### Known Issues
 - "Your encryption data is locked on your device" is shown if you have never set up Find My Device on an Android device. Solution: Login with your Google Account on an Android device, go to Settings > Google > All Services > Find My Device > Find your offline devices > enable "With network in all areas" or "With network in high-traffic areas only". If "Find your offline devices" is not shown in Settings, you will need to download the Find My Device app from Google's Play Store, and pair a real Find My Device tracker with your device to force-enable the Find My Device network.

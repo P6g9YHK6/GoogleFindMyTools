@@ -9,8 +9,8 @@ ForwarderType entry below - nothing else needs to change. The settings form
 branches.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable
 
 from webui.forwarders.phonetrack import forward_to_phonetrack
 from webui.forwarders.traccar import forward_to_traccar

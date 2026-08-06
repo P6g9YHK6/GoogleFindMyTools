@@ -6,7 +6,8 @@ from ProtoDecoders.decoder import get_canonic_ids, parse_device_list_protobuf
 from webui import scheduler
 from webui.auth_state import is_logged_in
 from webui.deps import run_blocking
-from webui.forwarders import FORWARDER_TYPES, blank_endpoint as new_blank_endpoint, config_store
+from webui.forwarders import FORWARDER_TYPES, config_store
+from webui.forwarders import blank_endpoint as new_blank_endpoint
 from webui.templating import templates
 
 router = APIRouter()

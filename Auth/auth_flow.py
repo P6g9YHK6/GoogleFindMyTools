@@ -8,6 +8,7 @@ import threading
 
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.support.ui import WebDriverWait
+
 from chrome_driver import create_driver
 
 SIGN_IN_WAIT_S = 300

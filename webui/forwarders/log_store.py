@@ -25,7 +25,7 @@ def load() -> dict:
         if not config.FORWARD_LOG_PATH.exists():
             return _empty()
         try:
-            with open(config.FORWARD_LOG_PATH, "r") as f:
+            with open(config.FORWARD_LOG_PATH) as f:
                 data = json.load(f)
         except (json.JSONDecodeError, OSError):
             return _empty()

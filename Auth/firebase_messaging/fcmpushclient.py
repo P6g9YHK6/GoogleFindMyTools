@@ -36,10 +36,11 @@ import struct
 import time
 import traceback
 from base64 import urlsafe_b64decode
+from collections.abc import Callable
 from contextlib import suppress as contextlib_suppress
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 from aiohttp import ClientSession
 from cryptography.hazmat.backends import default_backend

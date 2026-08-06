@@ -5,6 +5,7 @@
 
 from FMDNCrypto.sha import calculate_truncated_sha256
 
+
 class FMDNOwnerOperations:
 
     def __init__(self):

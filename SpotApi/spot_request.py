@@ -4,7 +4,6 @@
 #
 
 import httpx
-import h2 # required for httpx to support HTTP/2
 from bs4 import BeautifulSoup
 
 from Auth.spot_token_retrieval import get_spot_token
