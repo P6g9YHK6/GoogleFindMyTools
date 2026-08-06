@@ -21,5 +21,8 @@ LOCATE_TIMEOUT_S = int(os.environ.get("LOCATE_TIMEOUT_S", "60"))
 # via HTTP Basic Auth (any username). Unset by default - see README.
 WEBUI_PASSWORD = os.environ.get("WEBUI_PASSWORD")
 
-DATA_DIR = pathlib.Path(__file__).parent / "data"
+# Lets forwarding_config.json live in a mounted directory (e.g. in Docker,
+# alongside GFMT_SECRETS_DIR under the same volume) instead of always sitting
+# next to this module - see Auth/token_cache.py for the same pattern.
+DATA_DIR = pathlib.Path(os.environ.get("GFMT_DATA_DIR") or (pathlib.Path(__file__).parent / "data"))
 FORWARDING_CONFIG_PATH = DATA_DIR / "forwarding_config.json"
