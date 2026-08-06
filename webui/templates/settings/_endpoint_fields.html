@@ -1,0 +1,66 @@
+<fieldset class="endpoint-block">
+  <legend><button type="button" class="btn-remove"
+                  onclick="this.closest('.endpoint-block').remove()">Remove</button></legend>
+
+  <label>Type
+    <select name="endpoint_type">
+      <option value="traccar" {% if endpoint.type == "traccar" %}selected{% endif %}>Traccar</option>
+      <option value="phonetrack" {% if endpoint.type == "phonetrack" %}selected{% endif %}>Nextcloud PhoneTrack</option>
+    </select>
+  </label>
+
+  <fieldset>
+    <legend>Traccar (OsmAnd protocol)</legend>
+    <label>Server URL
+      <input type="text" name="traccar_url" class="url-input" placeholder="http://traccar.local:5055"
+             value="{{ endpoint.traccar.url if endpoint.traccar else '' }}">
+    </label>
+    <label>Device ID
+      <input type="text" name="traccar_device_id"
+             value="{{ endpoint.traccar.device_id if endpoint.traccar else '' }}">
+    </label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Nextcloud PhoneTrack</legend>
+    <label>HTTP-GET base URL (from the PhoneTrack session)
+      <input type="text" name="phonetrack_base_url" class="url-input"
+             placeholder="https://nc.local/apps/phonetrack/logGet/&lt;token&gt;"
+             value="{{ endpoint.phonetrack.base_url if endpoint.phonetrack else '' }}">
+    </label>
+    <label>Device name
+      <input type="text" name="phonetrack_device_name"
+             value="{{ endpoint.phonetrack.device_name if endpoint.phonetrack else '' }}">
+    </label>
+  </fieldset>
+
+  {% set cron_value = endpoint.cron or '*/5 * * * *' %}
+  {% set cron_parts = (cron_value.split() + ['*', '*', '*', '*', '*'])[:5] %}
+  <fieldset>
+    <legend>Schedule</legend>
+    <div class="cron-builder">
+      <label class="cron-field-label">Minute
+        <input type="text" class="cron-field" value="{{ cron_parts[0] }}">
+      </label>
+      <label class="cron-field-label">Hour
+        <input type="text" class="cron-field" value="{{ cron_parts[1] }}">
+      </label>
+      <label class="cron-field-label">Day of month
+        <input type="text" class="cron-field" value="{{ cron_parts[2] }}">
+      </label>
+      <label class="cron-field-label">Month
+        <input type="text" class="cron-field" value="{{ cron_parts[3] }}">
+      </label>
+      <label class="cron-field-label">Day of week
+        <input type="text" class="cron-field" value="{{ cron_parts[4] }}">
+      </label>
+    </div>
+    <label>Cron expression
+      <input type="text" name="cron" class="cron-raw" value="{{ cron_value }}">
+    </label>
+  </fieldset>
+
+  {% if endpoint.last_forward_status %}
+    <p class="endpoint-status">Last forward: {{ endpoint.last_forward_status }}</p>
+  {% endif %}
+</fieldset>
