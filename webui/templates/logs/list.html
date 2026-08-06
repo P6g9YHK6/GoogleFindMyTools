@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Forwarding Log - GoogleFindMyTools{% endblock %}
+{% block content %}
+<h1>Forwarding Log</h1>
+<p>Every forwarding attempt across all devices and endpoints, newest first, capped to the most
+   recent entries so this never grows without bound.</p>
+
+<table>
+  <thead>
+    <tr><th>Time</th><th>Device</th><th>Endpoint</th><th>Target</th><th>Result</th></tr>
+  </thead>
+  <tbody>
+  {% for entry in entries %}
+    <tr>
+      <td>{{ entry.time_str }}</td>
+      <td>{{ entry.device_name }}</td>
+      <td>{{ entry.endpoint_type }}</td>
+      <td>{{ entry.target }}</td>
+      <td class="log-{{ entry.level }}">{{ entry.status }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="5">No forwarding attempts logged yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

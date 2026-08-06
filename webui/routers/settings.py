@@ -6,10 +6,12 @@ from ProtoDecoders.decoder import get_canonic_ids, parse_device_list_protobuf
 from webui import scheduler
 from webui.auth_state import is_logged_in
 from webui.deps import run_blocking
-from webui.forwarders import config_store
+from webui.forwarders import FORWARDER_TYPES, blank_endpoint as new_blank_endpoint, config_store
 from webui.templating import templates
 
 router = APIRouter()
+
+_TEMPLATE_CONTEXT = {"forwarder_types": FORWARDER_TYPES}
 
 
 async def _rows(overrides: dict[str, dict] | None = None) -> list[dict]:
@@ -36,16 +38,20 @@ async def _rows(overrides: dict[str, dict] | None = None) -> list[dict]:
 async def settings_page(request: Request):
     if not is_logged_in():
         return templates.TemplateResponse(request, "_not_signed_in.html", {})
-    return templates.TemplateResponse(request, "settings/forwarding.html", {"rows": await _rows()})
+    return templates.TemplateResponse(request, "settings/forwarding.html", {
+        "rows": await _rows(), **_TEMPLATE_CONTEXT,
+    })
 
 
 @router.get("/settings/devices/{canonic_id}/endpoints/blank")
-async def blank_endpoint(request: Request, canonic_id: str):
+async def blank_endpoint_route(request: Request, canonic_id: str):
     if not is_logged_in():
         return templates.TemplateResponse(request, "_not_signed_in.html", {})
 
-    blank = {"type": "traccar", "traccar": {}, "phonetrack": {}, "cron": scheduler.DEFAULT_CRON}
-    return templates.TemplateResponse(request, "settings/_endpoint_fields.html", {"endpoint": blank})
+    blank = new_blank_endpoint(scheduler.DEFAULT_CRON)
+    return templates.TemplateResponse(request, "settings/_endpoint_fields.html", {
+        "endpoint": blank, **_TEMPLATE_CONTEXT,
+    })
 
 
 @router.post("/settings/devices/{canonic_id}")
@@ -60,10 +66,14 @@ async def update_device_settings(
     form = await request.form()
     types = form.getlist("endpoint_type")
     crons = form.getlist("cron")
-    traccar_urls = form.getlist("traccar_url")
-    traccar_ids = form.getlist("traccar_device_id")
-    phonetrack_urls = form.getlist("phonetrack_base_url")
-    phonetrack_names = form.getlist("phonetrack_device_name")
+    # Grab every registered type's fields up front, keyed the same way the
+    # template names its inputs (see ForwarderType.form_field_name) - adding a
+    # new type to the registry is picked up here automatically, no new
+    # getlist() calls to add.
+    field_lists = {
+        type_key: {f.name: form.getlist(ftype.form_field_name(f.name)) for f in ftype.fields}
+        for type_key, ftype in FORWARDER_TYPES.items()
+    }
 
     existing = config_store.get_device_config(canonic_id) or {"endpoints": []}
     existing_endpoints = existing.get("endpoints", [])
@@ -71,25 +81,21 @@ async def update_device_settings(
     endpoints = []
     errors = []
     for i, etype in enumerate(types):
-        entry = {"type": etype}
-        if etype == "traccar":
-            url = traccar_urls[i] if i < len(traccar_urls) else ""
-            if not url:
-                continue  # unfilled "+ Add endpoint" block, drop it silently
-            entry["traccar"] = {
-                "url": url,
-                "device_id": traccar_ids[i] if i < len(traccar_ids) else "",
-            }
-        elif etype == "phonetrack":
-            url = phonetrack_urls[i] if i < len(phonetrack_urls) else ""
-            if not url:
-                continue
-            entry["phonetrack"] = {
-                "base_url": url,
-                "device_name": phonetrack_names[i] if i < len(phonetrack_names) else "",
-            }
-        else:
+        ftype = FORWARDER_TYPES.get(etype)
+        if ftype is None:
             continue  # unknown/blank type, skip defensively
+
+        cfg = {
+            f.name: (values[i] if i < len(values) else "")
+            for f, values in ((f, field_lists[etype][f.name]) for f in ftype.fields)
+        }
+        # The first configured field is always the destination's required
+        # "address" (a URL) - treat a block as unfilled/blank if it's empty,
+        # same as the old hardcoded traccar_url/phonetrack_base_url checks.
+        if not cfg.get(ftype.fields[0].name):
+            continue  # unfilled "+ Add endpoint" block, drop it silently
+
+        entry = {"type": etype, etype: cfg}
 
         cron_expr = (crons[i] if i < len(crons) else "").strip()
         if not cron_expr or not croniter.is_valid(cron_expr):
@@ -108,10 +114,14 @@ async def update_device_settings(
     if errors:
         device_cfg = {"display_name": display_name, "endpoints": endpoints}
         rows = await _rows(overrides={canonic_id: {"config": device_cfg, "error": "; ".join(errors)}})
-        return templates.TemplateResponse(request, "settings/forwarding.html", {"rows": rows})
+        return templates.TemplateResponse(request, "settings/forwarding.html", {
+            "rows": rows, **_TEMPLATE_CONTEXT,
+        })
 
     device_cfg = {"display_name": display_name, "endpoints": endpoints}
     config_store.set_device_config(canonic_id, device_cfg)
     scheduler.restart_device(canonic_id)
 
-    return templates.TemplateResponse(request, "settings/forwarding.html", {"rows": await _rows()})
+    return templates.TemplateResponse(request, "settings/forwarding.html", {
+        "rows": await _rows(), **_TEMPLATE_CONTEXT,
+    })
