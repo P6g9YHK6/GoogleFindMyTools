@@ -96,6 +96,9 @@ document.addEventListener("DOMContentLoaded", () => {
       delete vncContainer.dataset.shown;
       // Pull the real status fragment (username, E2EE confirmation state)
       // instead of a hardcoded "Signed in." that doesn't reflect either.
+      // The progress panel's job ends here too - its last message would
+      // otherwise sit on screen forever since nothing else ever clears it.
+      panel.style.display = "none";
       fetch("/auth/status")
         .then(resp => resp.text())
         .then(html => { loginStatus.innerHTML = html; })
@@ -103,6 +106,8 @@ document.addEventListener("DOMContentLoaded", () => {
     } else if (msg.phase === "error" || msg.phase === "timeout") {
       vncContainer.innerHTML = "";
       delete vncContainer.dataset.shown;
+      // Leave the panel visible here (unlike "done") so the error/timeout
+      // message stays readable instead of vanishing right when it matters.
     }
   }
 
