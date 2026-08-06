@@ -336,3 +336,78 @@ details ul {
 #vnc-container iframe {
   border-radius: var(--radius-sm);
 }
+
+/* Forwarding settings: endpoints */
+.url-input {
+  width: 100%;
+}
+
+.endpoints-container {
+  counter-reset: endpoint;
+}
+
+.endpoint-block {
+  counter-increment: endpoint;
+}
+
+.endpoint-block > legend::before {
+  content: "Endpoint " counter(endpoint) " ";
+}
+
+.btn-secondary {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+  margin-right: 0.5rem;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--surface-alt);
+  box-shadow: var(--shadow);
+}
+
+.btn-remove {
+  background: transparent;
+  color: var(--danger);
+  border: 1px solid var(--border);
+  box-shadow: none;
+  font-size: 0.78rem;
+  font-weight: 500;
+  padding: 0.25rem 0.55rem;
+  margin-left: 0.5rem;
+}
+
+.btn-remove:hover:not(:disabled) {
+  background: var(--surface-alt);
+  box-shadow: none;
+}
+
+.form-error {
+  color: var(--danger);
+  font-weight: 500;
+}
+
+.endpoint-status {
+  font-size: 0.85rem;
+}
+
+/* Cron builder */
+.cron-builder {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.cron-builder .cron-field-label {
+  flex: 1 1 60px;
+  min-width: 60px;
+}
+
+.cron-field {
+  text-align: center;
+}
+
+.cron-raw.cron-invalid {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 18%, transparent);
+}
