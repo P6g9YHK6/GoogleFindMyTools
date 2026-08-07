@@ -410,14 +410,6 @@ class FcmPushClient:  # pylint:disable=too-many-instance-attributes
         # harmless to urlsafe_b64decode, same trick already used just below.
         crypto_key = urlsafe_b64decode(crypto_key_str.encode("ascii") + b"========")
         salt = urlsafe_b64decode(salt_str.encode("ascii") + b"========")
-        # TEMPORARY diagnostics for the "Invalid EC key" failures still seen
-        # after the padding fix above - shapes only, no key material itself.
-        _logger.warning(
-            "decrypt shapes: crypto_key_str_len=%d crypto_key_bytes_len=%d crypto_key_first_byte=%s "
-            "salt_str_len=%d salt_bytes_len=%d",
-            len(crypto_key_str), len(crypto_key), crypto_key[:1].hex() if crypto_key else "<empty>",
-            len(salt_str), len(salt),
-        )
         der_data_str = credentials["keys"]["private"]
         der_data = urlsafe_b64decode(der_data_str.encode("ascii") + b"========")
         secret_str = credentials["keys"]["secret"]
@@ -463,8 +455,15 @@ class FcmPushClient:  # pylint:disable=too-many-instance-attributes
         ):
             # The deleted_messages message does not contain data.
             return
-        crypto_key = self._app_data_by_key(msg, "crypto-key")[3:]  # strip dh=
-        salt = self._app_data_by_key(msg, "encryption")[5:]  # strip salt=
+        # Both headers can carry more than one ;-separated parameter (e.g.
+        # "dh=<point>;p256ecdsa=<other key>") - take only the value for the
+        # parameter we actually want. Keeping the rest used to decode into
+        # one garbage-length blob instead of raising (base64 silently drops
+        # the stray ";"/"=" characters from the second parameter rather than
+        # erroring on them), which then failed EC point validation with a
+        # confusing "Invalid EC key" deep inside http_ece.
+        crypto_key = self._app_data_by_key(msg, "crypto-key")[3:].split(";")[0]  # strip dh=
+        salt = self._app_data_by_key(msg, "encryption")[5:].split(";")[0]  # strip salt=
         subtype = self._app_data_by_key(msg, "subtype")
         if TYPE_CHECKING:
             assert self.credentials
