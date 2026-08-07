@@ -213,3 +213,58 @@ async def test_poll_device_records_last_sent_position_on_success(monkeypatch, tm
     assert ep["last_forward_status"] == "ok"
     assert ep["last_sent_lat"] == 12.5
     assert ep["last_sent_lon"] == 34.5
+
+
+async def test_poll_device_persists_last_location_for_the_devices_page(monkeypatch, tmp_path):
+    """A cron tick must update the Devices page's persisted "last locate
+    result" the same as a manual click does - not just the per-endpoint
+    forwarding bookkeeping above."""
+    from webui import config, device_location_store
+    from webui.forwarders import config_store
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding.yaml")
+    monkeypatch.setattr(config, "FORWARD_LOG_PATH", tmp_path / "forward.log")
+    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+    monkeypatch.setattr(scheduler, "is_logged_in", lambda: True)
+    monkeypatch.setattr(scheduler, "_dispatch_forward", lambda cfg, loc: "ok")
+
+    tick_done = asyncio.Event()
+    fix = {"is_semantic": False, "latitude": 12.5, "longitude": 34.5, "time": 1}
+
+    async def locate_then_signal(canonic_id, name):
+        tick_done.set()
+        return [fix]
+
+    monkeypatch.setattr(scheduler, "locate_device", locate_then_signal)
+
+    orig_sleep = asyncio.sleep
+
+    async def fast_sleep(_secs):
+        await orig_sleep(0)
+
+    monkeypatch.setattr(asyncio, "sleep", fast_sleep)
+
+    canonic_id = "position-tracking-device-2"
+    config_store.set_device_config(canonic_id, {
+        "display_name": "Test",
+        "endpoints": [{
+            "type": "traccar", "traccar": {"url": "http://x", "device_id": "d1"}, "cron": "* * * * *",
+        }],
+    })
+
+    task = asyncio.create_task(scheduler._poll_device(canonic_id))
+    try:
+        await asyncio.wait_for(tick_done.wait(), timeout=5)
+    finally:
+        monkeypatch.setattr(asyncio, "sleep", orig_sleep)
+    await orig_sleep(0.5)
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+
+    saved = device_location_store.get_last_location(canonic_id)
+    assert saved is not None
+    assert saved["locations"] == [fix]

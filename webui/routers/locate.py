@@ -1,7 +1,9 @@
 import logging
+import time
 
 from fastapi import APIRouter, Request
 
+from webui import device_location_store
 from webui.deps import locate_device
 from webui.templating import templates
 from webui.ws import manager
@@ -23,12 +25,20 @@ async def locate(request: Request, canonic_id: str, name: str = ""):
         # locate result" cell - htmx doesn't swap error responses in by
         # default, so the real reason was only ever visible in server logs.
         logger.exception("Locate failed for %s", canonic_id)
-        return templates.TemplateResponse(request, "devices/_locate_result.html", {
+        return templates.TemplateResponse(request, "devices/_locate_cell.html", {
             "canonic_id": canonic_id,
             "name": display_name,
             "locations": None,
             "error": str(e) or f"{type(e).__name__} (see server logs for details)",
         })
+
+    fetched_at = int(time.time())
+    fetched_at_str = None
+    if locations:
+        # A timeout/empty result must never clobber the last real fix
+        # already on file - only persist an actual location.
+        device_location_store.set_last_location(canonic_id, locations, fetched_at)
+        fetched_at_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(fetched_at))
 
     await manager.broadcast({
         "type": "locate_result",
@@ -38,8 +48,9 @@ async def locate(request: Request, canonic_id: str, name: str = ""):
         "source": "manual",
     })
 
-    return templates.TemplateResponse(request, "devices/_locate_result.html", {
+    return templates.TemplateResponse(request, "devices/_locate_cell.html", {
         "canonic_id": canonic_id,
         "name": display_name,
         "locations": locations,
+        "fetched_at_str": fetched_at_str,
     })

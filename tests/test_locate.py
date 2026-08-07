@@ -1,7 +1,12 @@
 from tests.conftest import FAKE_CANONIC_ID
 
 
-def test_locate_success(client):
+def test_locate_success(client, tmp_path, monkeypatch):
+    from webui import config
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+
     resp = client.post(f"/devices/{FAKE_CANONIC_ID}/locate", params={"name": "My Tracker"})
     assert resp.status_code == 200
     assert "map" in resp.text  # a google maps link is rendered for a non-semantic location
@@ -18,3 +23,41 @@ def test_locate_failure_renders_error_fragment_not_bare_500(client, monkeypatch)
     resp = client.post(f"/devices/{FAKE_CANONIC_ID}/locate", params={"name": "My Tracker"})
     assert resp.status_code == 200  # error is rendered inline, not a 500 - htmx doesn't swap those in
     assert "decrypt failed" in resp.text
+
+
+def test_locate_success_persists_the_result_with_a_timestamp(client, tmp_path, monkeypatch):
+    from webui import config, device_location_store
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+
+    resp = client.post(f"/devices/{FAKE_CANONIC_ID}/locate", params={"name": "My Tracker"})
+    assert resp.status_code == 200
+    assert "as of" in resp.text  # the persisted-timestamp line
+
+    saved = device_location_store.get_last_location(FAKE_CANONIC_ID)
+    assert saved is not None
+    assert saved["locations"][0]["latitude"] == 1.0
+    assert isinstance(saved["fetched_at"], int)
+
+
+def test_locate_failure_does_not_clobber_the_last_good_result(client, tmp_path, monkeypatch):
+    from webui import config, device_location_store
+    from webui.routers import locate
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+
+    # A real fix first...
+    client.post(f"/devices/{FAKE_CANONIC_ID}/locate", params={"name": "My Tracker"})
+    good = device_location_store.get_last_location(FAKE_CANONIC_ID)
+    assert good is not None
+
+    # ...then a failure must not erase it.
+    async def boom(canonic_id, name, timeout=None):
+        raise RuntimeError("decrypt failed")
+
+    monkeypatch.setattr(locate, "locate_device", boom)
+    client.post(f"/devices/{FAKE_CANONIC_ID}/locate", params={"name": "My Tracker"})
+
+    assert device_location_store.get_last_location(FAKE_CANONIC_ID) == good

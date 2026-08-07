@@ -56,3 +56,8 @@ APP_SETTINGS_PATH = DATA_DIR / "config.yaml"
 # category of event.
 SYSTEM_LOG_PATH = DATA_DIR / "system.log"
 SYSTEM_LOG_MAX_ENTRIES = int(os.environ.get("SYSTEM_LOG_MAX_ENTRIES", "5000"))
+
+# The last location actually obtained for each device, regardless of whether
+# it came from a manual Locate click or a scheduled poll - see
+# webui/device_location_store.py and the Devices page.
+DEVICE_LOCATIONS_PATH = DATA_DIR / "device_locations.yaml"
