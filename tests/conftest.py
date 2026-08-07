@@ -24,7 +24,8 @@ import tempfile
 os.environ["GFMT_DATA_DIR"] = tempfile.mkdtemp(prefix="gfmt-test-data-")
 os.environ["GFMT_SECRETS_DIR"] = tempfile.mkdtemp(prefix="gfmt-test-secrets-")
 os.environ["GFMT_NONINTERACTIVE"] = "1"
-os.environ.pop("WEBUI_PASSWORD", None)  # deterministic: no basic auth in tests
+os.environ.pop("HTTP_USER", None)  # deterministic: no basic auth in tests
+os.environ.pop("HTTP_PASSWORD", None)
 os.environ.pop("APPRISE_URLS", None)  # deterministic: no real notifications fired from tests
 
 import pytest  # noqa: E402

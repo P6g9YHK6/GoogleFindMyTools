@@ -7,19 +7,22 @@ from webui import config
 
 
 class BasicAuthMiddleware:
-    """Gates the whole app behind a single shared password (WEBUI_PASSWORD).
+    """Gates the whole app behind HTTP Basic Auth: HTTP_USER + HTTP_PASSWORD.
 
-    No-op if WEBUI_PASSWORD is unset, so the web UI stays usable without
-    configuration for a trusted LAN. Any username is accepted; only the
-    password is checked. Plain ASGI (not BaseHTTPMiddleware) so it also
-    covers WebSocket handshakes, not just regular HTTP requests.
+    No-op if either is unset, so the web UI stays usable without
+    configuration for a trusted LAN. Plain ASGI (not BaseHTTPMiddleware) so
+    it also covers WebSocket handshakes, not just regular HTTP requests.
     """
 
     def __init__(self, app: ASGIApp):
         self.app = app
 
+    @staticmethod
+    def _enabled() -> bool:
+        return bool(config.HTTP_USER and config.HTTP_PASSWORD)
+
     async def __call__(self, scope: Scope, receive: Receive, send: Send):
-        if not config.WEBUI_PASSWORD or scope["type"] not in ("http", "websocket"):
+        if not self._enabled() or scope["type"] not in ("http", "websocket"):
             await self.app(scope, receive, send)
             return
 
@@ -50,7 +53,11 @@ class BasicAuthMiddleware:
             return False
         try:
             decoded = base64.b64decode(auth_header[len("Basic "):]).decode("utf-8")
-            _, _, password = decoded.partition(":")
+            username, _, password = decoded.partition(":")
         except Exception:
             return False
-        return hmac.compare_digest(password, config.WEBUI_PASSWORD)
+
+        return (
+            hmac.compare_digest(username, config.HTTP_USER)
+            and hmac.compare_digest(password, config.HTTP_PASSWORD)
+        )

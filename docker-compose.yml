@@ -18,9 +18,10 @@
 # config (GFMT_DATA_DIR) both live under /data in the image's default env
 # (see docker/web/Dockerfile), so a single volume mounted there covers both.
 #
-# LAN-only setup: no HTTPS in front of the service, and no password unless
-# WEBUI_PASSWORD is set (e.g. via a .env file, see .env.example). See the
-# "Web UI" section in README.md before exposing this beyond your own network.
+# LAN-only setup: no HTTPS in front of the service, and no auth unless both
+# HTTP_USER and HTTP_PASSWORD are set (e.g. via a .env file, see
+# .env.example). See the "Web UI" section in README.md before exposing this
+# beyond your own network.
 services:
   web:
     image: ghcr.io/p6g9yhk6/googlefindmytools:latest
@@ -34,7 +35,8 @@ services:
     tmpfs:
       - /run/gfmt-browser:rw,exec,nosuid,size=1g
     environment:
-      - WEBUI_PASSWORD=${WEBUI_PASSWORD:-}
+      - HTTP_USER=${HTTP_USER:-}
+      - HTTP_PASSWORD=${HTTP_PASSWORD:-}
     volumes:
       - data:/data
     restart: unless-stopped
