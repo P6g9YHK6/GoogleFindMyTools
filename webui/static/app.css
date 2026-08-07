@@ -391,6 +391,22 @@ details ul {
   font-size: 0.85rem;
 }
 
+.field-hint {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: -0.5rem 0 0.75rem;
+}
+
+.checkbox-label {
+  flex-direction: row;
+  align-items: center;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+}
+
 /* Cron builder */
 .cron-builder {
   display: flex;

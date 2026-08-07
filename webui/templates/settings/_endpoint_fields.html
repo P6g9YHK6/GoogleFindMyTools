@@ -1,6 +1,25 @@
+{# This partial is rendered two ways: inline in the per-device-row loop (where
+   `row` and `loop.index0` come from that loop), and standalone by the
+   "+ Add endpoint"/"send now" routes (which pass `row` and `endpoint_index`
+   explicitly, or neither for a not-yet-saved blank block). The "Send now"
+   button below only makes sense once an endpoint actually has a saved
+   position in that list, hence the `idx is not none` guard. #}
+{% set idx = endpoint_index if endpoint_index is defined else (loop.index0 if loop is defined else none) %}
 <fieldset class="endpoint-block">
-  <legend><button type="button" class="btn-remove"
-                  onclick="this.closest('.endpoint-block').remove()">Remove</button></legend>
+  {# The "Endpoint N" numbering itself comes from .endpoint-block > legend::before
+     (see app.css) - this span only ever holds the optional alias next to it. #}
+  <legend><span class="endpoint-legend-text">{{ endpoint.alias or '' }}</span>
+    {% if row is defined and idx is not none %}
+      <button type="button" class="btn-secondary btn-send-now"
+              hx-post="/settings/devices/{{ row.canonic_id }}/endpoints/{{ idx }}/send-now"
+              hx-target="closest .endpoint-block" hx-swap="outerHTML">Send now</button>
+    {% endif %}
+    <button type="button" class="btn-remove"
+            onclick="this.closest('.endpoint-block').remove()">Remove</button></legend>
+
+  <label>Alias
+    <input type="text" class="endpoint-alias" name="alias" placeholder="e.g. Home Traccar" value="{{ endpoint.alias or '' }}">
+  </label>
 
   <label>Type
     <select name="endpoint_type">
@@ -24,6 +43,20 @@
       {% endfor %}
     </fieldset>
   {% endfor %}
+
+  {# A plain checkbox submits nothing at all when unchecked, which would
+     desync every endpoint after it in the form's getlist()-by-position
+     parsing (see routers/settings.py) - the hidden field is the one actually
+     named/submitted, always exactly once per endpoint; the checkbox just
+     drives it via endpoint_fields.js. #}
+  <label class="checkbox-label">
+    <input type="checkbox" class="skip-toggle" {% if endpoint.skip_if_close %}checked{% endif %}>
+    <input type="hidden" name="skip_if_close" value="{{ '1' if endpoint.skip_if_close else '0' }}">
+    Skip sending if it hasn't moved
+  </label>
+  <label>Minimum movement to send (meters)
+    <input type="number" name="min_movement_m" min="1" step="1" value="{{ endpoint.min_movement_m or 50 }}">
+  </label>
 
   {% set cron_value = endpoint.cron or '*/5 * * * *' %}
   {% set cron_parts = (cron_value.split() + ['*', '*', '*', '*', '*'])[:5] %}

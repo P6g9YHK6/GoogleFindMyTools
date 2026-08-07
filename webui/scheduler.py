@@ -9,12 +9,14 @@ from webui import ws
 from webui.auth_state import is_logged_in
 from webui.deps import locate_device
 from webui.forwarders import FORWARDER_TYPES, config_store, log_store
+from webui.geo import haversine_distance_m
 
 logger = logging.getLogger("webui.scheduler")
 
 _tasks: dict[str, asyncio.Task] = {}
 
 DEFAULT_CRON = "*/5 * * * *"
+DEFAULT_MIN_MOVEMENT_M = 50
 
 
 def _next_run(cron_expr: str, base: datetime) -> datetime | None:
@@ -25,10 +27,28 @@ def _next_run(cron_expr: str, base: datetime) -> datetime | None:
         return None
 
 
-def _forward_one(endpoint_cfg: dict, location: dict) -> str:
-    """Dispatches to whichever forwarder type this endpoint is configured for.
-    Adding a new destination type never touches this function - see
-    webui/forwarders/registry.py."""
+def _too_close_to_bother(endpoint_cfg: dict, location: dict) -> bool:
+    """True if this endpoint's "skip if it hasn't moved" toggle is on and the
+    new fix is under its configured minimum-movement threshold from the last
+    position actually sent - see webui/geo.py for the (local, API-free)
+    distance calculation."""
+    if not endpoint_cfg.get("skip_if_close"):
+        return False
+    if location.get("is_semantic") or location.get("latitude") is None:
+        return False
+    last_lat, last_lon = endpoint_cfg.get("last_sent_lat"), endpoint_cfg.get("last_sent_lon")
+    if last_lat is None or last_lon is None:
+        return False  # nothing sent yet for this endpoint - always send the first fix
+    threshold = endpoint_cfg.get("min_movement_m") or DEFAULT_MIN_MOVEMENT_M
+    return haversine_distance_m(last_lat, last_lon, location["latitude"], location["longitude"]) < threshold
+
+
+def _dispatch_forward(endpoint_cfg: dict, location: dict) -> str:
+    """Sends to whichever forwarder type this endpoint is configured for, with
+    no distance-skip check - used both by the normal scheduled path (after it
+    passes _too_close_to_bother) and by the "send now" button, which is
+    meant to bypass that check entirely. Adding a new destination type never
+    touches this function - see webui/forwarders/registry.py."""
     ftype = FORWARDER_TYPES.get(endpoint_cfg.get("type"))
     if ftype is None:
         return "skipped"
@@ -41,12 +61,21 @@ def _forward_one(endpoint_cfg: dict, location: dict) -> str:
         return f"error: {e}"
 
 
+def _forward_one(endpoint_cfg: dict, location: dict) -> str:
+    if _too_close_to_bother(endpoint_cfg, location):
+        threshold = endpoint_cfg.get("min_movement_m") or DEFAULT_MIN_MOVEMENT_M
+        return f"skipped: moved less than {threshold:g}m"
+    return _dispatch_forward(endpoint_cfg, location)
+
+
 def _endpoint_target(endpoint_cfg: dict) -> str:
     """Short human-readable destination summary, for the forwarding log."""
     ftype = FORWARDER_TYPES.get(endpoint_cfg.get("type"))
     if ftype is None:
         return ""
-    return ftype.target_label(endpoint_cfg.get(ftype.key) or {})
+    label = ftype.target_label(endpoint_cfg.get(ftype.key) or {})
+    alias = endpoint_cfg.get("alias")
+    return f"{alias} ({label})" if alias else label
 
 
 async def _poll_device(canonic_id: str):
@@ -81,11 +110,16 @@ async def _poll_device(canonic_id: str):
                 locations = []
                 logger.warning("Locate failed for %s: %s", name, e)
 
-        statuses = {}
+        # Keyed by endpoint index, overwritten on every matching location the
+        # same way the old flat status-only version did (last location in the
+        # batch wins) - now also carrying which location that status came
+        # from, so a successful "ok" can update the endpoint's last-sent
+        # position for next time's distance-skip check.
+        results: dict[int, dict] = {}
         for location in locations:
             for i in due_indices:
                 status = await asyncio.to_thread(_forward_one, endpoints[i], location)
-                statuses[i] = status
+                results[i] = {"status": status, "location": location}
                 log_store.append(
                     canonic_id=canonic_id,
                     device_name=name,
@@ -94,15 +128,19 @@ async def _poll_device(canonic_id: str):
                     status=status,
                 )
         for i in due_indices:
-            statuses.setdefault(i, "no location")
+            results.setdefault(i, {"status": "no location", "location": None})
 
         fresh_cfg = config_store.get_device_config(canonic_id) or device_cfg
         fresh_endpoints = fresh_cfg.get("endpoints", [])
         now_ts = int(time.time())
-        for i, status in statuses.items():
-            if i < len(fresh_endpoints):
-                fresh_endpoints[i]["last_forward_status"] = status
-                fresh_endpoints[i]["last_forward_time"] = now_ts
+        for i, result in results.items():
+            if i >= len(fresh_endpoints):
+                continue
+            fresh_endpoints[i]["last_forward_status"] = result["status"]
+            fresh_endpoints[i]["last_forward_time"] = now_ts
+            if result["status"] == "ok" and result["location"] is not None:
+                fresh_endpoints[i]["last_sent_lat"] = result["location"]["latitude"]
+                fresh_endpoints[i]["last_sent_lon"] = result["location"]["longitude"]
         config_store.set_device_config(canonic_id, fresh_cfg)
 
         if due_indices:
@@ -113,6 +151,46 @@ async def _poll_device(canonic_id: str):
                 "locations": locations,
                 "source": "poll",
             })
+
+
+async def forward_now(canonic_id: str, index: int) -> dict | None:
+    """Immediately forwards one endpoint's current location - the "send now"
+    button in the settings UI. Bypasses both its cron schedule and its
+    distance-skip threshold (via _dispatch_forward, not _forward_one) since
+    forcing a send is the whole point. Returns the endpoint's persisted state
+    afterwards, or None if the device/endpoint no longer exists."""
+    device_cfg = config_store.get_device_config(canonic_id)
+    endpoints = device_cfg.get("endpoints", []) if device_cfg else []
+    if not device_cfg or not (0 <= index < len(endpoints)):
+        return None
+
+    name = device_cfg.get("display_name", canonic_id)
+    endpoint_cfg = endpoints[index]
+
+    try:
+        locations = await locate_device(canonic_id, name)
+    except Exception as e:
+        locations = []
+        logger.warning("Locate failed for %s: %s", name, e)
+
+    status = "no location"
+    for location in locations:
+        status = await asyncio.to_thread(_dispatch_forward, endpoint_cfg, location)
+        log_store.append(
+            canonic_id=canonic_id,
+            device_name=name,
+            endpoint_type=endpoint_cfg.get("type", ""),
+            target=_endpoint_target(endpoint_cfg),
+            status=status,
+        )
+        if status == "ok":
+            endpoint_cfg["last_sent_lat"] = location["latitude"]
+            endpoint_cfg["last_sent_lon"] = location["longitude"]
+
+    endpoint_cfg["last_forward_status"] = status
+    endpoint_cfg["last_forward_time"] = int(time.time())
+    config_store.set_device_config(canonic_id, device_cfg)
+    return endpoint_cfg
 
 
 def restart_device(canonic_id: str):

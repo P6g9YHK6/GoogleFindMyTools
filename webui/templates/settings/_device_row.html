@@ -1,0 +1,29 @@
+<form hx-post="/settings/devices/{{ row.canonic_id }}" hx-target="this" hx-swap="outerHTML">
+  <fieldset>
+    <legend>{{ row.name }}</legend>
+    <label>Alias
+      <input type="text" name="display_name" value="{{ row.name }}"
+             {% if row.google_name %}placeholder="{{ row.google_name }}"{% endif %}>
+    </label>
+    {% if row.google_name and row.google_name != row.name %}
+      <p class="field-hint">Google Find My device: {{ row.google_name }}</p>
+    {% endif %}
+
+    {% if row.save_error %}
+      <p class="form-error">{{ row.save_error }}</p>
+    {% endif %}
+
+    <div class="endpoints-container">
+      {% for endpoint in row.config.endpoints %}
+        {% include "settings/_endpoint_fields.html" %}
+      {% endfor %}
+    </div>
+
+    <button type="button" class="btn-secondary"
+            hx-get="/settings/devices/{{ row.canonic_id }}/endpoints/blank"
+            hx-target="previous .endpoints-container"
+            hx-swap="beforeend">+ Add endpoint</button>
+
+    <button type="submit">Save</button>
+  </fieldset>
+</form>
