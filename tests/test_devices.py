@@ -1,4 +1,6 @@
-from tests.conftest import FAKE_CANONIC_ID, FAKE_DEVICE_NAME
+from datetime import datetime
+
+from tests.conftest import FAKE_CANONIC_ID, FAKE_DEVICE_NAME, FAKE_LAST_SEEN
 
 
 def test_index_page(client):
@@ -10,6 +12,12 @@ def test_devices_table_logged_in(client):
     resp = client.get("/devices/table")
     assert resp.status_code == 200
     assert FAKE_DEVICE_NAME in resp.text
+
+
+def test_devices_table_shows_last_seen_when_available(client):
+    resp = client.get("/devices/table")
+    assert resp.status_code == 200
+    assert datetime.fromtimestamp(FAKE_LAST_SEEN).strftime("%Y-%m-%d %H:%M:%S") in resp.text
 
 
 def test_devices_table_not_logged_in(client, monkeypatch):
