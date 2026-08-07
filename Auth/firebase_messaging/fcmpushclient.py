@@ -467,6 +467,13 @@ class FcmPushClient:  # pylint:disable=too-many-instance-attributes
                 subtype,
                 self.credentials["gcm"]["app_id"],
             )
+            # Not meant for us - the shared MCS channel can carry data
+            # messages for other apps/services registered under the same
+            # Android ID. Decrypting one anyway with our own key material is
+            # guaranteed to fail (a foreign message's crypto-key isn't even
+            # necessarily in our expected format/curve), and used to crash
+            # the whole listener instead of just skipping this one message.
+            return
         if not self.credentials:
             return
         decrypted = self._decrypt_raw_data(
