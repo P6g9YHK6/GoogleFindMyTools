@@ -28,7 +28,7 @@ def test_config_store_round_trip(tmp_path, monkeypatch):
     from webui.forwarders import config_store
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding_config.json")
+    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding.yaml")
 
     assert config_store.get_device_config("dev-1") is None
     config_store.set_device_config("dev-1", {"display_name": "X", "endpoints": []})
@@ -41,7 +41,7 @@ def test_config_store_normalizes_legacy_shape(tmp_path, monkeypatch):
     from webui.forwarders import config_store
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding_config.json")
+    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding.yaml")
 
     legacy = {
         "display_name": "X",
@@ -64,12 +64,36 @@ def test_config_store_normalizes_legacy_shape(tmp_path, monkeypatch):
     assert config_store.normalize_device_config(already_new) is already_new
 
 
+def test_config_store_migrates_from_legacy_json(tmp_path, monkeypatch):
+    import json
+
+    from webui import config
+    from webui.forwarders import config_store
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding.yaml")
+    legacy_path = tmp_path / "forwarding_config.json"
+    monkeypatch.setattr(config, "FORWARDING_CONFIG_LEGACY_JSON_PATH", legacy_path)
+
+    legacy_path.write_text(json.dumps({"devices": {"dev-1": {"display_name": "X", "endpoints": []}}}))
+
+    # First read migrates: loads the JSON, and from then on the YAML file is
+    # the source of truth. The old JSON file is left alone, not deleted.
+    assert config_store.get_device_config("dev-1") == {"display_name": "X", "endpoints": []}
+    assert config.FORWARDING_CONFIG_PATH.exists()
+    assert legacy_path.exists()
+
+    config_store.set_device_config("dev-2", {"display_name": "Y", "endpoints": []})
+    legacy_path.write_text(json.dumps({"devices": {}}))  # even if this goes stale afterwards
+    assert {"dev-1", "dev-2"} <= config_store.all_devices().keys()
+
+
 def test_log_store_round_trip(tmp_path, monkeypatch):
     from webui import config
     from webui.forwarders import log_store
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "FORWARD_LOG_PATH", tmp_path / "forward_log.json")
+    monkeypatch.setattr(config, "FORWARD_LOG_PATH", tmp_path / "forward.log")
 
     log_store.append("dev-1", "My Tracker", "traccar", "http://x (device d1)", "ok")
     log_store.append("dev-1", "My Tracker", "phonetrack", "http://y (p1)", "error: boom")
@@ -85,7 +109,7 @@ def test_log_store_caps_entries(tmp_path, monkeypatch):
     from webui.forwarders import log_store
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "FORWARD_LOG_PATH", tmp_path / "forward_log.json")
+    monkeypatch.setattr(config, "FORWARD_LOG_PATH", tmp_path / "forward.log")
     monkeypatch.setattr(config, "FORWARD_LOG_MAX_ENTRIES", 5)
 
     for i in range(10):

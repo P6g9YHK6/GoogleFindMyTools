@@ -34,10 +34,21 @@ QUERY_MIN_SPREAD_S = float(os.environ.get("QUERY_MIN_SPREAD_S", "1"))
 # via HTTP Basic Auth (any username). Unset by default - see README.
 WEBUI_PASSWORD = os.environ.get("WEBUI_PASSWORD")
 
+# Alternative to WEBUI_PASSWORD that also checks the username - set both to
+# require a specific username/password pair over HTTP Basic Auth instead of
+# any-username-plus-shared-password. Takes precedence over WEBUI_PASSWORD
+# when both are set.
+HTTP_USER = os.environ.get("HTTP_USER")
+HTTP_PASSWORD = os.environ.get("HTTP_PASSWORD")
+
 # Lets forwarding_config.json live in a mounted directory (e.g. in Docker,
 # alongside GFMT_SECRETS_DIR under the same volume) instead of always sitting
 # next to this module - see Auth/token_cache.py for the same pattern.
 DATA_DIR = pathlib.Path(os.environ.get("GFMT_DATA_DIR") or (pathlib.Path(__file__).parent / "data"))
-FORWARDING_CONFIG_PATH = DATA_DIR / "forwarding_config.json"
-FORWARD_LOG_PATH = DATA_DIR / "forward_log.json"
+FORWARDING_CONFIG_PATH = DATA_DIR / "forwarding.yaml"
+# Pre-YAML location - config_store.py reads this once to migrate, then never again.
+FORWARDING_CONFIG_LEGACY_JSON_PATH = DATA_DIR / "forwarding_config.json"
+FORWARD_LOG_PATH = DATA_DIR / "forward.log"
+# Pre-.log location - log_store.py reads this once to migrate, then never again.
+FORWARD_LOG_LEGACY_JSON_PATH = DATA_DIR / "forward_log.json"
 FORWARD_LOG_MAX_ENTRIES = int(os.environ.get("FORWARD_LOG_MAX_ENTRIES", "1000"))

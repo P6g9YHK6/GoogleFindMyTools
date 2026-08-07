@@ -1,6 +1,8 @@
 import json
 import threading
 
+import yaml
+
 from webui import config
 
 _lock = threading.Lock()
@@ -53,25 +55,51 @@ def normalize_device_config(device_cfg: dict) -> dict:
     return normalized
 
 
+def _migrate_from_legacy_json() -> dict | None:
+    """One-time upgrade path from the pre-YAML forwarding_config.json - read it
+    once, write it straight back out as forwarding.yaml, and leave the old
+    file in place untouched (as a backup, and so a downgrade isn't a hard
+    break). Every load() after that first migration hits the YAML file
+    directly and never looks at the JSON file again."""
+    if not config.FORWARDING_CONFIG_LEGACY_JSON_PATH.exists():
+        return None
+    try:
+        with open(config.FORWARDING_CONFIG_LEGACY_JSON_PATH) as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    data.setdefault("devices", {})
+    _save(data)
+    return data
+
+
 def load() -> dict:
     with _lock:
         config.DATA_DIR.mkdir(parents=True, exist_ok=True)
         if not config.FORWARDING_CONFIG_PATH.exists():
-            return _empty()
+            return _migrate_from_legacy_json() or _empty()
         try:
             with open(config.FORWARDING_CONFIG_PATH) as f:
-                data = json.load(f)
-        except (json.JSONDecodeError, OSError):
+                data = yaml.safe_load(f)
+        except (yaml.YAMLError, OSError):
+            return _empty()
+        if not isinstance(data, dict):
             return _empty()
         data.setdefault("devices", {})
         return data
 
 
+def _save(data: dict):
+    config.DATA_DIR.mkdir(parents=True, exist_ok=True)
+    with open(config.FORWARDING_CONFIG_PATH, "w") as f:
+        yaml.safe_dump(data, f, sort_keys=False, allow_unicode=True)
+
+
 def save(data: dict):
     with _lock:
-        config.DATA_DIR.mkdir(parents=True, exist_ok=True)
-        with open(config.FORWARDING_CONFIG_PATH, "w") as f:
-            json.dump(data, f, indent=2)
+        _save(data)
 
 
 def get_device_config(canonic_id: str) -> dict | None:
