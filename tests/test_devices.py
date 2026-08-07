@@ -45,3 +45,40 @@ def test_devices_table_prepopulates_from_a_prior_locate_no_click_needed(client, 
     assert resp.status_code == 200
     assert "12.50000, 34.50000" in resp.text
     assert "as of" in resp.text
+
+
+def test_last_seen_falls_back_to_the_most_recent_persisted_location_time():
+    """Spot/BLE tags carry no hardwareInfo.lastSeenTime at all (see
+    ProtoDecoders/decoder.py:get_last_seen) - the Devices page should still
+    show something once the tag has actually been located at least once."""
+    from webui.routers.devices import _last_seen_from_persisted_locations
+
+    assert _last_seen_from_persisted_locations(None) is None
+
+    no_usable_time = {"locations": [{"is_semantic": True, "time": 999}, {"is_semantic": False, "time": None}]}
+    assert _last_seen_from_persisted_locations(no_usable_time) is None
+
+    multiple_fixes = {"locations": [
+        {"is_semantic": False, "time": 100},
+        {"is_semantic": True, "time": 999},  # semantic entries don't count
+        {"is_semantic": False, "time": 300},
+    ]}
+    assert _last_seen_from_persisted_locations(multiple_fixes) == 300
+
+
+def test_devices_table_uses_persisted_location_time_when_proto_has_no_last_seen(client, tmp_path, monkeypatch):
+    from webui import config, device_location_store
+    from webui.routers import devices
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+    monkeypatch.setattr(devices, "get_canonic_ids", lambda device_list: [(FAKE_DEVICE_NAME, FAKE_CANONIC_ID, None)])
+
+    device_location_store.set_last_location(
+        FAKE_CANONIC_ID, [{"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1786118431}],
+        fetched_at=1786118500,
+    )
+
+    resp = client.get("/devices/table")
+    assert resp.status_code == 200
+    assert datetime.fromtimestamp(1786118431).strftime("%Y-%m-%d %H:%M:%S") in resp.text
