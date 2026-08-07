@@ -113,3 +113,98 @@ def test_app_settings_round_trip(client, tmp_path, monkeypatch):
         for handler in list(logging.getLogger("webui").handlers):
             if isinstance(handler, notify._AppriseLogHandler):
                 logging.getLogger("webui").removeHandler(handler)
+
+
+def _stub_apprise(monkeypatch):
+    from webui import notify
+
+    class FakeApprise:
+        def add(self, url):
+            return True
+
+    monkeypatch.setattr(notify.apprise, "Apprise", FakeApprise)
+
+
+def _remove_apprise_handlers():
+    import logging
+
+    from webui import notify
+
+    for handler in list(logging.getLogger("webui").handlers):
+        if isinstance(handler, notify._AppriseLogHandler):
+            logging.getLogger("webui").removeHandler(handler)
+
+
+def test_app_settings_yaml_view_shows_current_settings(client, tmp_path, monkeypatch):
+    from webui import config
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "APP_SETTINGS_PATH", tmp_path / "config.yaml")
+
+    resp = client.get("/auth/settings/yaml")
+    assert resp.status_code == 200
+    assert "query_throttle_max:" in resp.text
+    assert "Edit as form" in resp.text
+
+
+def test_app_settings_form_route_switches_back_from_yaml_view(client):
+    resp = client.get("/auth/settings")
+    assert resp.status_code == 200
+    assert "Edit as YAML" in resp.text
+    assert 'name="query_throttle_max"' in resp.text
+
+
+def test_save_app_settings_yaml_persists_and_switches_back_to_form(client, tmp_path, monkeypatch):
+    from webui import config, settings_store
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "APP_SETTINGS_PATH", tmp_path / "config.yaml")
+    _stub_apprise(monkeypatch)
+
+    try:
+        yaml_text = (
+            "query_throttle_max: 9\n"
+            "query_throttle_window_s: 45.0\n"
+            "query_min_spread_s: 2.0\n"
+            "apprise_urls: json://yaml.example/hook\n"
+            "apprise_notify_level: CRITICAL\n"
+        )
+        resp = client.post("/auth/settings/yaml", data={"yaml_text": yaml_text})
+        assert resp.status_code == 200
+        assert 'value="9"' in resp.text  # switched back to the form view
+        assert "Edit as YAML" in resp.text
+
+        saved = settings_store.load()
+        assert saved["query_throttle_max"] == 9
+        assert saved["apprise_urls"] == "json://yaml.example/hook"
+        assert saved["apprise_notify_level"] == "CRITICAL"
+    finally:
+        _remove_apprise_handlers()
+
+
+def test_save_app_settings_yaml_rejects_invalid_yaml_without_persisting(client, tmp_path, monkeypatch):
+    from webui import config, settings_store
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "APP_SETTINGS_PATH", tmp_path / "config.yaml")
+
+    before = settings_store.load()
+    resp = client.post("/auth/settings/yaml", data={"yaml_text": "not: valid: yaml: ["})
+    assert resp.status_code == 200
+    assert "Invalid YAML" in resp.text
+    assert "Edit as form" in resp.text  # still in the YAML view
+
+    assert settings_store.load() == before
+
+
+def test_save_app_settings_yaml_rejects_a_missing_key(client, tmp_path, monkeypatch):
+    from webui import config, settings_store
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "APP_SETTINGS_PATH", tmp_path / "config.yaml")
+
+    before = settings_store.load()
+    resp = client.post("/auth/settings/yaml", data={"yaml_text": "query_throttle_max: 5\n"})
+    assert resp.status_code == 200
+    assert "Invalid YAML" in resp.text
+    assert settings_store.load() == before

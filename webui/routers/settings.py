@@ -1,3 +1,4 @@
+import yaml
 from croniter import croniter
 from fastapi import APIRouter, Form, HTTPException, Request
 
@@ -68,6 +69,63 @@ async def settings_page(request: Request):
         return templates.TemplateResponse(request, "_not_signed_in.html", {})
     return templates.TemplateResponse(request, "settings/forwarding.html", {
         "rows": await _rows(), **_TEMPLATE_CONTEXT,
+    })
+
+
+@router.get("/settings/devices/{canonic_id}")
+async def device_form_route(request: Request, canonic_id: str):
+    """Re-renders just the structured form - the "Edit as form" button's
+    target when switching back out of the YAML view below."""
+    if not is_logged_in():
+        return templates.TemplateResponse(request, "_not_signed_in.html", {})
+    row = await _row(canonic_id)
+    return templates.TemplateResponse(request, "settings/_device_form.html", {
+        "row": row, **_TEMPLATE_CONTEXT,
+    })
+
+
+@router.get("/settings/devices/{canonic_id}/yaml")
+async def device_yaml_route(request: Request, canonic_id: str):
+    if not is_logged_in():
+        return templates.TemplateResponse(request, "_not_signed_in.html", {})
+    row = await _row(canonic_id)
+    yaml_text = yaml.safe_dump(row["config"], sort_keys=False, allow_unicode=True)
+    return templates.TemplateResponse(request, "settings/_device_yaml.html", {
+        "canonic_id": canonic_id, "name": row["name"], "yaml_text": yaml_text,
+    })
+
+
+@router.post("/settings/devices/{canonic_id}/yaml")
+async def save_device_yaml_route(request: Request, canonic_id: str, yaml_text: str = Form(...)):
+    if not is_logged_in():
+        return templates.TemplateResponse(request, "_not_signed_in.html", {})
+
+    row = await _row(canonic_id)
+    try:
+        parsed = yaml.safe_load(yaml_text)
+        if parsed is None:
+            parsed = {}
+        if not isinstance(parsed, dict):
+            raise ValueError("must be a mapping (e.g. \"endpoints: [...]\"), not a list or a bare value")
+        parsed.setdefault("endpoints", [])
+        if not isinstance(parsed["endpoints"], list):
+            raise ValueError("\"endpoints\" must be a list")
+        for i, endpoint in enumerate(parsed["endpoints"]):
+            if not isinstance(endpoint, dict):
+                raise ValueError(f"endpoints[{i}] must be a mapping")
+    except (yaml.YAMLError, ValueError) as e:
+        return templates.TemplateResponse(request, "settings/_device_yaml.html", {
+            "canonic_id": canonic_id, "name": row["name"], "yaml_text": yaml_text,
+            "error": f"Invalid YAML: {e}",
+        })
+
+    parsed.setdefault("display_name", row["name"])
+    config_store.set_device_config(canonic_id, parsed)
+    scheduler.restart_device(canonic_id)
+
+    fresh_row = await _row(canonic_id)
+    return templates.TemplateResponse(request, "settings/_device_form.html", {
+        "row": fresh_row, **_TEMPLATE_CONTEXT,
     })
 
 
@@ -178,7 +236,7 @@ async def update_device_settings(
     if errors:
         device_cfg = {"display_name": display_name, "endpoints": endpoints}
         row = await _row(canonic_id, overrides={canonic_id: {"config": device_cfg, "error": "; ".join(errors)}})
-        return templates.TemplateResponse(request, "settings/_device_row.html", {
+        return templates.TemplateResponse(request, "settings/_device_form.html", {
             "row": row, **_TEMPLATE_CONTEXT,
         })
 
@@ -187,6 +245,6 @@ async def update_device_settings(
     scheduler.restart_device(canonic_id)
 
     row = await _row(canonic_id)
-    return templates.TemplateResponse(request, "settings/_device_row.html", {
+    return templates.TemplateResponse(request, "settings/_device_form.html", {
         "row": row, **_TEMPLATE_CONTEXT,
     })

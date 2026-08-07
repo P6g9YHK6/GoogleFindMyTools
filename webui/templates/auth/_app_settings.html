@@ -1,4 +1,9 @@
 <form hx-post="/auth/settings" hx-target="this" hx-swap="outerHTML">
+  <button type="button" class="btn-secondary"
+          hx-get="/auth/settings/yaml" hx-target="closest .app-settings-editor" hx-swap="innerHTML">
+    Edit as YAML
+  </button>
+
   <fieldset>
     <legend>Google API query throttle</legend>
     <p class="field-hint">Applies to every request this app makes to Google (device list, locate, sound,
