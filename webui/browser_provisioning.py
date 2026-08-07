@@ -52,7 +52,7 @@ async def start() -> dict:
         return {"started": False, "state": get_state()}
 
     # Clear any warning left over from a previous attempt's teardown - the
-    # Account page should only ever reflect the most recent one.
+    # Config page should only ever reflect the most recent one.
     _state["cleanup_warning"] = None
     await _set_state("starting", "Starting...", 0)
     asyncio.create_task(_run_flow())

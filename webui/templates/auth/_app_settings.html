@@ -1,0 +1,48 @@
+<form hx-post="/auth/settings" hx-target="this" hx-swap="outerHTML">
+  <fieldset>
+    <legend>Google API query throttle</legend>
+    <p class="field-hint">Applies to every request this app makes to Google (device list, locate, sound,
+       register) - see the live queue above.</p>
+
+    <label>Max queries per window
+      <input type="number" name="query_throttle_max" min="0" step="1"
+             value="{{ app_settings.query_throttle_max }}">
+    </label>
+    <label>Window (seconds)
+      <input type="number" name="query_throttle_window_s" min="0" step="1"
+             value="{{ app_settings.query_throttle_window_s }}">
+    </label>
+    <label>Minimum spread between queries (seconds)
+      <input type="number" name="query_min_spread_s" min="0" step="0.1"
+             value="{{ app_settings.query_min_spread_s }}">
+    </label>
+    <p class="field-hint">0 disables that particular limit.</p>
+  </fieldset>
+
+  <fieldset>
+    <legend>Apprise notifications</legend>
+    <p class="field-hint">Sends a notification for every warning-or-worse logged anywhere in the app
+       (locate failures, forwarding failures, sign-in failures, ...). See
+       <a href="https://github.com/caronc/apprise" target="_blank" rel="noopener">the apprise docs</a>
+       for the URL format (Discord, Telegram, email, ntfy, dozens more).</p>
+
+    <label>Apprise URLs (one per line, or comma-separated)
+      <textarea name="apprise_urls" rows="3" class="url-input">{{ app_settings.apprise_urls }}</textarea>
+    </label>
+    <label>Minimum level to notify on
+      <select name="apprise_notify_level">
+        {% for level in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] %}
+          <option value="{{ level }}" {% if app_settings.apprise_notify_level == level %}selected{% endif %}>
+            {{ level }}
+          </option>
+        {% endfor %}
+      </select>
+    </label>
+  </fieldset>
+
+  {% if saved %}
+    <p class="endpoint-status">Saved.</p>
+  {% endif %}
+
+  <button type="submit">Save settings</button>
+</form>

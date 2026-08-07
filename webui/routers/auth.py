@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Form, Request
 
 from Auth.fcm_receiver import FcmReceiver
 from Auth.token_cache import clear_all_cached_values, get_cached_value
-from webui import browser_provisioning
+from webui import browser_provisioning, notify, settings_store
 from webui.auth_state import is_logged_in
 from webui.deps import query_gate
 from webui.templating import templates
@@ -10,7 +10,7 @@ from webui.templating import templates
 router = APIRouter()
 
 # Every credential the sign-in flow can produce - shown as a per-key present/
-# missing breakdown on the account page instead of just one pass/fail bit, so
+# missing breakdown on the Config page instead of just one pass/fail bit, so
 # a partial failure (e.g. aas_token cached but fcm_credentials never got
 # written) is visible at a glance instead of needing to shell in and read
 # secrets.json by hand to find out, as happened repeatedly while chasing that
@@ -41,6 +41,35 @@ def _auth_status() -> dict:
 async def auth_page(request: Request):
     return templates.TemplateResponse(request, "auth/login.html", {
         "status": _auth_status(),
+        "app_settings": settings_store.load(),
+    })
+
+
+@router.post("/auth/settings")
+async def save_app_settings(
+    request: Request,
+    query_throttle_max: int = Form(...),
+    query_throttle_window_s: float = Form(...),
+    query_min_spread_s: float = Form(...),
+    apprise_urls: str = Form(""),
+    apprise_notify_level: str = Form("WARNING"),
+):
+    app_settings = {
+        "query_throttle_max": query_throttle_max,
+        "query_throttle_window_s": query_throttle_window_s,
+        "query_min_spread_s": query_min_spread_s,
+        "apprise_urls": apprise_urls,
+        "apprise_notify_level": apprise_notify_level,
+    }
+    settings_store.save(app_settings)
+    # Apply the (possibly new) Apprise settings immediately, same as the
+    # throttle settings take effect on QueryGate's very next wait_turn() call
+    # - no restart needed for either.
+    notify.configure_apprise_logging(env=settings_store.apprise_env())
+
+    return templates.TemplateResponse(request, "auth/_app_settings.html", {
+        "app_settings": app_settings,
+        "saved": True,
     })
 
 

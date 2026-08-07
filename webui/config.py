@@ -24,7 +24,7 @@ LOCATE_TIMEOUT_S = int(os.environ.get("LOCATE_TIMEOUT_S", "60"))
 # window is configurable, not hardcoded to a fixed "per minute"), plus at
 # least QUERY_MIN_SPREAD_S seconds between any two consecutive requests.
 # Requests over either limit wait their turn in a queue instead of failing -
-# see webui/deps.py's QueryGate and the live counter on the account page.
+# see webui/deps.py's QueryGate and the live counter on the Config page.
 # 0 disables that particular limit.
 QUERY_THROTTLE_MAX = int(os.environ.get("QUERY_THROTTLE_MAX", "20"))
 QUERY_THROTTLE_WINDOW_S = float(os.environ.get("QUERY_THROTTLE_WINDOW_S", "60"))
@@ -46,3 +46,6 @@ FORWARD_LOG_PATH = DATA_DIR / "forward.log"
 # Pre-.log location - log_store.py reads this once to migrate, then never again.
 FORWARD_LOG_LEGACY_JSON_PATH = DATA_DIR / "forward_log.json"
 FORWARD_LOG_MAX_ENTRIES = int(os.environ.get("FORWARD_LOG_MAX_ENTRIES", "1000"))
+# Persisted overrides for the throttle/Apprise settings below - see
+# webui/settings_store.py and the Config page.
+APP_SETTINGS_PATH = DATA_DIR / "config.yaml"
