@@ -43,10 +43,10 @@ Either way, this is a single container, published at `http://localhost:4321`. Ch
 
 To sign in, open `http://localhost:4321/auth` and click "Sign in with Google" - watch the setup progress, then complete the login in the embedded Chrome view that appears on the same page once it's ready. The resulting tokens are written to `Auth/auth.yaml` in a Docker volume, exactly like copying that file between machines as described below, just automated. (Upgrading from an older version that still has `Auth/secrets.json` migrates it automatically the first time it's read - the old file is left in place, untouched.)
 
-Set a `WEBUI_PASSWORD` environment variable to require a password (any username, HTTP Basic Auth) for the whole web UI, including the embedded login view. Copy `.env.example` to `.env` and fill it in, or run `WEBUI_PASSWORD=yourpassword docker compose up -d`. It's unset by default. To also require a specific username, set `HTTP_USER`/`HTTP_PASSWORD` instead - these take precedence over `WEBUI_PASSWORD` if both are set.
+Set `HTTP_USER` and `HTTP_PASSWORD` environment variables to require that username/password pair (HTTP Basic Auth) for the whole web UI, including the embedded login view. Copy `.env.example` to `.env` and fill both in, or run `HTTP_USER=you HTTP_PASSWORD=yourpassword docker compose up -d`. Both are unset by default.
 
 > [!CAUTION]
-> Even with `WEBUI_PASSWORD` (or `HTTP_USER`/`HTTP_PASSWORD`) set, this web UI only adds HTTP Basic Auth and no HTTPS, and it holds long-lived Google account tokens plus live device location data. It is meant for local/LAN use only. Do not port-forward it or otherwise expose it to the public internet.
+> Even with `HTTP_USER`/`HTTP_PASSWORD` set, this web UI only adds HTTP Basic Auth and no HTTPS, and it holds long-lived Google account tokens plus live device location data. It is meant for local/LAN use only. Do not port-forward it or otherwise expose it to the public internet.
 
 #### Publishing the image
 

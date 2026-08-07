@@ -30,14 +30,8 @@ QUERY_THROTTLE_MAX = int(os.environ.get("QUERY_THROTTLE_MAX", "20"))
 QUERY_THROTTLE_WINDOW_S = float(os.environ.get("QUERY_THROTTLE_WINDOW_S", "60"))
 QUERY_MIN_SPREAD_S = float(os.environ.get("QUERY_MIN_SPREAD_S", "1"))
 
-# If set, the whole web UI (including the WebSocket) requires this password
-# via HTTP Basic Auth (any username). Unset by default - see README.
-WEBUI_PASSWORD = os.environ.get("WEBUI_PASSWORD")
-
-# Alternative to WEBUI_PASSWORD that also checks the username - set both to
-# require a specific username/password pair over HTTP Basic Auth instead of
-# any-username-plus-shared-password. Takes precedence over WEBUI_PASSWORD
-# when both are set.
+# If both are set, the whole web UI (including the WebSocket) requires this
+# username/password pair via HTTP Basic Auth. Unset by default - see README.
 HTTP_USER = os.environ.get("HTTP_USER")
 HTTP_PASSWORD = os.environ.get("HTTP_PASSWORD")
 
