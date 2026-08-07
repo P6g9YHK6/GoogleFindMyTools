@@ -58,6 +58,17 @@
     <input type="number" name="min_movement_m" min="1" step="1" value="{{ endpoint.min_movement_m or 50 }}">
   </label>
 
+  <label class="checkbox-label">
+    <input type="checkbox" class="skip-toggle" {% if endpoint.skip_if_stale %}checked{% endif %}>
+    <input type="hidden" name="skip_if_stale" value="{{ '1' if endpoint.skip_if_stale else '0' }}">
+    Skip sending if it hasn't been updated
+  </label>
+  <label>Minimum time between updates to send (minutes)
+    <input type="number" name="min_update_gap_m" min="1" step="1" value="{{ endpoint.min_update_gap_m or 30 }}">
+  </label>
+  <p class="field-hint">A fresh/live fix is always sent regardless - this only holds back re-sending
+     the same stale cached report Google keeps returning.</p>
+
   {% set cron_value = endpoint.cron or '*/5 * * * *' %}
   {% set cron_parts = (cron_value.split() + ['*', '*', '*', '*', '*'])[:5] %}
   <fieldset>

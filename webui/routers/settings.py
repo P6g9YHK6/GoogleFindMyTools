@@ -174,6 +174,8 @@ async def update_device_settings(
     aliases = form.getlist("alias")
     skip_flags = form.getlist("skip_if_close")
     min_movements = form.getlist("min_movement_m")
+    stale_flags = form.getlist("skip_if_stale")
+    min_update_gaps = form.getlist("min_update_gap_m")
     # Grab every registered type's fields up front, keyed the same way the
     # template names its inputs (see ForwarderType.form_field_name) - adding a
     # new type to the registry is picked up here automatically, no new
@@ -221,6 +223,13 @@ async def update_device_settings(
             except ValueError:
                 entry["min_movement_m"] = scheduler.DEFAULT_MIN_MOVEMENT_M
 
+        if (stale_flags[i] if i < len(stale_flags) else "0") == "1":
+            entry["skip_if_stale"] = True
+            try:
+                entry["min_update_gap_m"] = float(min_update_gaps[i]) if i < len(min_update_gaps) else scheduler.DEFAULT_MIN_UPDATE_GAP_M
+            except ValueError:
+                entry["min_update_gap_m"] = scheduler.DEFAULT_MIN_UPDATE_GAP_M
+
         # Best-effort: carry forward this endpoint's last status/position if it
         # still looks like the same logical endpoint at this position - these
         # just re-populate from scratch otherwise (a fresh save would otherwise
@@ -230,6 +239,7 @@ async def update_device_settings(
             entry["last_forward_time"] = existing_endpoints[i].get("last_forward_time")
             entry["last_sent_lat"] = existing_endpoints[i].get("last_sent_lat")
             entry["last_sent_lon"] = existing_endpoints[i].get("last_sent_lon")
+            entry["last_sent_fix_time"] = existing_endpoints[i].get("last_sent_fix_time")
 
         endpoints.append(entry)
 

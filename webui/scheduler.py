@@ -18,6 +18,11 @@ _tasks: dict[str, asyncio.Task] = {}
 
 DEFAULT_CRON = "*/5 * * * *"
 DEFAULT_MIN_MOVEMENT_M = 50
+DEFAULT_MIN_UPDATE_GAP_M = 30
+# A fix this recent is treated as a genuinely live update rather than Google
+# re-serving the same stale cached report - always sent regardless of the
+# stale-duplicate gate below.
+FRESH_FIX_AGE_S = 120
 
 
 def _next_run(cron_expr: str, base: datetime) -> datetime | None:
@@ -44,6 +49,27 @@ def _too_close_to_bother(endpoint_cfg: dict, location: dict) -> bool:
     return haversine_distance_m(last_lat, last_lon, location["latitude"], location["longitude"]) < threshold
 
 
+def _stale_duplicate(endpoint_cfg: dict, location: dict, now: float | None = None) -> bool:
+    """True if this endpoint's "skip if it hasn't been updated" toggle is on
+    and the new fix is (a) not fresh/live and (b) within its configured
+    minimum-update-gap of the last fix's own timestamp actually sent - i.e.
+    Google is just re-serving the same stale cached report again, not a new
+    update. A genuinely live fix (recorded within FRESH_FIX_AGE_S of now)
+    always bypasses this and gets sent regardless."""
+    if not endpoint_cfg.get("skip_if_stale"):
+        return False
+    if location.get("is_semantic") or location.get("time") is None:
+        return False
+    now = time.time() if now is None else now
+    if now - location["time"] <= FRESH_FIX_AGE_S:
+        return False
+    last_fix_time = endpoint_cfg.get("last_sent_fix_time")
+    if last_fix_time is None:
+        return False  # nothing sent yet for this endpoint - always send the first fix
+    gap_s = (endpoint_cfg.get("min_update_gap_m") or DEFAULT_MIN_UPDATE_GAP_M) * 60
+    return abs(location["time"] - last_fix_time) < gap_s
+
+
 def _dispatch_forward(endpoint_cfg: dict, location: dict) -> str:
     """Sends to whichever forwarder type this endpoint is configured for, with
     no distance-skip check - used both by the normal scheduled path (after it
@@ -66,6 +92,9 @@ def _forward_one(endpoint_cfg: dict, location: dict) -> str:
     if _too_close_to_bother(endpoint_cfg, location):
         threshold = endpoint_cfg.get("min_movement_m") or DEFAULT_MIN_MOVEMENT_M
         return f"skipped: moved less than {threshold:g}m"
+    if _stale_duplicate(endpoint_cfg, location):
+        gap = endpoint_cfg.get("min_update_gap_m") or DEFAULT_MIN_UPDATE_GAP_M
+        return f"skipped: not updated in the last {gap:g}m"
     return _dispatch_forward(endpoint_cfg, location)
 
 
@@ -160,6 +189,7 @@ async def _poll_device(canonic_id: str):
             if result["status"] == "ok" and result["location"] is not None:
                 fresh_endpoints[i]["last_sent_lat"] = result["location"]["latitude"]
                 fresh_endpoints[i]["last_sent_lon"] = result["location"]["longitude"]
+                fresh_endpoints[i]["last_sent_fix_time"] = result["location"].get("time")
         config_store.set_device_config(canonic_id, fresh_cfg)
 
         if due_indices:
@@ -206,6 +236,7 @@ async def forward_now(canonic_id: str, index: int) -> dict | None:
         if status == "ok":
             endpoint_cfg["last_sent_lat"] = location["latitude"]
             endpoint_cfg["last_sent_lon"] = location["longitude"]
+            endpoint_cfg["last_sent_fix_time"] = location.get("time")
 
     endpoint_cfg["last_forward_status"] = status
     endpoint_cfg["last_forward_time"] = int(time.time())
