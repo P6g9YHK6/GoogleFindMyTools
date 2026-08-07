@@ -1,6 +1,6 @@
 <table>
   <thead>
-    <tr><th>Name</th><th>Actions</th><th>Last locate result</th></tr>
+    <tr><th>Name</th><th>Actions</th><th>Last locate result</th><th>Last seen</th></tr>
   </thead>
   <tbody>
   {% for device in devices %}
@@ -17,9 +17,12 @@
         {% set fetched_at_str = device.last_fetched_at_str %}
         {% include "devices/_locate_cell.html" %}
       </td>
+      {# Phone-only (Spot/BLE tags never have this) - see
+         ProtoDecoders/decoder.py:get_last_seen. #}
+      <td>{{ device.last_seen_str or "—" }}</td>
     </tr>
   {% else %}
-    <tr><td colspan="3">No devices found.</td></tr>
+    <tr><td colspan="4">No devices found.</td></tr>
   {% endfor %}
   </tbody>
 </table>

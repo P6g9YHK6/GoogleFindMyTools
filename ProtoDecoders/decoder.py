@@ -67,16 +67,28 @@ def parse_device_list_protobuf(hex_string):
     return device_list
 
 
+def get_last_seen(device) -> int | None:
+    """Unix timestamp of when this device was last seen, or None if it's not
+    present (e.g. Spot/BLE tags don't carry this - it's phone-only). Reverse
+    engineered from a live account capture and cross-checked against the
+    real Find My Device web app's own data for the same device at the same
+    moment - see DeviceHardwareInfo in DeviceUpdate.proto for the caveats."""
+    if not device.HasField("hardwareInfo") or not device.hardwareInfo.HasField("lastSeenTime"):
+        return None
+    return device.hardwareInfo.lastSeenTime.seconds
+
+
 def get_canonic_ids(device_list):
     result = []
     for device in device_list.deviceMetadata:
-        if device.identifierInformation.type == DeviceUpdate_pb2.IDENTIFIER_ANDROID: 
+        if device.identifierInformation.type == DeviceUpdate_pb2.IDENTIFIER_ANDROID:
             canonic_ids = device.identifierInformation.phoneInformation.canonicIds.canonicId
         else:
             canonic_ids = device.identifierInformation.canonicIds.canonicId
         device_name = device.userDefinedDeviceName
+        last_seen = get_last_seen(device)
         for canonic_id in canonic_ids:
-            result.append((device_name, canonic_id.id))
+            result.append((device_name, canonic_id.id, last_seen))
     return result
 
 

@@ -26,7 +26,7 @@ async def _rows(overrides: dict[str, dict] | None = None) -> list[dict]:
     devices = config_store.all_devices()
 
     rows = []
-    for google_name, canonic_id in canonic_ids:
+    for google_name, canonic_id, _last_seen in canonic_ids:
         device_cfg = devices.get(canonic_id) or {"display_name": google_name, "endpoints": []}
         save_error = None
         if overrides and canonic_id in overrides:

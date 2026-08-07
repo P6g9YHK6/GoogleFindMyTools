@@ -34,6 +34,7 @@ from starlette.testclient import TestClient  # noqa: E402
 # A stand-in device list every "logged in" test sees by default.
 FAKE_DEVICE_NAME = "My Tracker"
 FAKE_CANONIC_ID = "test-canonic-id"
+FAKE_LAST_SEEN = 1700000000  # phone-only field - see ProtoDecoders/decoder.py:get_last_seen
 
 
 @pytest.fixture(autouse=True)
@@ -44,7 +45,7 @@ def stub_backend(monkeypatch):
     from webui.routers import auth, devices, locate, logs, register, settings, sound
 
     def fake_get_canonic_ids(device_list):
-        return [(FAKE_DEVICE_NAME, FAKE_CANONIC_ID)]
+        return [(FAKE_DEVICE_NAME, FAKE_CANONIC_ID, FAKE_LAST_SEEN)]
 
     for mod in (devices, settings, logs):
         monkeypatch.setattr(mod, "is_logged_in", lambda: True)

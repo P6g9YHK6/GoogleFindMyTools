@@ -23,7 +23,7 @@ async def get_devices() -> list[dict]:
     canonic_ids = await run_blocking(_fetch)
 
     devices = []
-    for name, canonic_id in canonic_ids:
+    for name, canonic_id, last_seen in canonic_ids:
         last = device_location_store.get_last_location(canonic_id)
         devices.append({
             "name": name,
@@ -32,6 +32,9 @@ async def get_devices() -> list[dict]:
             "last_fetched_at_str": (
                 datetime.fromtimestamp(last["fetched_at"]).strftime("%Y-%m-%d %H:%M:%S") if last else None
             ),
+            # Phone-only (Spot/BLE tags never have this) - see
+            # ProtoDecoders/decoder.py:get_last_seen for how it's obtained.
+            "last_seen_str": datetime.fromtimestamp(last_seen).strftime("%Y-%m-%d %H:%M:%S") if last_seen else None,
         })
     return devices
 
