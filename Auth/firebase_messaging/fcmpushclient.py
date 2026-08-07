@@ -403,8 +403,13 @@ class FcmPushClient:  # pylint:disable=too-many-instance-attributes
         salt_str: str,
         raw_data: bytes,
     ) -> bytes:
-        crypto_key = urlsafe_b64decode(crypto_key_str.encode("ascii"))
-        salt = urlsafe_b64decode(salt_str.encode("ascii"))
+        # Per-message headers from the push service, unlike the two decodes
+        # below - both come without their base64url padding often enough
+        # that this crashed the whole listener (see the traceback this used
+        # to produce: "binascii.Error: Incorrect padding"). Excess "=" is
+        # harmless to urlsafe_b64decode, same trick already used just below.
+        crypto_key = urlsafe_b64decode(crypto_key_str.encode("ascii") + b"========")
+        salt = urlsafe_b64decode(salt_str.encode("ascii") + b"========")
         der_data_str = credentials["keys"]["private"]
         der_data = urlsafe_b64decode(der_data_str.encode("ascii") + b"========")
         secret_str = credentials["keys"]["secret"]
