@@ -65,3 +65,51 @@ def test_auth_queue_status_reflects_live_waiting_count(client, monkeypatch):
     monkeypatch.setattr(auth.query_gate, "waiting", 1)
     resp = client.get("/auth/queue")
     assert "1 request waiting" in resp.text
+
+
+def test_app_settings_round_trip(client, tmp_path, monkeypatch):
+    import logging
+
+    from webui import config, notify, settings_store
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "APP_SETTINGS_PATH", tmp_path / "config.yaml")
+
+    # Saving settings reconfigures Apprise for real (see routers/auth.py) -
+    # stub it out so this test never actually touches the network.
+    class FakeApprise:
+        def add(self, url):
+            return True
+
+    monkeypatch.setattr(notify.apprise, "Apprise", FakeApprise)
+
+    try:
+        resp = client.post("/auth/settings", data={
+            "query_throttle_max": "5",
+            "query_throttle_window_s": "30",
+            "query_min_spread_s": "0.5",
+            "apprise_urls": "json://example.com/hook",
+            "apprise_notify_level": "ERROR",
+        })
+        assert resp.status_code == 200
+        assert "Saved." in resp.text
+        assert 'value="5"' in resp.text
+
+        saved = settings_store.load()
+        assert saved["query_throttle_max"] == 5
+        assert saved["query_throttle_window_s"] == 30.0
+        assert saved["query_min_spread_s"] == 0.5
+        assert saved["apprise_urls"] == "json://example.com/hook"
+        assert saved["apprise_notify_level"] == "ERROR"
+
+        # A fresh GET of the Config page reflects the saved settings too.
+        page = client.get("/auth")
+        assert 'value="json://example.com/hook"' not in page.text  # it's a textarea, not an input
+        assert "json://example.com/hook" in page.text
+    finally:
+        # configure_apprise_logging() really did install a handler on the
+        # webui logger (with our FakeApprise inside it) - don't leave it
+        # attached for every other test in the session to trip over.
+        for handler in list(logging.getLogger("webui").handlers):
+            if isinstance(handler, notify._AppriseLogHandler):
+                logging.getLogger("webui").removeHandler(handler)

@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 
-from webui import browser_provisioning, notify, scheduler, ws
+from webui import browser_provisioning, notify, scheduler, settings_store, ws
 from webui.auth_middleware import BasicAuthMiddleware
 from webui.routers import auth, devices, locate, logs, register, settings, sound, vnc_proxy
 
@@ -13,7 +13,7 @@ BASE_DIR = pathlib.Path(__file__).parent
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    notify.configure_apprise_logging()
+    notify.configure_apprise_logging(env=settings_store.apprise_env())
     scheduler.start_all()
     yield
     scheduler.stop_all()

@@ -26,7 +26,7 @@ Currently, it is possible to query Find My Device / Find Hub trackers and Androi
 
 On the first run, an authentication sequence is executed, which requires a computer with access to Google Chrome.
 
-The authentication results are stored in `Auth/secrets.json`. If you intend to run this tool on a headless machine, you can just copy this file to avoid having to use Chrome.
+The authentication results are stored in `Auth/auth.yaml`. If you intend to run this tool on a headless machine, you can just copy this file to avoid having to use Chrome. (Upgrading from an older version that still has `Auth/secrets.json` migrates it automatically the first time it's read - the old file is left in place, untouched.)
 
 ### Web UI
 
@@ -39,7 +39,7 @@ This repo also includes an optional local web UI (`webui/`) for everyday use: a 
 Either way, this is a single container, published at `http://localhost:4321`. Chrome and the Xvfb/x11vnc/noVNC stack used for the Google login are **not** baked into the image - they're installed on demand, into an in-memory (tmpfs) directory, the first time a login is triggered, then left in place for the rest of that container's life so later logins skip straight past setup. This keeps the image itself small, but means:
 - The container needs outbound network access (to Debian's package mirrors and `storage.googleapis.com`) the first time a login is triggered, not just when the image was built.
 - The first sign-in after a container start takes roughly 30-90 seconds before the embedded Chrome view appears, while it installs Xvfb/x11vnc/noVNC and downloads a portable Chrome build. The `/auth` page shows live progress for each step over a WebSocket while this happens. Later sign-ins in the same container are much faster - only the browser/VNC processes themselves restart, not the install.
-- It's left installed for the rest of the container's life, including across a plain `docker stop`/`start` (not just within one `docker compose up`), so a later sign-in never re-pays that setup cost. It only really goes away when the container itself is replaced - a normal image update (`docker compose pull && up -d`, `docker run` a fresh container, Unraid's Update button) always does that anyway. If a sign-in's browser/VNC processes ever fail to stop cleanly on their own, the Account page (`/auth`) shows a warning saying so.
+- It's left installed for the rest of the container's life, including across a plain `docker stop`/`start` (not just within one `docker compose up`), so a later sign-in never re-pays that setup cost. It only really goes away when the container itself is replaced - a normal image update (`docker compose pull && up -d`, `docker run` a fresh container, Unraid's Update button) always does that anyway. If a sign-in's browser/VNC processes ever fail to stop cleanly on their own, the Config page (`/auth`) shows a warning saying so.
 
 To sign in, open `http://localhost:4321/auth` and click "Sign in with Google" - watch the setup progress, then complete the login in the embedded Chrome view that appears on the same page once it's ready. The resulting tokens are written to `Auth/auth.yaml` in a Docker volume, exactly like copying that file between machines as described below, just automated. (Upgrading from an older version that still has `Auth/secrets.json` migrates it automatically the first time it's read - the old file is left in place, untouched.)
 

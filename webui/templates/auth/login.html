@@ -1,7 +1,9 @@
 {% extends "base.html" %}
-{% block title %}Account - GoogleFindMyTools{% endblock %}
+{% block title %}Config - GoogleFindMyTools{% endblock %}
 {% block content %}
-<h1>Account</h1>
+<h1>Config</h1>
+
+<h2>Google account</h2>
 
 <div id="login-status">
   {% include "auth/_status.html" %}
@@ -30,6 +32,10 @@
 </div>
 
 <div id="vnc-container"></div>
+
+<h2>App settings</h2>
+
+{% include "auth/_app_settings.html" %}
 
 <script src="/static/provision.js"></script>
 {% endblock %}

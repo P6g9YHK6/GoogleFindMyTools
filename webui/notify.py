@@ -50,11 +50,19 @@ def configure_apprise_logging(env: dict | None = None) -> logging.Handler | None
     """Wires up Apprise from APPRISE_URLS (comma/newline-separated) and
     APPRISE_NOTIFY_LEVEL (a standard logging level name, default WARNING -
     a plain config knob rather than a hardcoded idea of which failures
-    "count"). Called once at app startup, from webui/main.py's lifespan.
-    Returns the installed handler (mainly so tests can remove it again), or
-    None if APPRISE_URLS isn't set.
+    "count"). Called once at app startup (webui/main.py's lifespan) and
+    again every time the Config page saves new settings - idempotent, since
+    it first removes any handler a previous call installed, so it never
+    accumulates duplicate handlers (and duplicate notifications) across
+    repeated calls. Returns the newly installed handler, or None if
+    APPRISE_URLS isn't set.
     """
     env = os.environ if env is None else env
+    target_logger = logging.getLogger(_TARGET_LOGGER)
+    for existing in list(target_logger.handlers):
+        if isinstance(existing, _AppriseLogHandler):
+            target_logger.removeHandler(existing)
+
     urls_raw = (env.get("APPRISE_URLS") or "").strip()
     if not urls_raw:
         return None

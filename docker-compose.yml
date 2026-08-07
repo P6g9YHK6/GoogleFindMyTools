@@ -12,7 +12,7 @@
 # storage.googleapis.com) the first time a login is triggered, not just at
 # image build time. Shutdown itself only stops those processes (no apt
 # purge), so Docker's default stop grace period is plenty; if a process ever
-# fails to exit cleanly, the Account page (/auth) shows a warning instead.
+# fails to exit cleanly, the Config page (/auth) shows a warning instead.
 #
 # One volume: Google auth tokens (GFMT_SECRETS_DIR) and per-device forwarding
 # config (GFMT_DATA_DIR) both live under /data in the image's default env
