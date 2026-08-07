@@ -104,6 +104,48 @@ def test_log_store_round_trip(tmp_path, monkeypatch):
     assert [e["level"] for e in entries] == ["skipped", "error", "ok"]
 
 
+def test_log_store_migrates_from_legacy_json(tmp_path, monkeypatch):
+    import json
+
+    from webui import config
+    from webui.forwarders import log_store
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "FORWARD_LOG_PATH", tmp_path / "forward.log")
+    legacy_path = tmp_path / "forward_log.json"
+    monkeypatch.setattr(config, "FORWARD_LOG_LEGACY_JSON_PATH", legacy_path)
+
+    legacy_path.write_text(json.dumps({"entries": [
+        {"time": 1, "canonic_id": "dev-1", "device_name": "X", "endpoint_type": "traccar",
+         "target": "http://x", "status": "ok"},
+    ]}))
+
+    entries = log_store.recent_entries()
+    assert [e["status"] for e in entries] == ["ok"]
+    assert config.FORWARD_LOG_PATH.exists()
+    assert legacy_path.exists()  # left alone, not deleted
+
+    log_store.append("dev-1", "X", "traccar", "http://x", "error: boom")
+    entries = log_store.recent_entries()
+    assert [e["status"] for e in entries] == ["error: boom", "ok"]
+
+
+def test_log_store_sanitizes_embedded_tabs_and_newlines(tmp_path, monkeypatch):
+    from webui import config
+    from webui.forwarders import log_store
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "FORWARD_LOG_PATH", tmp_path / "forward.log")
+
+    log_store.append("dev-1", "My\tTracker", "traccar", "http://x", "error: line one\nline two")
+
+    entries = log_store.recent_entries()
+    assert "\t" not in entries[0]["device_name"]
+    assert "\n" not in entries[0]["status"]
+    # One log line per entry - a literal newline in the status would have split it in two.
+    assert config.FORWARD_LOG_PATH.read_text().count("\n") == 1
+
+
 def test_log_store_caps_entries(tmp_path, monkeypatch):
     from webui import config
     from webui.forwarders import log_store
