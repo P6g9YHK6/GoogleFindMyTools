@@ -12,7 +12,11 @@
         <button hx-post="/devices/{{ device.canonic_id }}/sound/start">Play sound</button>
         <button hx-post="/devices/{{ device.canonic_id }}/sound/stop">Stop sound</button>
       </td>
-      <td id="locate-result-{{ loop.index }}"></td>
+      <td id="locate-result-{{ loop.index }}">
+        {% set locations = device.last_locations %}
+        {% set fetched_at_str = device.last_fetched_at_str %}
+        {% include "devices/_locate_cell.html" %}
+      </td>
     </tr>
   {% else %}
     <tr><td colspan="3">No devices found.</td></tr>
