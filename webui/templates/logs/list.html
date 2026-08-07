@@ -7,7 +7,7 @@
 
 <table>
   <thead>
-    <tr><th>Time</th><th>Device</th><th>Endpoint</th><th>Target</th><th>Result</th></tr>
+    <tr><th>Time</th><th>Device</th><th>Endpoint</th><th>Target</th><th>Result</th><th>Data sent</th></tr>
   </thead>
   <tbody>
   {% for entry in entries %}
@@ -17,9 +17,10 @@
       <td>{{ entry.endpoint_type }}</td>
       <td>{{ entry.target }}</td>
       <td class="log-{{ entry.level }}">{{ entry.status }}</td>
+      <td><code class="log-payload">{{ entry.payload }}</code></td>
     </tr>
   {% else %}
-    <tr><td colspan="5">No forwarding attempts logged yet.</td></tr>
+    <tr><td colspan="6">No forwarding attempts logged yet.</td></tr>
   {% endfor %}
   </tbody>
 </table>

@@ -130,6 +130,36 @@ def test_log_store_migrates_from_legacy_json(tmp_path, monkeypatch):
     assert [e["status"] for e in entries] == ["error: boom", "ok"]
 
 
+def test_log_store_round_trips_the_full_payload(tmp_path, monkeypatch):
+    from webui import config
+    from webui.forwarders import log_store
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "FORWARD_LOG_PATH", tmp_path / "forward.log")
+
+    payload = '{"latitude": 1.0, "longitude": 2.0, "is_semantic": false}'
+    log_store.append("dev-1", "My Tracker", "traccar", "http://x", "ok", payload=payload)
+
+    entries = log_store.recent_entries()
+    assert entries[0]["payload"] == payload
+
+
+def test_log_store_reads_pre_payload_lines_as_blank(tmp_path, monkeypatch):
+    from webui import config
+    from webui.forwarders import log_store
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    log_path = tmp_path / "forward.log"
+    monkeypatch.setattr(config, "FORWARD_LOG_PATH", log_path)
+
+    # A line written before the payload column existed - 6 fields, not 7.
+    log_path.write_text("1\tdev-1\tMy Tracker\ttraccar\thttp://x\tok\n")
+
+    entries = log_store.recent_entries()
+    assert entries[0]["status"] == "ok"
+    assert entries[0]["payload"] == ""
+
+
 def test_log_store_sanitizes_embedded_tabs_and_newlines(tmp_path, monkeypatch):
     from webui import config
     from webui.forwarders import log_store

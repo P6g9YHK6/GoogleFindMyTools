@@ -14,6 +14,22 @@ def test_next_run_returns_none_for_invalid_cron():
     assert scheduler._next_run("not-a-cron", datetime.now()) is None
 
 
+def test_serialize_location_round_trips_as_json():
+    import json
+
+    location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
+    assert json.loads(scheduler._serialize_location(location)) == location
+
+
+def test_serialize_location_falls_back_to_str_for_unserializable_values():
+    class Weird:
+        def __str__(self):
+            return "weird-value"
+
+    payload = scheduler._serialize_location({"thing": Weird()})
+    assert "weird-value" in payload
+
+
 def test_forward_one_dispatches_via_registry():
     location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
 

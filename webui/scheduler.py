@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import time
 from datetime import datetime
@@ -68,6 +69,16 @@ def _forward_one(endpoint_cfg: dict, location: dict) -> str:
     return _dispatch_forward(endpoint_cfg, location)
 
 
+def _serialize_location(location: dict) -> str:
+    """The exact location data a forward attempt worked with, for the
+    forwarding log - so a bad reading (or a forwarder silently dropping a
+    field) is visible there instead of just the short target summary."""
+    try:
+        return json.dumps(location, default=str)
+    except TypeError:
+        return str(location)
+
+
 def _endpoint_target(endpoint_cfg: dict) -> str:
     """Short human-readable destination summary, for the forwarding log."""
     ftype = FORWARDER_TYPES.get(endpoint_cfg.get("type"))
@@ -126,6 +137,7 @@ async def _poll_device(canonic_id: str):
                     endpoint_type=endpoints[i].get("type", ""),
                     target=_endpoint_target(endpoints[i]),
                     status=status,
+                    payload=_serialize_location(location),
                 )
         for i in due_indices:
             results.setdefault(i, {"status": "no location", "location": None})
@@ -182,6 +194,7 @@ async def forward_now(canonic_id: str, index: int) -> dict | None:
             endpoint_type=endpoint_cfg.get("type", ""),
             target=_endpoint_target(endpoint_cfg),
             status=status,
+            payload=_serialize_location(location),
         )
         if status == "ok":
             endpoint_cfg["last_sent_lat"] = location["latitude"]

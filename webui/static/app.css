@@ -208,7 +208,8 @@ input[type="text"],
 input[type="number"],
 input[type="password"],
 input[type="email"],
-select {
+select,
+textarea {
   font-family: inherit;
   font-size: 0.92rem;
   font-weight: 400;
@@ -220,10 +221,16 @@ select {
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-input:focus, select:focus {
+input:focus, select:focus, textarea:focus {
   outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 22%, transparent);
+}
+
+.yaml-editor {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  white-space: pre;
 }
 
 /* Table */
@@ -440,5 +447,14 @@ details ul {
 }
 
 .log-skipped {
+  color: var(--text-muted);
+}
+
+.log-payload {
+  display: block;
+  max-width: 32rem;
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  word-break: break-all;
   color: var(--text-muted);
 }
