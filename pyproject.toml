@@ -13,3 +13,7 @@ ignore = ["E501"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# CI runs the `pytest` console script directly (not `python -m pytest`), which
+# doesn't add the repo root to sys.path - without this, every test importing
+# "webui.*" or "tests.conftest" fails collection with ModuleNotFoundError.
+pythonpath = ["."]
