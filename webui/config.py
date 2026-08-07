@@ -49,3 +49,10 @@ FORWARD_LOG_MAX_ENTRIES = int(os.environ.get("FORWARD_LOG_MAX_ENTRIES", "1000"))
 # Persisted overrides for the throttle/Apprise settings below - see
 # webui/settings_store.py and the Config page.
 APP_SETTINGS_PATH = DATA_DIR / "config.yaml"
+
+# Every INFO-or-above log record app-wide (not just forwarding attempts) -
+# see webui/log_capture.py and the System Log page. Bounded the same way as
+# forward.log, just with more headroom since it captures far more than one
+# category of event.
+SYSTEM_LOG_PATH = DATA_DIR / "system.log"
+SYSTEM_LOG_MAX_ENTRIES = int(os.environ.get("SYSTEM_LOG_MAX_ENTRIES", "5000"))

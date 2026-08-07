@@ -22,7 +22,7 @@ class FakeApprise:
 
 def _remove(handler):
     if handler is not None:
-        logging.getLogger("webui").removeHandler(handler)
+        logging.getLogger().removeHandler(handler)
 
 
 def test_configure_is_a_noop_without_apprise_urls():
@@ -30,7 +30,7 @@ def test_configure_is_a_noop_without_apprise_urls():
     assert notify.configure_apprise_logging(env={"APPRISE_URLS": "   "}) is None
 
 
-def test_configure_installs_a_handler_on_the_webui_logger(monkeypatch):
+def test_configure_installs_a_handler_on_the_root_logger(monkeypatch):
     fake = FakeApprise()
     monkeypatch.setattr(notify.apprise, "Apprise", lambda: fake)
 
@@ -39,7 +39,24 @@ def test_configure_installs_a_handler_on_the_webui_logger(monkeypatch):
         assert handler is not None
         assert fake.added == ["json://example.com/hook"]
         assert handler.level == logging.WARNING  # the default
-        assert handler in logging.getLogger("webui").handlers
+        assert handler in logging.getLogger().handlers
+    finally:
+        _remove(handler)
+
+
+def test_configure_catches_a_logger_outside_the_webui_tree(monkeypatch):
+    """The whole point of attaching to root: a logger under a completely
+    different tree (e.g. Auth.fcm_receiver) must still reach Apprise."""
+    fake = FakeApprise()
+    monkeypatch.setattr(notify.apprise, "Apprise", lambda: fake)
+
+    handler = notify.configure_apprise_logging(env={"APPRISE_URLS": "json://example.com/hook"})
+    try:
+        threads_before = set(threading.enumerate())
+        logging.getLogger("Auth.fcm_receiver").warning("push client crashed")
+        for t in set(threading.enumerate()) - threads_before:
+            t.join(timeout=2)
+        assert any("push client crashed" in body for _, body in fake.notifications)
     finally:
         _remove(handler)
 

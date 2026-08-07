@@ -3,6 +3,7 @@
 #  Copyright © 2024 Leon Böttger. All rights reserved.
 #
 
+import logging
 import threading
 
 from Auth.fcm_receiver import FcmReceiver
@@ -14,6 +15,8 @@ from NovaApi.scopes import NOVA_ACTION_API_SCOPE
 from NovaApi.util import generate_random_uuid
 from ProtoDecoders import DeviceUpdate_pb2
 from ProtoDecoders.decoder import parse_device_update_protobuf
+
+logger = logging.getLogger(__name__)
 
 
 def create_location_request(canonic_device_id, fcm_registration_id, request_uuid):
@@ -32,7 +35,7 @@ def create_location_request(canonic_device_id, fcm_registration_id, request_uuid
 
 def get_location_data_for_device(canonic_device_id, name, timeout: float = 60):
 
-    print(f"[LocationRequest] Requesting location data for {name}...")
+    logger.info("Requesting location data for %s...", name)
 
     result = None
     received = threading.Event()
@@ -44,7 +47,7 @@ def get_location_data_for_device(canonic_device_id, name, timeout: float = 60):
         device_update = parse_device_update_protobuf(response)
 
         if device_update.fcmMetadata.requestUuid == request_uuid:
-            print("[LocationRequest] Location request successful. Decrypting locations...")
+            logger.info("Location request for %s successful. Decrypting locations...", name)
             result = device_update
             #print_device_update_protobuf(response)
             received.set()
@@ -56,7 +59,11 @@ def get_location_data_for_device(canonic_device_id, name, timeout: float = 60):
         nova_request(NOVA_ACTION_API_SCOPE, hex_payload)
 
         if not received.wait(timeout=timeout):
-            print(f"[LocationRequest] Timed out after {timeout}s waiting for {name}.")
+            # This is the only signal of a "no FCM push ever arrived" failure -
+            # WARNING (not just a print) so it actually reaches logging-based
+            # monitoring/alerting (see webui/notify.py) instead of only ever
+            # showing up in a terminal someone happens to be watching.
+            logger.warning("Timed out after %ss waiting for %s.", timeout, name)
             return []
 
         return decrypt_location_response_locations(result)
