@@ -1,3 +1,4 @@
+import yaml
 from fastapi import APIRouter, Form, Request
 
 from Auth.fcm_receiver import FcmReceiver
@@ -6,6 +7,14 @@ from webui import browser_provisioning, notify, settings_store
 from webui.auth_state import is_logged_in
 from webui.deps import query_gate
 from webui.templating import templates
+
+_APP_SETTINGS_SCHEMA = {
+    "query_throttle_max": int,
+    "query_throttle_window_s": float,
+    "query_min_spread_s": float,
+    "apprise_urls": str,
+    "apprise_notify_level": str,
+}
 
 router = APIRouter()
 
@@ -61,11 +70,64 @@ async def save_app_settings(
         "apprise_urls": apprise_urls,
         "apprise_notify_level": apprise_notify_level,
     }
+    _apply_app_settings(app_settings)
+
+    return templates.TemplateResponse(request, "auth/_app_settings.html", {
+        "app_settings": app_settings,
+        "saved": True,
+    })
+
+
+def _apply_app_settings(app_settings: dict):
     settings_store.save(app_settings)
     # Apply the (possibly new) Apprise settings immediately, same as the
     # throttle settings take effect on QueryGate's very next wait_turn() call
     # - no restart needed for either.
     notify.configure_apprise_logging(env=settings_store.apprise_env())
+
+
+def _validate_app_settings(parsed) -> dict:
+    if not isinstance(parsed, dict):
+        raise ValueError("must be a mapping, not a list or a bare value")
+    result = {}
+    for key, caster in _APP_SETTINGS_SCHEMA.items():
+        if key not in parsed:
+            raise ValueError(f"missing key {key!r}")
+        try:
+            result[key] = caster(parsed[key])
+        except (TypeError, ValueError):
+            raise ValueError(f"{key!r} must be a {caster.__name__}") from None
+    return result
+
+
+@router.get("/auth/settings")
+async def app_settings_form_route(request: Request):
+    """Re-renders just the structured form - the "Edit as form" button's
+    target when switching back out of the YAML view below."""
+    return templates.TemplateResponse(request, "auth/_app_settings.html", {
+        "app_settings": settings_store.load(),
+    })
+
+
+@router.get("/auth/settings/yaml")
+async def app_settings_yaml_route(request: Request):
+    yaml_text = yaml.safe_dump(settings_store.load(), sort_keys=False, allow_unicode=True)
+    return templates.TemplateResponse(request, "auth/_app_settings_yaml.html", {
+        "yaml_text": yaml_text,
+    })
+
+
+@router.post("/auth/settings/yaml")
+async def save_app_settings_yaml_route(request: Request, yaml_text: str = Form(...)):
+    try:
+        app_settings = _validate_app_settings(yaml.safe_load(yaml_text))
+    except (yaml.YAMLError, ValueError) as e:
+        return templates.TemplateResponse(request, "auth/_app_settings_yaml.html", {
+            "yaml_text": yaml_text,
+            "error": f"Invalid YAML: {e}",
+        })
+
+    _apply_app_settings(app_settings)
 
     return templates.TemplateResponse(request, "auth/_app_settings.html", {
         "app_settings": app_settings,

@@ -1,0 +1,19 @@
+<form hx-post="/settings/devices/{{ canonic_id }}/yaml" hx-target="closest .device-editor" hx-swap="innerHTML">
+  <fieldset>
+    <legend>{{ name }}
+      <button type="button" class="btn-secondary"
+              hx-get="/settings/devices/{{ canonic_id }}"
+              hx-target="closest .device-editor" hx-swap="innerHTML">Edit as form</button>
+    </legend>
+
+    {% if error %}
+      <p class="form-error">{{ error }}</p>
+    {% endif %}
+
+    <label>YAML
+      <textarea name="yaml_text" rows="16" class="url-input yaml-editor" spellcheck="false">{{ yaml_text }}</textarea>
+    </label>
+
+    <button type="submit">Save YAML</button>
+  </fieldset>
+</form>

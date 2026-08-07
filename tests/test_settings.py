@@ -203,6 +203,76 @@ def test_send_now_404s_for_unknown_endpoint_index(client):
     assert resp.status_code == 404
 
 
+def test_device_yaml_view_shows_current_config(client):
+    _post_form(
+        client,
+        f"/settings/devices/{FAKE_CANONIC_ID}",
+        display_name=["My Tracker"],
+        endpoint_type=["traccar"],
+        cron=["*/5 * * * *"],
+        traccar_url=["http://x"],
+        traccar_device_id=["d1"],
+        phonetrack_base_url=[""],
+        phonetrack_device_name=[""],
+    )
+
+    resp = client.get(f"/settings/devices/{FAKE_CANONIC_ID}/yaml")
+    assert resp.status_code == 200
+    assert "type: traccar" in resp.text
+    assert "url: http://x" in resp.text
+    assert "Edit as form" in resp.text
+
+
+def test_device_form_route_switches_back_from_yaml_view(client):
+    resp = client.get(f"/settings/devices/{FAKE_CANONIC_ID}")
+    assert resp.status_code == 200
+    assert "Edit as YAML" in resp.text
+    assert 'name="display_name"' in resp.text
+
+
+def test_save_device_yaml_persists_and_reflects_in_the_form(client):
+    yaml_text = (
+        "endpoints:\n"
+        "  - type: traccar\n"
+        "    traccar:\n"
+        "      url: http://yaml.example\n"
+        "      device_id: yaml-dev\n"
+        "    cron: '*/10 * * * *'\n"
+    )
+    resp = client.post(f"/settings/devices/{FAKE_CANONIC_ID}/yaml", data={"yaml_text": yaml_text})
+    assert resp.status_code == 200
+    assert 'value="http://yaml.example"' in resp.text  # switched back to the form view
+    assert "Edit as YAML" in resp.text
+
+    from webui.forwarders import config_store
+
+    saved = config_store.get_device_config(FAKE_CANONIC_ID)
+    assert saved["endpoints"] == [{
+        "type": "traccar",
+        "traccar": {"url": "http://yaml.example", "device_id": "yaml-dev"},
+        "cron": "*/10 * * * *",
+    }]
+
+
+def test_save_device_yaml_rejects_invalid_yaml_without_persisting(client):
+    from webui.forwarders import config_store
+
+    before = config_store.get_device_config(FAKE_CANONIC_ID)
+
+    resp = client.post(f"/settings/devices/{FAKE_CANONIC_ID}/yaml", data={"yaml_text": "not: valid: yaml: ["})
+    assert resp.status_code == 200
+    assert "Invalid YAML" in resp.text
+    assert "Edit as form" in resp.text  # still in the YAML view, not switched away
+
+    assert config_store.get_device_config(FAKE_CANONIC_ID) == before
+
+
+def test_save_device_yaml_rejects_a_non_mapping_document(client):
+    resp = client.post(f"/settings/devices/{FAKE_CANONIC_ID}/yaml", data={"yaml_text": "- just\n- a\n- list\n"})
+    assert resp.status_code == 200
+    assert "Invalid YAML" in resp.text
+
+
 def test_invalid_cron_is_rejected_without_persisting(client):
     good = _post_form(
         client,

@@ -1,0 +1,20 @@
+<form hx-post="/auth/settings/yaml" hx-target="closest .app-settings-editor" hx-swap="innerHTML">
+  <button type="button" class="btn-secondary"
+          hx-get="/auth/settings" hx-target="closest .app-settings-editor" hx-swap="innerHTML">
+    Edit as form
+  </button>
+
+  <fieldset>
+    <legend>App settings</legend>
+
+    {% if error %}
+      <p class="form-error">{{ error }}</p>
+    {% endif %}
+
+    <label>YAML
+      <textarea name="yaml_text" rows="10" class="url-input yaml-editor" spellcheck="false">{{ yaml_text }}</textarea>
+    </label>
+
+    <button type="submit">Save YAML</button>
+  </fieldset>
+</form>
