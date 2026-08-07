@@ -410,6 +410,14 @@ class FcmPushClient:  # pylint:disable=too-many-instance-attributes
         # harmless to urlsafe_b64decode, same trick already used just below.
         crypto_key = urlsafe_b64decode(crypto_key_str.encode("ascii") + b"========")
         salt = urlsafe_b64decode(salt_str.encode("ascii") + b"========")
+        # TEMPORARY diagnostics for the "Invalid EC key" failures still seen
+        # after the padding fix above - shapes only, no key material itself.
+        _logger.warning(
+            "decrypt shapes: crypto_key_str_len=%d crypto_key_bytes_len=%d crypto_key_first_byte=%s "
+            "salt_str_len=%d salt_bytes_len=%d",
+            len(crypto_key_str), len(crypto_key), crypto_key[:1].hex() if crypto_key else "<empty>",
+            len(salt_str), len(salt),
+        )
         der_data_str = credentials["keys"]["private"]
         der_data = urlsafe_b64decode(der_data_str.encode("ascii") + b"========")
         secret_str = credentials["keys"]["secret"]
