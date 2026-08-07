@@ -10,6 +10,7 @@
   --primary-contrast: #ffffff;
   --danger: #dc2626;
   --success: #16a34a;
+  --warning: #b45309;
   --radius: 10px;
   --radius-sm: 6px;
   --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
@@ -29,6 +30,7 @@
     --primary-contrast: #0b1220;
     --danger: #f87171;
     --success: #4ade80;
+    --warning: #fbbf24;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.3);
     --shadow-md: 0 4px 10px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.3);
   }
@@ -447,6 +449,24 @@ details ul {
 }
 
 .log-skipped {
+  color: var(--text-muted);
+}
+
+.log-critical {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.log-warning {
+  color: var(--warning);
+  font-weight: 500;
+}
+
+.log-info {
+  color: var(--text);
+}
+
+.log-debug {
   color: var(--text-muted);
 }
 

@@ -1,10 +1,13 @@
 import asyncio
 import base64
 import binascii
+import logging
 import threading
 
 from Auth.firebase_messaging import FcmPushClient, FcmRegisterConfig
 from Auth.token_cache import get_cached_value, set_cached_value
+
+logger = logging.getLogger(__name__)
 
 
 class FcmReceiver:
@@ -120,7 +123,7 @@ class FcmReceiver:
             for callback in callbacks:
                 callback(hex_string)
         else:
-            print("[FCMReceiver] Payload not found in the notification.")
+            logger.warning("Payload not found in the notification.")
 
 
     def _on_credentials_updated(self, creds):
@@ -128,7 +131,7 @@ class FcmReceiver:
 
         # Also store to disk
         set_cached_value('fcm_credentials', self.credentials)
-        print("[FCMReceiver] Credentials updated.")
+        logger.info("Credentials updated.")
 
 
     async def _register_for_fcm(self):
@@ -140,7 +143,7 @@ class FcmReceiver:
                 fcm_token = await self.pc.checkin_or_register()
             except Exception:
                 await self.pc.stop()
-                print("[FCMReceiver] Failed to register with FCM. Retrying...")
+                logger.warning("Failed to register with FCM. Retrying...")
                 await asyncio.sleep(5)
 
 
@@ -169,7 +172,7 @@ class FcmReceiver:
         # Now start the listener in the background loop
         asyncio.run_coroutine_threadsafe(self.pc.start(), self._loop)
         self._listening = True
-        print("[FCMReceiver] Listening for notifications. This can take a few seconds...")
+        logger.info("Listening for notifications. This can take a few seconds...")
 
         return self.credentials['gcm']['android_id']
 

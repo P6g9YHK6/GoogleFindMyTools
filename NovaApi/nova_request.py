@@ -4,6 +4,7 @@
 #
 
 import binascii
+import logging
 
 import requests
 from bs4 import BeautifulSoup
@@ -11,6 +12,8 @@ from bs4 import BeautifulSoup
 from Auth.aas_token_retrieval import get_aas_token
 from Auth.adm_token_retrieval import get_adm_token
 from Auth.username_provider import get_username
+
+logger = logging.getLogger(__name__)
 
 
 def nova_request(api_scope, hex_payload):
@@ -34,7 +37,7 @@ def nova_request(api_scope, hex_payload):
     else:
         soup = BeautifulSoup(response.text, 'html.parser')
         error_text = soup.get_text().strip()
-        print("[NovaRequest] Error: ", error_text)
+        logger.warning("Nova request to %s failed with %s: %s", api_scope, response.status_code, error_text)
         # Every caller either discards this return value or waits on some
         # other side effect of the request actually arriving (e.g. an FCM
         # push for a locate action) - silently returning None here used to

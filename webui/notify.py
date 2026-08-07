@@ -3,11 +3,14 @@
 Entirely opt-in: with APPRISE_URLS unset, configure_apprise_logging() is a
 no-op and nothing is ever sent. Set it (see https://github.com/caronc/apprise
 for the URL format - Discord, Telegram, email, ntfy, dozens more) and every
-module under webui/ that logs a failure - scheduler polling, locate, browser
-provisioning, ... - gets forwarded automatically, since they all log through
-a dotted-from-"webui" logger name and propagate up to it (see
-_TARGET_LOGGER below), so nothing here needs updating as new failure points
-get added elsewhere.
+logger anywhere in the process - webui.*, Auth.*, NovaApi.*, third-party
+libraries, all of it - gets forwarded automatically, since this attaches to
+the root logger (see _TARGET_LOGGER below) that everything propagates up to
+by default. (This used to attach to "webui" only, which missed real failures
+logged from outside that tree - e.g. Auth.fcm_receiver's push-client crashes
+- until a locate had been silently failing for hours with nothing to show
+for it.) Nothing here needs updating as new failure points get added
+elsewhere, in any module.
 """
 
 import logging
@@ -19,7 +22,7 @@ import apprise
 
 logger = logging.getLogger(__name__)
 
-_TARGET_LOGGER = "webui"
+_TARGET_LOGGER = ""  # root
 _DEFAULT_LEVEL = "WARNING"
 
 
