@@ -1,6 +1,6 @@
 from urllib.parse import urlencode
 
-from tests.conftest import FAKE_CANONIC_ID
+from tests.conftest import FAKE_CANONIC_ID, FAKE_DEVICE_NAME
 
 
 def _post_form(client, path, **fields):
@@ -51,6 +51,156 @@ def test_save_mixed_endpoints_and_drop_blank_block(client):
         "phonetrack": {"base_url": "https://nc.local/x", "device_name": "phone1"},
         "cron": "0 */2 * * *",
     }
+
+
+def test_save_response_is_only_the_one_device_row(client):
+    """A save must swap outerHTML into a single <form>, not hand back the
+    whole multi-device page (which would duplicate every row on screen)."""
+    resp = _post_form(
+        client,
+        f"/settings/devices/{FAKE_CANONIC_ID}",
+        display_name=["My Tracker"],
+        endpoint_type=["traccar"],
+        cron=["*/5 * * * *"],
+        traccar_url=["http://x"],
+        traccar_device_id=["d1"],
+        phonetrack_base_url=[""],
+        phonetrack_device_name=[""],
+    )
+    assert resp.status_code == 200
+    assert resp.text.count("<form") == 1
+    assert "Forwarding Settings" not in resp.text  # page heading, not part of the row fragment
+    assert "endpoint_fields.js" not in resp.text  # page-level script tag, not part of the row fragment
+
+
+def test_device_alias_overrides_confusing_google_name(client):
+    resp = _post_form(
+        client,
+        f"/settings/devices/{FAKE_CANONIC_ID}",
+        display_name=["Garage Tracker"],
+        endpoint_type=["traccar"],
+        cron=["*/5 * * * *"],
+        traccar_url=["http://x"],
+        traccar_device_id=["d1"],
+        phonetrack_base_url=[""],
+        phonetrack_device_name=[""],
+    )
+    assert resp.status_code == 200
+    assert "Garage Tracker" in resp.text
+    assert FAKE_DEVICE_NAME in resp.text  # hint pointing back at the underlying Google device name
+
+    from webui.forwarders import config_store
+
+    assert config_store.get_device_config(FAKE_CANONIC_ID)["display_name"] == "Garage Tracker"
+
+    page = client.get("/settings")
+    assert "Garage Tracker" in page.text
+
+
+def test_endpoint_alias_is_saved_and_shown_in_legend(client):
+    resp = _post_form(
+        client,
+        f"/settings/devices/{FAKE_CANONIC_ID}",
+        display_name=["My Tracker"],
+        endpoint_type=["traccar"],
+        cron=["*/5 * * * *"],
+        alias=["Home Traccar"],
+        traccar_url=["http://x"],
+        traccar_device_id=["d1"],
+        phonetrack_base_url=[""],
+        phonetrack_device_name=[""],
+    )
+    assert resp.status_code == 200
+    assert "Home Traccar" in resp.text
+
+    from webui.forwarders import config_store
+
+    assert config_store.get_device_config(FAKE_CANONIC_ID)["endpoints"][0]["alias"] == "Home Traccar"
+
+
+def test_skip_if_close_toggle_and_threshold_are_saved(client):
+    resp = _post_form(
+        client,
+        f"/settings/devices/{FAKE_CANONIC_ID}",
+        display_name=["My Tracker"],
+        endpoint_type=["traccar"],
+        cron=["*/5 * * * *"],
+        skip_if_close=["1"],
+        min_movement_m=["75"],
+        traccar_url=["http://x"],
+        traccar_device_id=["d1"],
+        phonetrack_base_url=[""],
+        phonetrack_device_name=[""],
+    )
+    assert resp.status_code == 200
+    assert 'checked' in resp.text
+
+    from webui.forwarders import config_store
+
+    saved = config_store.get_device_config(FAKE_CANONIC_ID)["endpoints"][0]
+    assert saved["skip_if_close"] is True
+    assert saved["min_movement_m"] == 75.0
+
+
+def test_skip_if_close_defaults_off_when_not_submitted(client):
+    resp = _post_form(
+        client,
+        f"/settings/devices/{FAKE_CANONIC_ID}",
+        display_name=["My Tracker"],
+        endpoint_type=["traccar"],
+        cron=["*/5 * * * *"],
+        skip_if_close=["0"],
+        min_movement_m=["50"],
+        traccar_url=["http://x"],
+        traccar_device_id=["d1"],
+        phonetrack_base_url=[""],
+        phonetrack_device_name=[""],
+    )
+    assert resp.status_code == 200
+
+    from webui.forwarders import config_store
+
+    saved = config_store.get_device_config(FAKE_CANONIC_ID)["endpoints"][0]
+    assert "skip_if_close" not in saved
+
+
+def test_send_now_forwards_immediately_bypassing_schedule_and_skip(client, monkeypatch):
+    from webui import scheduler
+    from webui.forwarders import config_store
+
+    config_store.set_device_config(FAKE_CANONIC_ID, {
+        "display_name": "My Tracker",
+        "endpoints": [{
+            "type": "traccar",
+            "traccar": {"url": "http://x", "device_id": "d1"},
+            "cron": "0 0 1 1 *",  # once a year - would never be due on its own
+            "skip_if_close": True, "last_sent_lat": 1.0, "last_sent_lon": 2.0,  # would normally skip this fix
+        }],
+    })
+
+    async def fake_locate_device(canonic_id, name, timeout=None):
+        return [{"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}]
+
+    monkeypatch.setattr(scheduler, "locate_device", fake_locate_device)
+    monkeypatch.setattr(scheduler, "_dispatch_forward", lambda cfg, loc: "ok")
+
+    resp = client.post(f"/settings/devices/{FAKE_CANONIC_ID}/endpoints/0/send-now")
+    assert resp.status_code == 200
+    assert "Last forward: ok" in resp.text
+    assert "Send now" in resp.text  # the button survives its own swapped-in response
+
+    saved = config_store.get_device_config(FAKE_CANONIC_ID)["endpoints"][0]
+    assert saved["last_forward_status"] == "ok"
+    assert saved["last_sent_lat"] == 1.0
+    assert saved["last_sent_lon"] == 2.0
+
+
+def test_send_now_404s_for_unknown_endpoint_index(client):
+    from webui.forwarders import config_store
+
+    config_store.set_device_config(FAKE_CANONIC_ID, {"display_name": "My Tracker", "endpoints": []})
+    resp = client.post(f"/settings/devices/{FAKE_CANONIC_ID}/endpoints/0/send-now")
+    assert resp.status_code == 404
 
 
 def test_invalid_cron_is_rejected_without_persisting(client):
