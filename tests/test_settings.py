@@ -164,6 +164,52 @@ def test_skip_if_close_defaults_off_when_not_submitted(client):
     assert "skip_if_close" not in saved
 
 
+def test_skip_if_stale_toggle_and_gap_are_saved(client):
+    resp = _post_form(
+        client,
+        f"/settings/devices/{FAKE_CANONIC_ID}",
+        display_name=["My Tracker"],
+        endpoint_type=["traccar"],
+        cron=["*/5 * * * *"],
+        skip_if_stale=["1"],
+        min_update_gap_m=["15"],
+        traccar_url=["http://x"],
+        traccar_device_id=["d1"],
+        phonetrack_base_url=[""],
+        phonetrack_device_name=[""],
+    )
+    assert resp.status_code == 200
+    assert "checked" in resp.text
+
+    from webui.forwarders import config_store
+
+    saved = config_store.get_device_config(FAKE_CANONIC_ID)["endpoints"][0]
+    assert saved["skip_if_stale"] is True
+    assert saved["min_update_gap_m"] == 15.0
+
+
+def test_skip_if_stale_defaults_off_when_not_submitted(client):
+    resp = _post_form(
+        client,
+        f"/settings/devices/{FAKE_CANONIC_ID}",
+        display_name=["My Tracker"],
+        endpoint_type=["traccar"],
+        cron=["*/5 * * * *"],
+        skip_if_stale=["0"],
+        min_update_gap_m=["30"],
+        traccar_url=["http://x"],
+        traccar_device_id=["d1"],
+        phonetrack_base_url=[""],
+        phonetrack_device_name=[""],
+    )
+    assert resp.status_code == 200
+
+    from webui.forwarders import config_store
+
+    saved = config_store.get_device_config(FAKE_CANONIC_ID)["endpoints"][0]
+    assert "skip_if_stale" not in saved
+
+
 def test_send_now_forwards_immediately_bypassing_schedule_and_skip(client, monkeypatch):
     from webui import scheduler
     from webui.forwarders import config_store

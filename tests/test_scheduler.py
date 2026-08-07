@@ -82,6 +82,63 @@ def test_too_close_to_bother_requires_the_toggle_and_a_prior_position():
     ) is False
 
 
+def test_stale_duplicate_requires_the_toggle_and_a_prior_send():
+    now = 1_000_000.0
+    stale_time = now - scheduler.FRESH_FIX_AGE_S - 1  # just past the "live" cutoff
+    stale_location = {"is_semantic": False, "time": stale_time}
+
+    # toggle off -> never skip, regardless of staleness
+    assert scheduler._stale_duplicate(
+        {"skip_if_stale": False, "last_sent_fix_time": stale_time}, stale_location, now=now,
+    ) is False
+
+    # toggle on but nothing sent yet -> never skip the first fix
+    assert scheduler._stale_duplicate({"skip_if_stale": True}, stale_location, now=now) is False
+
+    # toggle on, same stale fix time as last sent (within the default gap) -> skip
+    assert scheduler._stale_duplicate(
+        {"skip_if_stale": True, "last_sent_fix_time": stale_time}, stale_location, now=now,
+    ) is True
+
+    # toggle on, well outside the update gap -> don't skip
+    older_last_sent = stale_time - (scheduler.DEFAULT_MIN_UPDATE_GAP_M * 60) - 1
+    assert scheduler._stale_duplicate(
+        {"skip_if_stale": True, "last_sent_fix_time": older_last_sent}, stale_location, now=now,
+    ) is False
+
+    # a genuinely live/fresh fix always bypasses the gate
+    fresh_location = {"is_semantic": False, "time": now - 1}
+    assert scheduler._stale_duplicate(
+        {"skip_if_stale": True, "last_sent_fix_time": stale_time}, fresh_location, now=now,
+    ) is False
+
+    # semantic locations carry no fix time - this check never applies to them
+    assert scheduler._stale_duplicate(
+        {"skip_if_stale": True, "last_sent_fix_time": stale_time},
+        {"is_semantic": True, "time": None}, now=now,
+    ) is False
+
+
+def test_forward_one_reports_stale_duplicate_skip_without_dispatching(monkeypatch):
+    dispatched = []
+    monkeypatch.setattr(scheduler, "_dispatch_forward", lambda cfg, loc: dispatched.append(loc) or "ok")
+
+    now = 1_000_000.0
+    stale_time = now - scheduler.FRESH_FIX_AGE_S - 1
+    endpoint_cfg = {
+        "type": "traccar", "traccar": {"url": "http://x", "device_id": "d1"},
+        "skip_if_stale": True, "min_update_gap_m": 10, "last_sent_fix_time": stale_time,
+    }
+
+    duplicate_location = {"is_semantic": False, "time": stale_time, "latitude": 1.0, "longitude": 2.0}
+    monkeypatch.setattr(scheduler.time, "time", lambda: now)
+    assert scheduler._forward_one(endpoint_cfg, duplicate_location) == "skipped: not updated in the last 10m"
+    assert dispatched == []  # the network dispatch was never reached
+
+    fresh_location = {"is_semantic": False, "time": now - 1, "latitude": 1.0, "longitude": 2.0}
+    assert scheduler._forward_one(endpoint_cfg, fresh_location) == "ok"
+
+
 def test_forward_one_reports_distance_skip_without_dispatching(monkeypatch):
     dispatched = []
     monkeypatch.setattr(scheduler, "_dispatch_forward", lambda cfg, loc: dispatched.append(loc) or "ok")
