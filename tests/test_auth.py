@@ -52,3 +52,16 @@ def test_auth_login_poll(client):
     resp = client.get("/auth/login/poll")
     assert resp.status_code == 200
     assert resp.json()["phase"] == "idle"
+
+
+def test_auth_queue_status_reflects_live_waiting_count(client, monkeypatch):
+    from webui.routers import auth
+
+    monkeypatch.setattr(auth.query_gate, "waiting", 0)
+    resp = client.get("/auth/queue")
+    assert resp.status_code == 200
+    assert "0 requests waiting" in resp.text
+
+    monkeypatch.setattr(auth.query_gate, "waiting", 1)
+    resp = client.get("/auth/queue")
+    assert "1 request waiting" in resp.text
