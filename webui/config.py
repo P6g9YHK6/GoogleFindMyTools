@@ -17,6 +17,19 @@ DEFAULT_POLL_INTERVAL_S = int(os.environ.get("DEFAULT_POLL_INTERVAL_S", "300"))
 LOCATE_CONCURRENCY = int(os.environ.get("LOCATE_CONCURRENCY", "5"))
 LOCATE_TIMEOUT_S = int(os.environ.get("LOCATE_TIMEOUT_S", "60"))
 
+# Account-wide throttle for every blocking call to Google's own backend
+# (device list, locate, sound, register - see webui/deps.py's run_blocking,
+# the one choke point they all go through). At most QUERY_THROTTLE_MAX
+# requests within any rolling QUERY_THROTTLE_WINDOW_S-second window (the
+# window is configurable, not hardcoded to a fixed "per minute"), plus at
+# least QUERY_MIN_SPREAD_S seconds between any two consecutive requests.
+# Requests over either limit wait their turn in a queue instead of failing -
+# see webui/deps.py's QueryGate and the live counter on the account page.
+# 0 disables that particular limit.
+QUERY_THROTTLE_MAX = int(os.environ.get("QUERY_THROTTLE_MAX", "20"))
+QUERY_THROTTLE_WINDOW_S = float(os.environ.get("QUERY_THROTTLE_WINDOW_S", "60"))
+QUERY_MIN_SPREAD_S = float(os.environ.get("QUERY_MIN_SPREAD_S", "1"))
+
 # If set, the whole web UI (including the WebSocket) requires this password
 # via HTTP Basic Auth (any username). Unset by default - see README.
 WEBUI_PASSWORD = os.environ.get("WEBUI_PASSWORD")

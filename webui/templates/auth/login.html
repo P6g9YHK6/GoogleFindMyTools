@@ -7,6 +7,8 @@
   {% include "auth/_status.html" %}
 </div>
 
+<div id="queue-status" hx-get="/auth/queue" hx-trigger="load, every 2s" hx-swap="innerHTML"></div>
+
 <button id="signin-btn">Sign in with Google</button>
 <button hx-get="/auth/status" hx-target="#login-status" hx-swap="innerHTML">Refresh status</button>
 <button id="clear-btn" hx-post="/auth/clear" hx-target="#login-status" hx-swap="innerHTML"

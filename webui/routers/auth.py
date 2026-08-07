@@ -4,6 +4,7 @@ from Auth.fcm_receiver import FcmReceiver
 from Auth.token_cache import clear_all_cached_values, get_cached_value
 from webui import browser_provisioning
 from webui.auth_state import is_logged_in
+from webui.deps import query_gate
 from webui.templating import templates
 
 router = APIRouter()
@@ -40,6 +41,16 @@ def _auth_status() -> dict:
 async def auth_page(request: Request):
     return templates.TemplateResponse(request, "auth/login.html", {
         "status": _auth_status(),
+    })
+
+
+@router.get("/auth/queue")
+async def auth_queue_status(request: Request):
+    # Polled independently of /auth/status (see auth/login.html) - the queue
+    # depth changes far more often than sign-in status, and shouldn't compete
+    # with the sign-in flow's own hx-swaps into #login-status.
+    return templates.TemplateResponse(request, "auth/_queue_status.html", {
+        "waiting": query_gate.waiting,
     })
 
 
