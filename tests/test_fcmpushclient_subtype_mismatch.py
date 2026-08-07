@@ -43,3 +43,32 @@ def test_a_matching_subtype_still_gets_decrypted(monkeypatch):
 
     client._handle_data_message(_stanza(subtype="our-real-app-id"))
     assert calls == [1]
+
+
+def test_multi_param_headers_are_trimmed_to_just_the_value_we_want(monkeypatch):
+    """Crypto-Key/Encryption can carry more than one ;-separated parameter
+    (e.g. "dh=<point>;p256ecdsa=<other key>") - keeping the rest used to
+    decode into one garbage-length blob (base64 silently drops the stray
+    ";"/"=" from the second parameter instead of raising), which then failed
+    EC point validation with a confusing "Invalid EC key" deep inside
+    http_ece, instead of ever reaching real decryption."""
+    client = _make_client(app_id="our-real-app-id")
+
+    captured = {}
+
+    def fake_decrypt(credentials, crypto_key, salt, raw_data):
+        captured["crypto_key"] = crypto_key
+        captured["salt"] = salt
+        return b"{}"
+
+    monkeypatch.setattr(FcmPushClient, "_decrypt_raw_data", staticmethod(fake_decrypt))
+
+    msg = DataMessageStanza()
+    msg.app_data.append(AppData(key="subtype", value="our-real-app-id"))
+    msg.app_data.append(AppData(key="crypto-key", value="dh=REALDHVALUE;p256ecdsa=OTHERKEYVALUE"))
+    msg.app_data.append(AppData(key="encryption", value="salt=REALSALTVALUE;anotherparam=x"))
+
+    client._handle_data_message(msg)
+
+    assert captured["crypto_key"] == "REALDHVALUE"
+    assert captured["salt"] == "REALSALTVALUE"
