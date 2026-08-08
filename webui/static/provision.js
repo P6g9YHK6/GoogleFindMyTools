@@ -134,9 +134,22 @@ document.addEventListener("DOMContentLoaded", () => {
     lastPhase = null;
     ensureSocket();
 
-    const resp = await fetch("/auth/login/start", { method: "POST" });
-    const data = await resp.json();
-    if (data.state) handleUpdate({ type: "provision", ...data.state });
+    try {
+      const resp = await fetch("/auth/login/start", { method: "POST" });
+      if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+      const data = await resp.json();
+      if (data.state) handleUpdate({ type: "provision", ...data.state });
+    } catch (e) {
+      // Without this, a failed/unparseable response here leaves the button
+      // looking like it did nothing at all - show something instead of
+      // silence, and leave the button clickable again so retrying doesn't
+      // need a page reload.
+      handleUpdate({
+        phase: "error",
+        message: `Couldn't start sign-in: ${e.message}. Check the server logs and try again.`,
+        percent: 0,
+      });
+    }
   });
 
   // Reflects an already-in-progress setup immediately, e.g. after navigating
