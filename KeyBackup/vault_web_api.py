@@ -15,8 +15,11 @@ real web app does - no separate auth of our own needed.
 
 import base64
 import json
+import logging
 
 from selenium.webdriver.support.ui import WebDriverWait
+
+logger = logging.getLogger(__name__)
 
 FIND_MY_DEVICE_URL = "https://www.google.com/android/find/?login=&device=1&rs=1"
 
@@ -118,13 +121,13 @@ def fetch_vault_keys_via_web_app(driver) -> list[dict]:
 
         result = driver.execute_async_script(_FETCH_SCRIPT)
         if not result or not result.get("ok"):
-            print(f"[VaultWebApi] Vault key fetch failed: {result}")
+            logger.warning("Vault key fetch failed: %s", result)
             return []
 
         entries = _parse_batchexecute_response(result["text"])
-        print(f"[VaultWebApi] Fetched {len(entries)} vault key(s): "
-              f"{[(e['domain'], e['version'], e['epoch']) for e in entries]}")
+        logger.info("Fetched %s vault key(s): %s", len(entries),
+                    [(e["domain"], e["version"], e["epoch"]) for e in entries])
         return entries
     except Exception as e:
-        print(f"[VaultWebApi] Vault key fetch failed (non-fatal): {e}")
+        logger.warning("Vault key fetch failed (non-fatal): %s", e)
         return []

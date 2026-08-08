@@ -4,8 +4,11 @@
 #
 
 import json
+import logging
 
 from example_data_provider import get_example_data
+
+logger = logging.getLogger(__name__)
 
 
 def _transform_to_byte_array(json_object):
@@ -30,8 +33,7 @@ def get_fmdn_shared_key(vault_keys):
             # mismatch error). The old code here unconditionally returned after the
             # first array entry and never compared epochs at all.
             latest = max(json_array, key=lambda item: int(item["epoch"]))
-            print(f"[ResponseParser] Selected vault key epoch {latest['epoch']} "
-                  f"(of {len(json_array)} available).")
+            logger.info("Selected vault key epoch %s (of %s available).", latest["epoch"], len(json_array))
             return _transform_to_byte_array(latest["key"])
 
     raise Exception("No suitable key found in the vault keys.")

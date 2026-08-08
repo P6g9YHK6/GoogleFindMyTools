@@ -1,4 +1,4 @@
-"""Feeds the System Log page (webui/system_log_store.py) from every logger
+"""Feeds the Logs page's system entries (webui/system_log_store.py) from every logger
 app-wide - webui.*, Auth.*, NovaApi.*, everything - by attaching to the root
 logger, the same way webui/notify.py's Apprise handler does and for the same
 reason: a failure logged from outside the webui.* tree (e.g. Auth.fcm_receiver

@@ -2,12 +2,15 @@
 #  GoogleFindMyTools - A set of tools to interact with the Google Find My API
 #  Copyright © 2024 Leon Böttger. All rights reserved.
 #
+import logging
 import os
 import platform
 import shutil
 import time
 
 import undetected_chromedriver as uc
+
+logger = logging.getLogger(__name__)
 
 
 def find_chrome():
@@ -40,7 +43,7 @@ def find_chrome():
         if chrome_path:
             return chrome_path
     except Exception as e:
-        print(f"[ChromeDriver] Error while searching system paths: {e}")
+        logger.warning("Error while searching system paths: %s", e)
     return None
 
 def get_options():
@@ -65,34 +68,34 @@ def create_driver():
             
         chrome_options = get_options()
         driver = uc.Chrome(options=chrome_options, version_main=None)
-        print("[ChromeDriver] Installed and browser started.")
+        logger.info("Installed and browser started.")
         return driver
     except Exception as e:
-        print(f"[ChromeDriver] Default ChromeDriver creation failed: {e}")
-        print("[ChromeDriver] Trying alternative paths...")
+        logger.warning("Default ChromeDriver creation failed: %s", e)
+        logger.info("Trying alternative paths...")
         chrome_path = find_chrome()
         if chrome_path:
             chrome_options = get_options()
             chrome_options.binary_location = chrome_path
             try:
                 driver = uc.Chrome(options=chrome_options, version_main=None)
-                print(f"[ChromeDriver] ChromeDriver started using {chrome_path}")
+                logger.info("ChromeDriver started using %s", chrome_path)
                 return driver
             except Exception as e:
-                print(f"[ChromeDriver] ChromeDriver failed using path {chrome_path}: {e}")
+                logger.warning("ChromeDriver failed using path %s: %s", chrome_path, e)
         else:
-            print("[ChromeDriver] No Chrome executable found in known paths.")
-        
+            logger.warning("No Chrome executable found in known paths.")
+
         # Final fallback - try headless mode
-        print("[ChromeDriver] Trying headless mode as last resort...")
+        logger.info("Trying headless mode as last resort...")
         try:
             chrome_options = get_options()
             chrome_options.add_argument("--headless")
             driver = uc.Chrome(options=chrome_options, version_main=None)
-            print("[ChromeDriver] Started in headless mode successfully.")
+            logger.info("Started in headless mode successfully.")
             return driver
         except Exception as e:
-            print(f"[ChromeDriver] Headless mode also failed: {e}")
+            logger.error("Headless mode also failed: %s", e)
         
         raise Exception(
             "[ChromeDriver] Failed to install ChromeDriver. A current version of Chrome was not detected on your system.\n"

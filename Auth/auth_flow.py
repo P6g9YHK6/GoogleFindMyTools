@@ -3,6 +3,7 @@
 #  Copyright © 2024 Leon Böttger. All rights reserved.
 #
 
+import logging
 import os
 import threading
 
@@ -10,6 +11,8 @@ from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.support.ui import WebDriverWait
 
 from chrome_driver import create_driver
+
+logger = logging.getLogger(__name__)
 
 SIGN_IN_WAIT_S = 300
 
@@ -25,17 +28,16 @@ def request_oauth_account_token_flow():
 
 def _request_oauth_account_token_flow():
 
-    print("""[AuthFlow] This script will now open Google Chrome on your device to login to your Google account.
-> Please make sure that Chrome is installed on your system.
-> For macOS users only: Make that you allow Python (or PyCharm) to control Chrome if prompted. 
-    """)
+    logger.info("This script will now open Google Chrome on your device to login to your Google "
+                "account. Please make sure that Chrome is installed on your system. For macOS "
+                "users only: allow Python (or PyCharm) to control Chrome if prompted.")
 
     # Press enter to continue (skipped when driven non-interactively, e.g. from the web UI's browser container)
     if os.environ.get("GFMT_NONINTERACTIVE") != "1":
         input("[AuthFlow] Press Enter to continue...")
 
     # Automatically install and set up the Chrome driver
-    print("[AuthFlow] Installing ChromeDriver...")
+    logger.info("Installing ChromeDriver...")
 
     driver = create_driver()
 
@@ -44,8 +46,8 @@ def _request_oauth_account_token_flow():
         driver.get("https://accounts.google.com/EmbeddedSetup")
 
         # Wait until the "oauth_token" cookie is set
-        print(f"[AuthFlow] Waiting up to {SIGN_IN_WAIT_S}s for you to finish signing in "
-              f"('oauth_token' cookie not set yet)...")
+        logger.info("Waiting up to %ss for you to finish signing in ('oauth_token' cookie not set yet)...",
+                    SIGN_IN_WAIT_S)
         try:
             WebDriverWait(driver, SIGN_IN_WAIT_S).until(
                 lambda d: d.get_cookie("oauth_token") is not None
@@ -64,8 +66,7 @@ def _request_oauth_account_token_flow():
         oauth_token_cookie = driver.get_cookie("oauth_token")
         oauth_token_value = oauth_token_cookie['value']
 
-        # Print the value of the "oauth_token" cookie
-        print("[AuthFlow] Retrieved Account Token successfully.")
+        logger.info("Retrieved Account Token successfully.")
 
         return oauth_token_value
 

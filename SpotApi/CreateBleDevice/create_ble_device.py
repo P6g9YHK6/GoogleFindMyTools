@@ -3,6 +3,7 @@
 #  Copyright © 2024 Leon Böttger. All rights reserved.
 #
 
+import logging
 import secrets
 import time
 
@@ -19,6 +20,8 @@ from SpotApi.CreateBleDevice.config import max_truncated_eid_seconds_server, mcu
 from SpotApi.CreateBleDevice.util import flip_bits
 from SpotApi.GetEidInfoForE2eeDevices.get_owner_key import get_owner_key
 from SpotApi.spot_request import spot_request
+
+logger = logging.getLogger(__name__)
 
 
 def register_esp32():
@@ -87,13 +90,9 @@ def register_esp32():
     bytes_data = register_request.SerializeToString()
     spot_request("CreateBleDevice", bytes_data)
 
-    print("Registered device successfully. Copy the Advertisement Key below. It will not be shown again.")
-    print("Afterward, go to the folder 'GoogleFindMyTools/ESP32Firmware' or 'GoogleFindMyTools/ZephyrFirmware' and follow the instructions in the README.md file.")
-
-    print("+" + "-" * 78 + "+")
-    print("|" + " " * 19 + eid.hex() + " " * 19 + "|")
-    print("|" + " " * 30 + "Advertisement Key" + " " * 31 + "|")
-    print("+" + "-" * 78 + "+")
+    logger.info("Registered device successfully. Advertisement key: %s. Go to "
+                "'GoogleFindMyTools/ESP32Firmware' or 'GoogleFindMyTools/ZephyrFirmware' and "
+                "follow the instructions in the README.md file.", eid.hex())
 
     return {
         "eid_hex": eid.hex(),
