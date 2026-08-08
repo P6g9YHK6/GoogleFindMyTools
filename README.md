@@ -45,6 +45,8 @@ To sign in, open `http://localhost:4321/auth` and click "Sign in with Google" - 
 
 Set `HTTP_USER` and `HTTP_PASSWORD` environment variables to require that username/password pair (HTTP Basic Auth) for the whole web UI, including the embedded login view. Copy `.env.example` to `.env` and fill both in, or run `HTTP_USER=you HTTP_PASSWORD=yourpassword docker compose up -d`. Both are unset by default.
 
+Set `SECRETS_ENCRYPTION_KEY` to any string to encrypt every value in `Auth/auth.yaml` at rest (AES-256-GCM, keyed off a hash of whatever string you set) instead of storing them as plain text. Unset/empty (the default) keeps the old plain-text behavior - the app logs a one-time warning on startup when that's the case. Changing or losing the key makes existing encrypted values unreadable (they're logged as a decrypt error and treated as missing, not a crash) - back it up along with the rest of your data volume.
+
 > [!CAUTION]
 > Even with `HTTP_USER`/`HTTP_PASSWORD` set, this web UI only adds HTTP Basic Auth and no HTTPS, and it holds long-lived Google account tokens plus live device location data. It is meant for local/LAN use only. Do not port-forward it or otherwise expose it to the public internet.
 
