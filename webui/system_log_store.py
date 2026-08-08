@@ -1,5 +1,5 @@
-"""Bounded storage for the System Log page - every INFO-or-above log record
-from anywhere in the app (see webui/log_capture.py), as opposed to
+"""Bounded storage for the Logs page's system entries - every INFO-or-above
+log record from anywhere in the app (see webui/log_capture.py), as opposed to
 webui/forwarders/log_store.py which only ever holds forwarding attempts.
 Same plain-line-per-entry approach as that module (see it for why: no JSON/
 YAML, just tab-separated fields parsed back on read).

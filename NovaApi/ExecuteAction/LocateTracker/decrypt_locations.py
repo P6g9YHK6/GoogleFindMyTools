@@ -5,6 +5,7 @@
 
 import datetime
 import hashlib
+import logging
 
 from Auth.token_cache import get_cached_values_with_prefix
 from FMDNCrypto.foreign_tracker_cryptor import decrypt
@@ -17,6 +18,8 @@ from SpotApi.CreateBleDevice.config import mcu_fast_pair_model_id
 from SpotApi.CreateBleDevice.util import flip_bits
 from SpotApi.GetEidInfoForE2eeDevices.get_eid_info_request import get_eid_info
 from SpotApi.GetEidInfoForE2eeDevices.get_owner_key import get_owner_key, get_owner_key_from_wrapped_blob
+
+logger = logging.getLogger(__name__)
 
 
 def create_google_maps_link(latitude, longitude):
@@ -74,18 +77,13 @@ def retrieve_identity_key(device_registration: DeviceRegistration) -> bytes:
         try:
             owner_key = get_owner_key_from_wrapped_blob(bytes.fromhex(blob_hex))
             identity_key = decrypt_eik(owner_key, encrypted_identity_key)
-            print(f"[DecryptLocations] Decrypted using {name}.")
+            logger.info("Decrypted using %s.", name)
             return identity_key
         except Exception:
             continue
 
     e2eeData = get_eid_info()
     current_owner_key_version = e2eeData.encryptedOwnerKeyAndMetadata.ownerKeyVersion
-
-    print("")
-    print("-" * 40)
-    print("Attention:")
-    print("-" * 40)
 
     if encrypted_user_secrets.ownerKeyVersion < current_owner_key_version:
         message = (
@@ -108,7 +106,7 @@ def retrieve_identity_key(device_registration: DeviceRegistration) -> bytes:
             f"'Auth/secrets.json' so it gets re-derived, or delete the whole file to sign in "
             f"again from scratch."
         )
-    print(message)
+    logger.error(message)
     # exit(1) here would raise SystemExit, which is fine for the CLI scripts this
     # was originally written for but fatal when called from a web request thread
     # (asyncio.to_thread) - it doesn't stop the server, just crashes that one
@@ -142,8 +140,6 @@ def decrypt_location_response_locations(device_update_protobuf):
     for loc, time in zip(network_locations, network_locations_time):
 
         if loc.status == Common_pb2.Status.SEMANTIC:
-            print("Semantic Location Report")
-
             wrapped_location = WrappedLocation(
                 decrypted_location=b'',
                 time=int(time.seconds),
@@ -175,23 +171,22 @@ def decrypt_location_response_locations(device_update_protobuf):
             )
             location_time_array.append(wrapped_location)
 
-    print("-" * 40)
-    print("[DecryptLocations] Decrypted Locations:")
-
     if not location_time_array:
-        print("No locations found.")
+        logger.info("No locations found.")
         return []
 
+    logger.info("Decrypted %d location report(s).", len(location_time_array))
     results = []
 
     for loc in location_time_array:
 
         is_semantic = loc.status == Common_pb2.Status.SEMANTIC
         latitude = longitude = altitude = None
+        loc_time_str = datetime.datetime.fromtimestamp(loc.time).strftime("%Y-%m-%d %H:%M:%S")
 
         if is_semantic:
-            print(f"Semantic Location: {loc.name}")
-
+            logger.info("Semantic location %r at %s (status=%s, own_report=%s)",
+                        loc.name, loc_time_str, loc.status, loc.is_own_report)
         else:
             proto_loc = DeviceUpdate_pb2.Location()
             proto_loc.ParseFromString(loc.decrypted_location)
@@ -200,15 +195,9 @@ def decrypt_location_response_locations(device_update_protobuf):
             longitude = proto_loc.longitude / 1e7
             altitude = proto_loc.altitude
 
-            print(f"Latitude: {latitude}")
-            print(f"Longitude: {longitude}")
-            print(f"Altitude: {altitude}")
-            print(f"Google Maps Link: {create_google_maps_link(latitude, longitude)}")
-
-        print(f"Time: {datetime.datetime.fromtimestamp(loc.time).strftime('%Y-%m-%d %H:%M:%S')}")
-        print(f"Status: {loc.status}")
-        print(f"Is Own Report: {loc.is_own_report}")
-        print("-" * 40)
+            logger.info("Location %s, %s (altitude=%s) at %s (status=%s, own_report=%s) - %s",
+                        latitude, longitude, altitude, loc_time_str, loc.status, loc.is_own_report,
+                        create_google_maps_link(latitude, longitude))
 
         results.append({
             "latitude": latitude,
