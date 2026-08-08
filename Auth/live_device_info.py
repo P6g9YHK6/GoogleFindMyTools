@@ -172,13 +172,30 @@ def _parse_chunked(text: str) -> list:
     return envelopes
 
 
+def _decode_maybe_base64_json(text: str):
+    """chooseServer's response body has been observed both ways for the
+    exact same call against the same account (the HAR this module was built
+    from had it base64-encoded; a live repro while debugging this got plain
+    JSON back directly) - try plain JSON first since that's the cheap,
+    unambiguous case, and only fall back to base64 if that fails. Getting
+    this backwards silently corrupts the plain-JSON case instead of raising:
+    b64decode(validate=False) just drops every non-base64-alphabet character
+    (quotes, brackets, commas, ...) and "successfully" decodes whatever's
+    left into garbage bytes, which then fail utf-8 decoding inside
+    json.loads with a confusing UnicodeDecodeError."""
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return json.loads(base64.b64decode(text + "=="))
+
+
 def _choose_server(session: requests.Session, sapisid: str, token: str) -> str | None:
     watch_entry = [None, None, None, [9, 5], None, [[_TOPIC], [1], [[[token]]]]]
     body = json.dumps([watch_entry, None, None, 0, 0])
     headers = {**_auth_headers(sapisid), "Content-Type": "application/json+protobuf"}
     resp = session.post(f"{_CHOOSE_SERVER_URL}?key={_CHANNEL_KEY}", data=body, headers=headers, timeout=10)
     resp.raise_for_status()
-    decoded = json.loads(base64.b64decode(resp.text + "=="))
+    decoded = _decode_maybe_base64_json(resp.text)
     return decoded[0] if decoded else None
 
 

@@ -148,3 +148,18 @@ def test_get_page_tokens_handles_a_negative_fdrfje():
 def test_get_page_tokens_returns_none_when_a_field_is_missing():
     session = _FakeSession("<html>not the page we expected, no WIZ data here</html>")
     assert ldi._get_page_tokens(session) is None
+
+
+def test_decode_maybe_base64_json_handles_plain_json():
+    # Observed live while debugging this: chooseServer sometimes answers
+    # with plain JSON directly, not base64 - see _decode_maybe_base64_json's
+    # docstring for why getting the order backwards is dangerous, not just
+    # slower.
+    text = '["FAJZYfRdmLpXX6JU41CvSloT_JH7m3hrN0koKkc6XPo",3,null,"1786226149904933","1786226149904995"]'
+    assert ldi._decode_maybe_base64_json(text)[0] == "FAJZYfRdmLpXX6JU41CvSloT_JH7m3hrN0koKkc6XPo"
+
+
+def test_decode_maybe_base64_json_handles_base64(monkeypatch):
+    # This is the format the original HAR capture had.
+    text = "WyJDaGk1cEZHWmZkVDM4V2hUM3Y4MTBzWndBa044ZVN4OVdTdHZNOS1ybFhJIiwzLG51bGwsIjE3ODYxMjA4MDI0NzQ4MDMiLCIxNzg2MTIwODAyNDc0OTM3Il0="
+    assert ldi._decode_maybe_base64_json(text)[0] == "Chi5pFGZfdT38WhT3v810sZwAkN8eSx9WStvM9-rlXI"
