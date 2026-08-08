@@ -134,20 +134,38 @@ _WIZ_FIELD_RE = {
 }
 
 
-def _get_page_tokens(session: requests.Session) -> dict | None:
+def _fetch_fmd_page(session: requests.Session) -> str:
+    resp = session.get(_FMD_PAGE_URL, timeout=15)
+    resp.raise_for_status()
+    return resp.text
+
+
+def _get_page_tokens(page_text: str) -> dict | None:
     """window.WIZ_global_data is inlined as plain JS object literal in the
     page's own HTML - same values KeyBackup/vault_web_api.py reads via
     window.WIZ_global_data inside an actual browser; pulled out with a
     regex here since there's no browser in this path at all."""
-    resp = session.get(_FMD_PAGE_URL, timeout=15)
-    resp.raise_for_status()
     values = {}
     for key, pattern in _WIZ_FIELD_RE.items():
-        m = pattern.search(resp.text)
+        m = pattern.search(page_text)
         if not m:
             return None
         values[key] = m.group(1)
     return values
+
+
+def _get_device_numeric_id(page_text: str, canonic_id: str) -> str | None:
+    """The page's own initial device list (embedded as an AF_initDataCallback
+    blob, same mechanism as window.WIZ_global_data - just a different
+    payload) pairs each phone with an internal numeric id right next to its
+    canonic_id: `..."<numeric_id>",[["<canonic_id>"...`. This is the id
+    SWJ22b (see _request_live_status) needs in the *first* position of its
+    payload - confirmed by locating this exact substring in a real page
+    capture. BLE tags don't have one there at all (matches the "phones
+    only" scope this feature already documents), so None here is a normal,
+    expected outcome for a tag - not a parse failure."""
+    m = re.search(r'"(\d+)",\[\["' + re.escape(canonic_id) + '"', page_text)
+    return m.group(1) if m else None
 
 
 def _parse_chunked(text: str) -> list:
@@ -221,6 +239,59 @@ def _open_channel(session: requests.Session, sapisid: str, gsessionid: str, toke
                 server_timeout_s = inner[5] / 1000 if len(inner) > 5 and isinstance(inner[5], (int, float)) else None
                 return inner[1], server_timeout_s
     return None, None
+
+
+_LIVE_STATUS_URL = "https://www.google.com/android/find/_/BoqWebFindMyDeviceUi/data/batchexecute"
+
+
+def _request_live_status(session: requests.Session, sapisid: str, page_tokens: dict, device_numeric_id: str,
+                          canonic_id: str, channel_token: str) -> bool:
+    """Asks Google's backend to ping this phone for a live status update and
+    route the response to whichever channel is watching channel_token - see
+    this module's docstring for why open_channel() alone is a no-op without
+    this. Reverse-engineered from a real capture of the "SWJ22b" batchexecute
+    RPC the website itself makes right after opening its own channel watch;
+    two parts of that payload are best-effort reconstructions rather than
+    confirmed values, called out below. Returns whether the request was
+    accepted - never raises, this is one extra best-effort step in a chain
+    that must never block the locate itself on a failure here.
+
+    Unconfirmed pieces, in case a live account ever needs deeper debugging:
+    - The ~16-byte blob in the 2nd payload segment: not found anywhere else
+      in the reference capture (not on the page, not in an earlier
+      response), so it reads as a client-generated per-request nonce -
+      generated fresh here the same way, standard (not urlsafe) base64 to
+      match its observed "==" padding.
+    - The 2nd token in the 3rd segment: identical across two different
+      SWJ22b calls *within the same already-loaded page* in the capture,
+      but that's consistent with it being a session-scoped id the page's JS
+      generated once and reused - since open_watch() always starts a fresh
+      "session" (a new page load) per call, generating a fresh one here
+      each time is the direct equivalent, not a guess that ignores the
+      evidence.
+    """
+    nonce = base64.b64encode(os.urandom(16)).decode()
+    session_token = _random_token()
+    inner = json.dumps([
+        [[device_numeric_id, [[canonic_id]]], 1],
+        [None, None, None, [nonce]],
+        [1, channel_token, session_token, None, [channel_token], 1],
+    ])
+    body = json.dumps([[["SWJ22b", inner, None, "generic"]]])
+    params = {
+        "rpcids": "SWJ22b",
+        "source-path": "/android/find/",
+        "f.sid": page_tokens.get("FdrFJe", ""),
+        "bl": page_tokens.get("cfb2h", ""),
+        "hl": "en-GB",
+        "_reqid": str(random.randint(100000, 999999)),
+        "rt": "c",
+    }
+    data = {"f.req": body, "at": page_tokens.get("SNlM0e", "")}
+    headers = {**_auth_headers(sapisid), "Content-Type": "application/x-www-form-urlencoded;charset=utf-8"}
+    resp = session.post(_LIVE_STATUS_URL, params=params, data=data, headers=headers, timeout=10)
+    resp.raise_for_status()
+    return "SWJ22b" in resp.text
 
 
 def _find_matching_blob(obj, target: bytes) -> bytes | None:
@@ -432,7 +503,8 @@ def open_watch(canonic_id: str) -> LiveInfoWatch | None:
                 "re-run Sign in with Google once to capture them"
             )
             return None
-        tokens = _get_page_tokens(session)
+        page_text = _fetch_fmd_page(session)
+        tokens = _get_page_tokens(page_text)
         if tokens is None:
             logger.warning("Could not read the Find My Device page's session tokens - skipping live info")
             return None
@@ -445,6 +517,26 @@ def open_watch(canonic_id: str) -> LiveInfoWatch | None:
         if not channel_sid:
             logger.warning("Could not open the live info channel - skipping live info for %s", canonic_id)
             return None
+
+        # Opening the channel above only sets up somewhere to *receive* a
+        # push - it doesn't cause Google to ever send one. SWJ22b is what
+        # actually asks the backend to ping this phone and route its answer
+        # to this channel; without it the watch just listens to silence
+        # (confirmed live: a channel that opened cleanly never received
+        # anything across 5 consecutive real locate cycles before this).
+        # Only phones have the numeric id it needs - not finding one for a
+        # BLE tag is expected, not an error, so this doesn't gate the watch
+        # the way the steps above do (still worth returning the watch even
+        # if this fails, in case something else about the account/session
+        # still makes an update arrive).
+        device_numeric_id = _get_device_numeric_id(page_text, canonic_id)
+        if device_numeric_id:
+            if not _request_live_status(session, sapisid, tokens, device_numeric_id, canonic_id, token):
+                logger.warning("Live status request (SWJ22b) failed for %s - waiting anyway", canonic_id)
+        else:
+            logger.info("No numeric device id found for %s (BLE tag, or not a phone) - "
+                        "waiting on the channel without an explicit trigger", canonic_id)
+
         return LiveInfoWatch(session, sapisid, gsessionid, channel_sid, canonic_id, server_timeout_s)
     except Exception:
         logger.exception("Failed to open a live info watch for %s (non-fatal)", canonic_id)

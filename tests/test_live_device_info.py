@@ -8,6 +8,7 @@ these ever need regenerating from scratch)."""
 import base64
 import hashlib
 import http.server
+import json
 import threading
 import time
 
@@ -136,26 +137,22 @@ def test_get_page_tokens_handles_fdrfje_as_a_quoted_string():
     # This is the actual format Google sends (confirmed both live and in the
     # original HAR capture this module was built from) - large session ids
     # don't fit a JS safe integer, so Google stringifies the field.
-    session = _FakeSession(_wiz_page('"975547745069287805"'))
-    tokens = ldi._get_page_tokens(session)
+    tokens = ldi._get_page_tokens(_wiz_page('"975547745069287805"'))
     assert tokens == {"FdrFJe": "975547745069287805", "cfb2h": "prod_build_label", "SNlM0e": "the-csrf-token"}
 
 
 def test_get_page_tokens_still_handles_fdrfje_as_a_bare_number():
-    session = _FakeSession(_wiz_page("975547745069287805"))
-    tokens = ldi._get_page_tokens(session)
+    tokens = ldi._get_page_tokens(_wiz_page("975547745069287805"))
     assert tokens["FdrFJe"] == "975547745069287805"
 
 
 def test_get_page_tokens_handles_a_negative_fdrfje():
-    session = _FakeSession(_wiz_page('"-1529750813986083965"'))
-    tokens = ldi._get_page_tokens(session)
+    tokens = ldi._get_page_tokens(_wiz_page('"-1529750813986083965"'))
     assert tokens["FdrFJe"] == "-1529750813986083965"
 
 
 def test_get_page_tokens_returns_none_when_a_field_is_missing():
-    session = _FakeSession("<html>not the page we expected, no WIZ data here</html>")
-    assert ldi._get_page_tokens(session) is None
+    assert ldi._get_page_tokens("<html>not the page we expected, no WIZ data here</html>") is None
 
 
 def test_decode_maybe_base64_json_handles_plain_json():
@@ -310,3 +307,92 @@ def test_wait_for_update_returns_as_soon_as_a_match_arrives_even_if_the_stream_s
         server.shutdown()
 
     assert elapsed < 5  # returned right after the match arrived (~0.3s in), not near the 30s deadline
+
+
+# A trimmed excerpt of the actual AF_initDataCallback shape a real page capture
+# had - the device list pairs each phone with a numeric id right before its
+# canonic_id, unrelated surrounding data included to prove the regex doesn't
+# need the full page structure to find it.
+_DEVICE_LIST_PAGE_EXCERPT = (
+    "AF_initDataCallback({key: 'ds:0', hash: '1', data:[null,[[[["
+    '"4405903741562188752",[["67adb9e9-0000-2e84-92bf-14223bbe07d6"]]],'
+    '"Mi 10T Lite"],[null,2,[["67adbd49-0000-2392-b563-582429c649f0"]]],'
+    '"Chipolo ONE Point"]],null]});'
+)
+
+
+def test_get_device_numeric_id_finds_a_phones_id():
+    numeric_id = ldi._get_device_numeric_id(_DEVICE_LIST_PAGE_EXCERPT, "67adb9e9-0000-2e84-92bf-14223bbe07d6")
+    assert numeric_id == "4405903741562188752"
+
+
+def test_get_device_numeric_id_returns_none_for_a_ble_tag():
+    # Confirmed against a real capture: tags don't get a numeric id in this
+    # position at all - None here is the expected, normal case, not a
+    # parse failure (see _get_device_numeric_id's docstring).
+    numeric_id = ldi._get_device_numeric_id(_DEVICE_LIST_PAGE_EXCERPT, "67adbd49-0000-2392-b563-582429c649f0")
+    assert numeric_id is None
+
+
+def test_get_device_numeric_id_returns_none_when_canonic_id_absent():
+    assert ldi._get_device_numeric_id(_DEVICE_LIST_PAGE_EXCERPT, "some-other-canonic-id") is None
+
+
+def test_request_live_status_sends_the_expected_payload_shape(monkeypatch):
+    captured = {}
+
+    class _FakeLiveStatusResponse:
+        text = '[["wrb.fr","SWJ22b","[1]",null,null,null,"generic"]]'
+
+        def raise_for_status(self):
+            pass
+
+    class _RecordingSession:
+        def post(self, url, params=None, data=None, headers=None, timeout=None):
+            captured["url"] = url
+            captured["params"] = params
+            captured["data"] = data
+            return _FakeLiveStatusResponse()
+
+    monkeypatch.setattr(ldi, "_random_token", lambda: "fake-session-token")
+
+    page_tokens = {"FdrFJe": "-1529750813986083965", "cfb2h": "prod_build_label", "SNlM0e": "the-csrf-token"}
+    ok = ldi._request_live_status(
+        _RecordingSession(), "sapisid", page_tokens,
+        device_numeric_id="4405903741562188752", canonic_id="67adb9e9-0000-2e84-92bf-14223bbe07d6",
+        channel_token="the-channel-token",
+    )
+
+    assert ok is True
+    assert captured["url"] == ldi._LIVE_STATUS_URL
+    assert captured["params"]["rpcids"] == "SWJ22b"
+    assert captured["params"]["f.sid"] == "-1529750813986083965"
+    assert captured["params"]["bl"] == "prod_build_label"
+    assert captured["data"]["at"] == "the-csrf-token"
+
+    # The RPC args are themselves JSON-encoded as a string inside the outer
+    # f.req array (Google's batchexecute framing) - decode that inner layer
+    # to check the actual payload shape matches the real capture's.
+    outer = json.loads(captured["data"]["f.req"])
+    inner = json.loads(outer[0][0][1])
+    assert inner[0] == [["4405903741562188752", [["67adb9e9-0000-2e84-92bf-14223bbe07d6"]]], 1]
+    assert inner[2][1] == "the-channel-token"  # channel_token, in the position the real capture had it
+    assert inner[2][4] == ["the-channel-token"]  # ...and echoed again here, same as the real capture
+
+
+def test_request_live_status_returns_false_on_an_unexpected_response(monkeypatch):
+    class _FakeResponse:
+        text = "not the response we expected"
+
+        def raise_for_status(self):
+            pass
+
+    class _FakeSessionForPost:
+        def post(self, *args, **kwargs):
+            return _FakeResponse()
+
+    ok = ldi._request_live_status(
+        _FakeSessionForPost(), "sapisid", {}, device_numeric_id="123", canonic_id="some-id",
+        channel_token="token",
+    )
+    assert ok is False
