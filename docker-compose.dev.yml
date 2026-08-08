@@ -40,6 +40,7 @@ services:
       # trusted LAN.
       - HTTP_USER=${HTTP_USER:-}
       - HTTP_PASSWORD=${HTTP_PASSWORD:-}
+      - SECRETS_ENCRYPTION_KEY=${SECRETS_ENCRYPTION_KEY:-}
     volumes:
       - data:/data
     restart: unless-stopped
