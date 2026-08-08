@@ -2,84 +2,101 @@
 
 [![Lint and test](https://github.com/P6g9YHK6/GoogleFindMyTools/actions/workflows/test.yml/badge.svg)](https://github.com/P6g9YHK6/GoogleFindMyTools/actions/workflows/test.yml)
 
-This repository includes some useful tools that reimplement parts of Google's Find My Device Network (now called Find Hub Network). Note that the code of this repo is still very experimental.
+A self-hosted app that logs into your Google account, keeps polling your Find My Device trackers and Android phones, and forwards each new location to your own Traccar or Nextcloud PhoneTrack server - so you keep your location history on your own infrastructure instead of Google's. One Docker container, a web UI, nothing else to run.
 
-### What's possible?
-Currently, it is possible to query Find My Device / Find Hub trackers and Android devices, read out their E2EE keys, and decrypt encrypted locations sent from the Find My Device / Find Hub network. You can also send register your own ESP32- or Zephyr-based trackers, as described below.
-
-### How to use
+It's built on top of [GoogleFindMyTools](https://github.com/leonboe1/GoogleFindMyTools), the original reverse-engineering work that figured out how to talk to Google's Find My Device / Find Hub network at the protocol level (querying trackers, decrypting end-to-end encrypted locations, registering custom ESP32/Zephyr trackers). That original tool is still in here and still works as a set of Python scripts - see [Advanced: running it as a CLI tool](#advanced-running-it-as-a-cli-tool) below. Everything described in the rest of this README is a self-hosted app built around it: a web UI, a scheduler, multi-destination forwarding, and the operational stuff (logging, throttling, auth, encryption at rest) a service you actually leave running needs.
 
 > [!CAUTION]
-> Before starting, ensure you have Chrome and Python updated.
-> 
-> **If Chrome is not up to date, the script will NOT work, guaranteed!**
+> This holds long-lived Google account tokens and live device location data. It's meant for local/LAN use - see [Security](#security) below before exposing it any further than that.
 
-- Clone this repository: `git clone` or download the ZIP file
-- Change into the directory: `cd GoogleFindMyTools`
-- Optional: Create venv: `python -m venv venv`
-- Optional: Activate venv: `venv\Scripts\activate` (Windows) or `source venv/bin/activate` (Linux & macOS)
-- Install all required packages: `pip install -r requirements.txt`
-- Install the latest version of Google Chrome: https://www.google.com/chrome/
-- Start the program by running [main.py](main.py): `python main.py` or `python3 main.py`
+## Features
 
-### Authentication
+- **Devices page** - every tracker and phone on your account, in one list. Manual "Locate" and "Play sound" buttons, plus whatever the last scheduled poll found. Shows last-seen time for phones and tags alike, and (opt-in, see below) live battery percentage and WiFi network for phones.
+- **Scheduled forwarding, not a one-off export** - each device polls on its own cron schedule and forwards to as many destinations as you want (Traccar, Nextcloud PhoneTrack, or both), each with its own schedule and its own alias.
+- **Skip pointless updates** - two independent, opt-in gates per destination: skip sending if the device hasn't moved far enough, and skip re-sending the same stale cached fix Google keeps returning. Both are local math (haversine distance), no external API calls, no extra cost.
+- **Live battery & WiFi (opt-in)** - Google's real-time push channel exposes battery percentage and the connected WiFi network for phones while they're being actively located; the passive device list never carries this. Turn it on per destination and it's included in what gets forwarded (`batt`/`bat`) and shown on the Devices page.
+- **Forwarding Log** - every attempt, every device, every destination, with the exact payload sent and whether it succeeded - so a silent failure on your Traccar server's end doesn't stay silent here.
+- **System Log + error notifications** - every warning/error anywhere in the app (a failed locate, an expired token, a forwarding failure) is captured in a searchable in-app log and can be pushed out live through [Apprise](https://github.com/caronc/apprise) to whatever you already use (ntfy, Discord, Telegram, Pushover, email, 100+ others) - configured from the Config page, no restart needed.
+- **Register your own trackers** - pair a custom ESP32- or Zephyr-based BLE tracker straight from the web UI.
+- **Account-wide rate limiting** - every call to Google's backend (device list, locate, sound, register) goes through one shared throttle, tunable live from the Config page, so a burst of manual clicks and every device's poll loop can never combine into something that gets your account flagged.
+- **Everything survives a restart** - device/forwarding config, the last known location per device, and every log all live in one plain-YAML data directory you mount as a volume. No database to run.
 
-On the first run, an authentication sequence is executed, which requires a computer with access to Google Chrome.
+## Quick start
 
-The authentication results are stored in `Auth/auth.yaml`. If you intend to run this tool on a headless machine, you can just copy this file to avoid having to use Chrome. (Upgrading from an older version that still has `Auth/secrets.json` migrates it automatically the first time it's read - the old file is left in place, untouched.)
+```
+docker compose up -d
+```
 
-### Web UI
+This pulls the pre-built image from `ghcr.io/p6g9yhk6/googlefindmytools` - no local build, no Chrome install on the host. Then open `http://localhost:4321` and go to **Config** → **Sign in with Google**.
 
-This repo also includes an optional local web UI (`webui/`) for everyday use: a device list, a live map for locating trackers, sound start/stop, custom tracker registration, and per-device forwarding of decrypted locations to a Traccar or Nextcloud PhoneTrack server on a configurable schedule, instead of keeping local history.
+Chrome and the Xvfb/x11vnc/noVNC stack needed for that one-time Google login aren't baked into the image - they install on demand into an in-memory directory the first time you sign in (adds ~30-90 seconds to that first sign-in only; later sign-ins skip straight past it). The Config page shows live progress while this happens, and you complete the actual Google login in an embedded browser view right there on the page - no separate machine, no VNC client needed.
 
-**Quick start (pre-built image):** `docker compose up -d` pulls the image published by this repo's GitHub Actions workflow (`.github/workflows/docker-publish.yml`) from `ghcr.io/p6g9yhk6/googlefindmytools` - no local build, no Chrome install needed on the host.
+Building from source instead: `docker compose -f docker-compose.dev.yml up --build`.
 
-**Build from source instead:** `docker compose -f docker-compose.dev.yml up --build`.
+## Configuration
 
-Either way, this is a single container, published at `http://localhost:4321`. Chrome and the Xvfb/x11vnc/noVNC stack used for the Google login are **not** baked into the image - they're installed on demand, into an in-memory (tmpfs) directory, the first time a login is triggered, then left in place for the rest of that container's life so later logins skip straight past setup. This keeps the image itself small, but means:
-- The container needs outbound network access (to Debian's package mirrors and `storage.googleapis.com`) the first time a login is triggered, not just when the image was built.
-- The first sign-in after a container start takes roughly 30-90 seconds before the embedded Chrome view appears, while it installs Xvfb/x11vnc/noVNC and downloads a portable Chrome build. The `/auth` page shows live progress for each step over a WebSocket while this happens. Later sign-ins in the same container are much faster - only the browser/VNC processes themselves restart, not the install.
-- It's left installed for the rest of the container's life, including across a plain `docker stop`/`start` (not just within one `docker compose up`), so a later sign-in never re-pays that setup cost. It only really goes away when the container itself is replaced - a normal image update (`docker compose pull && up -d`, `docker run` a fresh container, Unraid's Update button) always does that anyway. If a sign-in's browser/VNC processes ever fail to stop cleanly on their own, the Config page (`/auth`) shows a warning saying so.
+Copy `.env.example` to `.env` and fill in what you need, or pass these directly to `docker run`/`docker compose`. Everything is optional - the defaults are a reasonable, auth-free single-user setup.
 
-To sign in, open `http://localhost:4321/auth` and click "Sign in with Google" - watch the setup progress, then complete the login in the embedded Chrome view that appears on the same page once it's ready. The resulting tokens are written to `Auth/auth.yaml` in a Docker volume, exactly like copying that file between machines as described below, just automated. (Upgrading from an older version that still has `Auth/secrets.json` migrates it automatically the first time it's read - the old file is left in place, untouched.)
+| Variable | Default | What it does |
+|---|---|---|
+| `HTTP_USER` / `HTTP_PASSWORD` | unset | Set both to require this username/password pair (HTTP Basic Auth) for the whole web UI, including the embedded login view. |
+| `SECRETS_ENCRYPTION_KEY` | unset | Any string. When set, every credential in `auth.yaml` (OAuth tokens, FCM credentials, vault keys, ...) is encrypted at rest (AES-256-GCM). Unset keeps the old plain-text behavior and logs a one-time startup warning saying so. Losing/changing this makes existing encrypted values unreadable; you'd need to sign in again to regenerate them. |
+| `TZ` | UTC | Timezone for timestamps shown in the UI and logs. |
+| `GFMT_DATA_DIR` | `/data` (in the container) | Where all persisted state lives: device/forwarding config, credentials, location history, logs - one flat directory, just mount a volume onto it. |
+| `DEFAULT_POLL_INTERVAL_S` | 300 | Fallback poll interval for a newly added device before you set its own cron schedule. |
+| `LOCATE_CONCURRENCY` | 5 | Max number of devices being actively located at once. |
+| `LOCATE_TIMEOUT_S` | 60 | How long to wait for a single locate before giving up. |
+| `QUERY_THROTTLE_MAX` / `QUERY_THROTTLE_WINDOW_S` / `QUERY_MIN_SPREAD_S` | 20 / 60 / 1 | Account-wide rate limit against Google's backend. Also editable live from the Config page - no restart needed. |
 
-Set `HTTP_USER` and `HTTP_PASSWORD` environment variables to require that username/password pair (HTTP Basic Auth) for the whole web UI, including the embedded login view. Copy `.env.example` to `.env` and fill both in, or run `HTTP_USER=you HTTP_PASSWORD=yourpassword docker compose up -d`. Both are unset by default.
+The Config page also has fields for the query throttle and Apprise notification settings, applied immediately without a restart.
 
-Set `SECRETS_ENCRYPTION_KEY` to any string to encrypt every value in `Auth/auth.yaml` at rest (AES-256-GCM, keyed off a hash of whatever string you set) instead of storing them as plain text. Unset/empty (the default) keeps the old plain-text behavior - the app logs a one-time warning on startup when that's the case. Changing or losing the key makes existing encrypted values unreadable (they're logged as a decrypt error and treated as missing, not a crash) - back it up along with the rest of your data volume.
+## Using it
+
+- **Devices** (`/`) - list, locate, play sound, last-seen, battery/WiFi.
+- **Register Tracker** (`/register`) - pair a custom ESP32/Zephyr BLE tracker.
+- **Forwarding Settings** (`/settings`) - per device: display name/alias, and any number of forwarding endpoints (Traccar or PhoneTrack), each with its own cron schedule, alias, skip-if-close / skip-if-stale thresholds, and the live-info toggle.
+- **Forwarding Log** (`/logs`) - every forward attempt, its target, status, and the exact payload sent.
+- **System Log** (`/logs/system`) - every warning/error anywhere in the app.
+- **Config** (`/auth`) - sign in/out, credential status, query throttle, and Apprise notification settings.
+
+### Live battery & WiFi info
+
+Turning on "fetch live info" for a forwarding endpoint makes it additionally open a watch on Google's real-time push channel right before that device's next locate, and waits briefly afterward for a matching update. This only ever returns anything for phones being actively located right then (BLE tags have no WiFi radio or OS-level battery to report). A failure here never affects the locate itself, it just means no extra data that cycle.
+
+## Security
 
 > [!CAUTION]
-> Even with `HTTP_USER`/`HTTP_PASSWORD` set, this web UI only adds HTTP Basic Auth and no HTTPS, and it holds long-lived Google account tokens plus live device location data. It is meant for local/LAN use only. Do not port-forward it or otherwise expose it to the public internet.
+> `HTTP_USER`/`HTTP_PASSWORD` adds Basic Auth only - no HTTPS. This app is meant for a trusted LAN (or behind your own reverse proxy/VPN if you need remote access), not exposed directly to the public internet.
 
-#### Publishing the image
+- Set `HTTP_USER`/`HTTP_PASSWORD` to gate the whole UI.
+- Set `SECRETS_ENCRYPTION_KEY` to encrypt credentials at rest instead of plain YAML.
+- Everything - config, credentials, logs - lives in the one data directory you control; nothing phones home except to Google's own APIs and (if you configure it) your Apprise notification targets.
 
-Pushing to `main` (or pushing a `v*.*.*` tag) on GitHub runs `.github/workflows/docker-publish.yml`, which builds the image and pushes it to GHCR under this repo automatically - no manual steps beyond a normal `git push`. The first time it runs, the GHCR package is created **private** by default; open the package's settings under your GitHub account's Packages tab and switch visibility to public if you want `docker compose up` to work without `docker login ghcr.io` first.
+## Publishing the image
 
-### Development
+Pushing to `main` (or pushing a `v*.*.*` tag) runs `.github/workflows/docker-publish.yml`, which builds and pushes the image to GHCR automatically - no manual steps beyond a normal `git push`. The first time it runs, the GHCR package is created **private** by default; switch it to public under your GitHub account's Packages tab if you want `docker compose up` to work without `docker login ghcr.io` first.
 
-`.github/workflows/test.yml` lints and runs the test suite against the web UI on every push and
-pull request. To run it locally:
+## Development
+
+`.github/workflows/test.yml` lints and runs the test suite on every push and pull request. To run it locally:
 ```
 pip install -r requirements.txt -r requirements-web.txt -r requirements-dev.txt
 ruff check .
 pytest
 ```
 
-### Known Issues
-- "Your encryption data is locked on your device" is shown if you have never set up Find My Device on an Android device. Solution: Login with your Google Account on an Android device, go to Settings > Google > All Services > Find My Device > Find your offline devices > enable "With network in all areas" or "With network in high-traffic areas only". If "Find your offline devices" is not shown in Settings, you will need to download the Find My Device app from Google's Play Store, and pair a real Find My Device tracker with your device to force-enable the Find My Device network.
-- No support for trackers using the P-256 curve and 32-Byte advertisements. Regular trackers don't seem to use this curve at all - I can only confirm that it is used with Sony's WH1000XM5 headphones.
-- No support for the authentication process on ARM Linux
-- If you receive "ssl.SSLCertVerificationError" when running the script, try to follow [this answer](https://stackoverflow.com/a/53310545).
-- Please also consider the issues listed in the [README in the ESP32Firmware folder](ESP32Firmware/README.md) if you want to register custom trackers.
+## Advanced: running it as a CLI tool
 
-### Firmware for custom ESP32-based trackers
-If you want to use an ESP32 as a custom Find My Device tracker, you can find the firmware in the folder ESP32Firmware. To register a new tracker, run main.py and press 'r' if you are asked to. Afterward, follow the instructions on-screen.
+The original scripts this project is built on still work standalone, without Docker or the web UI - useful for scripting or if you just want to query a device once.
 
-For more information, check the [README in the ESP32Firmware folder](ESP32Firmware/README.md).
+> [!CAUTION]
+> Before starting, ensure Chrome and Python are up to date - if Chrome isn't current, this will not work.
 
-### Firmware for custom Zephyr-based trackers
-If you want to use a Zephyr-supported BLE device (e.g. nRF51/52) as a custom Find My Device tracker, you can find the firmware in the folder ZephyrFirmware. To register a new tracker, run main.py and press 'r' if you are asked to. Afterward, follow the instructions on-screen.
+- Clone this repository: `git clone` or download the ZIP file
+- `cd GoogleFindMyTools`
+- Optional: create/activate a venv (`python -m venv venv`, then `venv\Scripts\activate` on Windows or `source venv/bin/activate` on Linux/macOS)
+- `pip install -r requirements.txt`
+- Install the latest [Google Chrome](https://www.google.com/chrome/)
+- `python main.py`
 
-For more information, check the [README in the ZephyrFirmware folder](ZephyrFirmware/README.md).
-
-### iOS App
-You can also use my [iOS App](https://testflight.apple.com/join/rGqa2mTe) to access your Find My Device trackers on the go.
+On first run this walks you through the same Google sign-in as the web UI, storing the result in `Auth/auth.yaml` - copy that file to run on a headless machine without Chrome. (Upgrading from an older version that still has `Auth/secrets.json` migrates it automatically the first time it's read; the old file is left in place, untouched.) `SECRETS_ENCRYPTION_KEY` (see [Configuration](#configuration)) applies here too.
