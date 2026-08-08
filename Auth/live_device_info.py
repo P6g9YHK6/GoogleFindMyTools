@@ -55,6 +55,20 @@ _TOPIC = "fmd_web"
 
 _SAPISID_COOKIE_NAMES = ("SAPISID", "__Secure-3PAPISID")
 
+# Every other Google-facing request in this project sends a User-Agent
+# matching the real client it's impersonating (see NovaApi/nova_request.py,
+# SpotApi/spot_request.py) - this module didn't, so Google saw requests'
+# default "python-requests/x.y.z" UA and served something other than the
+# real page (no window.WIZ_global_data to scrape), which _get_page_tokens
+# below then couldn't find its fields in. These cookies were captured from
+# an actual Chrome-for-Testing session (see Auth/web_session.py), so a
+# current desktop Chrome UA is the most consistent thing to present them
+# with on every subsequent request through this session.
+_BROWSER_USER_AGENT = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/131.0.0.0 Safari/537.36"
+)
+
 
 def _sapisid_hash(sapisid: str, origin: str, timestamp: int | None = None) -> str:
     """https://developers.google.com/identity/sign-in/web/backend-auth's
@@ -95,6 +109,7 @@ def _build_session() -> tuple[requests.Session, str] | tuple[None, None]:
         return None, None
     session = requests.Session()
     session.cookies = jar
+    session.headers["User-Agent"] = _BROWSER_USER_AGENT
     return session, sapisid
 
 
