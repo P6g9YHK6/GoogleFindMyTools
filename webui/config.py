@@ -13,6 +13,11 @@ GFMT_BROWSER_RUNTIME_DIR = os.environ.get("GFMT_BROWSER_RUNTIME_DIR", "/run/gfmt
 # How long to wait for a login to complete (or the page to be abandoned)
 # before tearing the whole provisioned stack back down.
 GFMT_BROWSER_IDLE_TIMEOUT_S = int(os.environ.get("GFMT_BROWSER_IDLE_TIMEOUT_S", "600"))
+# Bounds the Chrome for Testing zip download (webui/browser_provisioning.py) -
+# without this, a slow/filtered/blocked network path to storage.googleapis.com
+# hangs the whole sign-in flow forever with no error, since urlretrieve has no
+# timeout of its own.
+GFMT_BROWSER_DOWNLOAD_TIMEOUT_S = int(os.environ.get("GFMT_BROWSER_DOWNLOAD_TIMEOUT_S", "300"))
 DEFAULT_POLL_INTERVAL_S = int(os.environ.get("DEFAULT_POLL_INTERVAL_S", "300"))
 LOCATE_CONCURRENCY = int(os.environ.get("LOCATE_CONCURRENCY", "5"))
 LOCATE_TIMEOUT_S = int(os.environ.get("LOCATE_TIMEOUT_S", "60"))

@@ -1,7 +1,11 @@
 import asyncio
 import time
+import urllib.request
+
+import pytest
 
 import webui.browser_provisioning as browser_provisioning
+from webui import config
 
 
 class _FakeProc:
@@ -80,6 +84,56 @@ async def test_teardown_reports_no_warning_when_everything_exits_cleanly():
 
     await browser_provisioning._teardown("done", "ok")
     assert browser_provisioning.get_state()["cleanup_warning"] is None
+
+
+async def test_download_chrome_times_out_with_a_clear_message(monkeypatch, tmp_path):
+    import json as json_module
+
+    monkeypatch.setattr(config, "GFMT_BROWSER_DOWNLOAD_TIMEOUT_S", 0.05)
+    monkeypatch.setattr(browser_provisioning, "_runtime_dir", lambda: str(tmp_path))
+
+    class _FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self):
+            return json_module.dumps({
+                "channels": {"Stable": {"version": "1.2.3", "downloads": {"chrome": [
+                    {"platform": "linux64", "url": "http://example.invalid/chrome-linux64.zip"},
+                ]}}}
+            }).encode()
+
+    def fake_urlretrieve(url, path):
+        time.sleep(0.5)  # comfortably longer than the timeout above
+
+    monkeypatch.setattr(urllib.request, "urlopen", lambda *a, **kw: _FakeResponse())
+    monkeypatch.setattr(urllib.request, "urlretrieve", fake_urlretrieve)
+
+    with pytest.raises(RuntimeError, match="Timed out after 0.05s downloading Chrome"):
+        await browser_provisioning._download_chrome()
+
+
+async def test_start_x_stack_raises_when_a_process_dies_immediately(monkeypatch):
+    browser_provisioning._processes.clear()
+
+    async def fake_exec(*args, **kwargs):
+        # xvfb "starts" fine; x11vnc is the one a stale process left dead on arrival.
+        return _FakeProc(returncode=None if args[0] == "Xvfb" else 1)
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+
+    try:
+        with pytest.raises(RuntimeError, match="x11vnc exited immediately"):
+            await browser_provisioning._start_x_stack()
+    finally:
+        # The fake procs stashed in the module-level _processes dict don't
+        # have a real terminate()/wait() - clear them out so a later test's
+        # app-shutdown teardown (if it ever runs with a stale "active" phase
+        # left over from some other test) doesn't trip over them.
+        browser_provisioning._processes.clear()
 
 
 async def test_start_resets_stale_cleanup_warning(monkeypatch):
