@@ -1,0 +1,23 @@
+<div class="table-scroll">
+<table>
+  <thead>
+    <tr><th>Time</th><th>Type</th><th>Level</th><th>Source</th><th>Detail</th></tr>
+  </thead>
+  <tbody>
+  {% for entry in entries %}
+    <tr>
+      <td>{{ entry.time_str }}</td>
+      <td>{{ entry.type_label }}</td>
+      <td class="log-{{ entry.level }}">{{ entry.level_label }}</td>
+      <td>{{ entry.source }}</td>
+      <td>
+        {{ entry.detail }}
+        {% if entry.payload %}<code class="log-payload">{{ entry.payload }}</code>{% endif %}
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="5">{% if has_active_filters %}No log entries match these filters.{% else %}No log entries yet.{% endif %}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>

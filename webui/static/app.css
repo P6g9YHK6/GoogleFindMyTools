@@ -478,3 +478,31 @@ details ul {
   word-break: break-all;
   color: var(--text-muted);
 }
+
+/* Log filter toolbar */
+.log-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  margin: 1rem 0 1.25rem;
+}
+
+.log-filters input[type="text"] {
+  flex: 1 1 18rem;
+  min-width: 12rem;
+}
+
+.log-filters select {
+  flex: 0 1 auto;
+}
+
+/* Lets a wide table (e.g. Logs, with its Detail/payload column) scroll
+   horizontally on narrow viewports instead of squeezing every column. */
+.table-scroll {
+  overflow-x: auto;
+}
+
+.table-scroll table {
+  min-width: 40rem;
+}
