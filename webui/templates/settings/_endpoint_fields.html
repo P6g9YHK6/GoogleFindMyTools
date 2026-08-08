@@ -69,6 +69,15 @@
   <p class="field-hint">A fresh/live fix is always sent regardless - this only holds back re-sending
      the same stale cached report Google keeps returning.</p>
 
+  <label class="checkbox-label">
+    <input type="checkbox" class="skip-toggle" {% if endpoint.fetch_live_info %}checked{% endif %}>
+    <input type="hidden" name="fetch_live_info" value="{{ '1' if endpoint.fetch_live_info else '0' }}">
+    Also fetch live battery/WiFi status (extra query, experimental)
+  </label>
+  <p class="field-hint">Only works while the device is being actively located, and only for phones -
+     needs ENABLE_LIVE_DEVICE_INFO set on the server and a fresh Google sign-in to capture the
+     session it uses. See the Devices page for what this actually finds.</p>
+
   {% set cron_value = endpoint.cron or '*/5 * * * *' %}
   {% set cron_parts = (cron_value.split() + ['*', '*', '*', '*', '*'])[:5] %}
   <fieldset>
