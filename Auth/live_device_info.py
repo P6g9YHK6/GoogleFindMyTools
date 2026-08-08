@@ -346,7 +346,7 @@ def open_watch(canonic_id: str) -> LiveInfoWatch | None:
         if session is None:
             logger.info(
                 "No web session cookies cached yet for live device info - "
-                "re-run Sign in with Google once with ENABLE_LIVE_DEVICE_INFO set to capture them"
+                "re-run Sign in with Google once to capture them"
             )
             return None
         tokens = _get_page_tokens(session)

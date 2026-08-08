@@ -6,24 +6,22 @@
 during the existing sign-in flow, for Auth/live_device_info.py's on-demand
 queries to Google's real-time "punctual" push channel - a cookie-based auth
 scheme, entirely separate from the OAuth tokens the rest of this project
-uses. Only runs when ENABLE_LIVE_DEVICE_INFO is set; a plain sign-in never
-touches this. Best-effort: any failure here is logged and swallowed, never
-allowed to fail the sign-in flow itself.
+uses. Always runs as part of sign-in (no separate feature flag - the actual
+query only ever happens when explicitly requested, either by whoever calls
+Auth/live_device_info.py's open_watch() directly, or via a device
+endpoint's "fetch_live_info" toggle in the web UI). Best-effort: any
+failure here is logged and swallowed, never allowed to fail the sign-in
+flow itself.
 """
 
 import logging
-import os
 
 from Auth.token_cache import set_cached_value
 
 logger = logging.getLogger("Auth.web_session")
 
-ENABLE_LIVE_DEVICE_INFO = os.environ.get("ENABLE_LIVE_DEVICE_INFO", "0") == "1"
-
 
 def capture_web_session_cookies(driver):
-    if not ENABLE_LIVE_DEVICE_INFO:
-        return
     try:
         cookies = [
             {"name": c["name"], "value": c["value"], "domain": c.get("domain"), "path": c.get("path")}

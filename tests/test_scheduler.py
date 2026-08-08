@@ -272,7 +272,7 @@ async def test_poll_device_records_last_sent_position_on_success(monkeypatch, tm
     assert ep["last_sent_lon"] == 34.5
 
 
-async def test_poll_device_fetches_live_info_only_when_enabled_and_opted_in(monkeypatch, tmp_path):
+async def test_poll_device_fetches_live_info_only_when_opted_in(monkeypatch, tmp_path):
     from webui import config, device_location_store
     from webui.forwarders import config_store
 
@@ -280,7 +280,6 @@ async def test_poll_device_fetches_live_info_only_when_enabled_and_opted_in(monk
     monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding.yaml")
     monkeypatch.setattr(config, "FORWARD_LOG_PATH", tmp_path / "forward.log")
     monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
-    monkeypatch.setattr(config, "ENABLE_LIVE_DEVICE_INFO", True)
     monkeypatch.setattr(scheduler, "is_logged_in", lambda: True)
     monkeypatch.setattr(scheduler, "_dispatch_forward", lambda cfg, loc: "ok")
 
@@ -338,7 +337,7 @@ async def test_poll_device_fetches_live_info_only_when_enabled_and_opted_in(monk
     assert extra["wifi_ssid"] == "TestNet"
 
 
-async def test_poll_device_never_opens_live_info_watch_when_disabled(monkeypatch, tmp_path):
+async def test_poll_device_never_opens_live_info_watch_when_not_opted_in(monkeypatch, tmp_path):
     from webui import config
     from webui.forwarders import config_store
 
@@ -346,12 +345,11 @@ async def test_poll_device_never_opens_live_info_watch_when_disabled(monkeypatch
     monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding.yaml")
     monkeypatch.setattr(config, "FORWARD_LOG_PATH", tmp_path / "forward.log")
     monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
-    monkeypatch.setattr(config, "ENABLE_LIVE_DEVICE_INFO", False)  # off, even though the endpoint opted in
     monkeypatch.setattr(scheduler, "is_logged_in", lambda: True)
     monkeypatch.setattr(scheduler, "_dispatch_forward", lambda cfg, loc: "ok")
 
     async def fail_if_called(canonic_id):
-        raise AssertionError("open_live_info_watch must not be called while the feature is off")
+        raise AssertionError("open_live_info_watch must not be called when no endpoint opted in")
 
     monkeypatch.setattr(scheduler, "open_live_info_watch", fail_if_called)
 
@@ -370,12 +368,12 @@ async def test_poll_device_never_opens_live_info_watch_when_disabled(monkeypatch
 
     monkeypatch.setattr(asyncio, "sleep", fast_sleep)
 
-    canonic_id = "live-info-disabled-device"
+    canonic_id = "live-info-not-opted-in-device"
     config_store.set_device_config(canonic_id, {
         "display_name": "Test",
         "endpoints": [{
             "type": "traccar", "traccar": {"url": "http://x", "device_id": "d1"},
-            "cron": "* * * * *", "fetch_live_info": True,
+            "cron": "* * * * *",  # no fetch_live_info key at all
         }],
     })
 
