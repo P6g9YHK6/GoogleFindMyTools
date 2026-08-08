@@ -274,7 +274,20 @@ async def _download_chrome() -> str:
     zip_path = os.path.join(runtime_dir, "chrome-linux64.zip")
 
     await _set_state("downloading", f"Downloading Chrome for Testing {version}...", 45)
-    await asyncio.to_thread(urllib.request.urlretrieve, url, zip_path)
+    try:
+        # A background thread can't actually be killed on timeout the way
+        # _wait() kills a hung subprocess - urlretrieve keeps running in it
+        # even after this raises. Harmless: it only ever writes to zip_path,
+        # which the next attempt overwrites outright before extracting.
+        await asyncio.wait_for(
+            asyncio.to_thread(urllib.request.urlretrieve, url, zip_path),
+            timeout=config.GFMT_BROWSER_DOWNLOAD_TIMEOUT_S,
+        )
+    except TimeoutError:
+        raise RuntimeError(
+            f"Timed out after {config.GFMT_BROWSER_DOWNLOAD_TIMEOUT_S}s downloading Chrome for "
+            f"Testing - check the container's network access to storage.googleapis.com."
+        ) from None
 
     await _set_state("extracting", "Extracting Chrome...", 65)
 
@@ -292,9 +305,33 @@ async def _download_chrome() -> str:
     return chrome_bin
 
 
+async def _spawn_checked(name: str, *args: str):
+    """Starts a tracked process and confirms it's still running a moment
+    later, instead of blindly assuming it worked. A stale process from a
+    previous unclean shutdown still holding this one's port (:99/5900/6901)
+    makes it exit immediately - without this check, the flow would sail on
+    to "ready" and show a VNC iframe that can never connect, with no error
+    surfaced anywhere. stdout/stderr stay DEVNULL rather than PIPE (unlike
+    apt's progress-reporting pipe in _report_apt_progress) since none of
+    these are chatty in steady state - the exit-code check alone is enough
+    to catch this failure mode without risking a full-pipe deadlock."""
+    proc = await asyncio.create_subprocess_exec(
+        *args, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+    )
+    _processes[name] = proc
+    await asyncio.sleep(1)
+    if proc.returncode is not None:
+        raise RuntimeError(
+            f"{name} exited immediately after starting (exit code {proc.returncode}). A stale "
+            f"process from a previous unclean shutdown may still be holding its port - try "
+            f"restarting the container."
+        )
+
+
 async def _start_x_stack():
     await _set_state("launching", "Starting virtual display...", 75)
-    _processes["xvfb"] = await asyncio.create_subprocess_exec(
+    await _spawn_checked(
+        "xvfb",
         # undetected_chromedriver unconditionally forces --window-size=1920,1080
         # on the Chrome it launches (it appends its own options after ours, and
         # that flag wins), and there's no window manager here to honor
@@ -303,23 +340,13 @@ async def _start_x_stack():
         # off-center sliver of a bigger window rather than the whole thing -
         # match Xvfb's resolution to it so the full, centered window is visible.
         "Xvfb", ":99", "-screen", "0", "1920x1080x24", "-nolisten", "tcp",
-        stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
     )
-    await asyncio.sleep(1)
 
     await _set_state("launching", "Starting VNC server...", 82)
-    _processes["x11vnc"] = await asyncio.create_subprocess_exec(
-        "x11vnc", "-display", ":99", "-nopw", "-forever", "-shared", "-rfbport", "5900",
-        stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
-    )
-    await asyncio.sleep(1)
+    await _spawn_checked("x11vnc", "x11vnc", "-display", ":99", "-nopw", "-forever", "-shared", "-rfbport", "5900")
 
     await _set_state("launching", "Starting noVNC proxy...", 88)
-    _processes["websockify"] = await asyncio.create_subprocess_exec(
-        "websockify", "--web=/usr/share/novnc", "6901", "localhost:5900",
-        stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
-    )
-    await asyncio.sleep(1)
+    await _spawn_checked("websockify", "websockify", "--web=/usr/share/novnc", "6901", "localhost:5900")
 
 
 async def _kill_chrome() -> str | None:
