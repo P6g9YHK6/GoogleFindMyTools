@@ -56,6 +56,7 @@ async def get_devices() -> list[dict]:
             # toggle on - see Auth/live_device_info.py and webui/scheduler.py.
             "battery_pct": extra_info.get("battery_pct") if extra_info else None,
             "wifi_ssid": extra_info.get("wifi_ssid") if extra_info else None,
+            "wifi_signal": extra_info.get("wifi_signal") if extra_info else None,
             "extra_info_fetched_at_str": (
                 datetime.fromtimestamp(extra_info["fetched_at"]).strftime("%Y-%m-%d %H:%M:%S")
                 if extra_info and extra_info.get("fetched_at") else None

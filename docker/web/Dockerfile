@@ -17,10 +17,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY . /app
 
+# GFMT_SECRETS_DIR is deliberately not set here - Auth/token_cache.py falls
+# back to GFMT_DATA_DIR when it's unset, so everything (auth.yaml alongside
+# config.yaml/forwarding.yaml/forward.log/...) lands flat in one directory,
+# no subfolders, matching the single `-v .../data:/data` mount below.
 ENV DISPLAY=:99 \
     GFMT_BROWSER_RUNTIME_DIR=/run/gfmt-browser \
-    GFMT_SECRETS_DIR=/data/auth \
-    GFMT_DATA_DIR=/data/webui \
+    GFMT_DATA_DIR=/data \
     GFMT_NONINTERACTIVE=1
 
 EXPOSE 4321

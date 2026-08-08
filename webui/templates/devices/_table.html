@@ -22,16 +22,16 @@
       </td>
       {# Phone-only (Spot/BLE tags never have this) - see
          ProtoDecoders/decoder.py:get_last_seen. #}
-      <td>{{ device.last_seen_str or "—" }}</td>
+      <td>{{ device.last_seen_str or "-" }}</td>
       {# Both only ever come from the "fetch_live_info" endpoint toggle
          (Forwarding Settings page) actively locating this device - see
-         Auth/live_device_info.py. "—" means either it's off, or this device
+         Auth/live_device_info.py. "-" means either it's off, or this device
          doesn't carry this data at all (e.g. a BLE tag has no WiFi radio). #}
       <td title="{{ 'as of ' + device.extra_info_fetched_at_str if device.extra_info_fetched_at_str else '' }}">
-        {{ device.battery_pct ~ "%" if device.battery_pct is not none else "—" }}
+        {{ device.battery_pct ~ "%" if device.battery_pct is not none else "-" }}
       </td>
       <td title="{{ 'as of ' + device.extra_info_fetched_at_str if device.extra_info_fetched_at_str else '' }}">
-        {{ device.wifi_ssid or "—" }}
+        {% if device.wifi_ssid %}{{ device.wifi_ssid }}{% if device.wifi_signal is not none %} ({{ device.wifi_signal }}/4){% endif %}{% else %}-{% endif %}
       </td>
     </tr>
   {% else %}
