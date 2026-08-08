@@ -13,9 +13,10 @@
 # purge), so Docker's default stop grace period is plenty; if a process ever
 # fails to exit cleanly, the Config page (/auth) shows a warning instead.
 #
-# One volume: Google auth tokens (GFMT_SECRETS_DIR) and per-device forwarding
-# config (GFMT_DATA_DIR) both live under /data in the image's default env
-# (see docker/web/Dockerfile), so a single volume mounted there covers both.
+# One volume: everything (Google auth tokens, per-device forwarding config,
+# location history, logs) lives flat in one directory, /data in the image's
+# default env (see docker/web/Dockerfile), so a single volume mounted there
+# covers all of it - no subfolders to keep track of.
 #
 # LAN-only setup: no HTTPS in front of the service, and no auth unless both
 # HTTP_USER and HTTP_PASSWORD are set. See the "Web UI" section in
