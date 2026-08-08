@@ -61,3 +61,13 @@ SYSTEM_LOG_MAX_ENTRIES = int(os.environ.get("SYSTEM_LOG_MAX_ENTRIES", "5000"))
 # it came from a manual Locate click or a scheduled poll - see
 # webui/device_location_store.py and the Devices page.
 DEVICE_LOCATIONS_PATH = DATA_DIR / "device_locations.yaml"
+
+# Enables an extra, optional query per locate for live status data (battery,
+# WiFi, ...) that a device's normal passive listing never carries - it only
+# ever gets pushed over Google's real-time "punctual" channel, which needs a
+# browser-session cookie rather than the OAuth tokens used everywhere else.
+# Off by default. Also gates whether the sign-in flow bothers capturing that
+# cookie at all - see Auth/web_session.py and Auth/live_device_info.py. Even
+# with this on, nothing runs for a given device/endpoint unless its
+# "fetch_live_info" toggle is also on (Forwarding Settings page).
+ENABLE_LIVE_DEVICE_INFO = os.environ.get("ENABLE_LIVE_DEVICE_INFO", "0") == "1"
