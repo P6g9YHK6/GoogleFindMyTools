@@ -6,9 +6,9 @@ from datetime import datetime
 
 from croniter import croniter
 
-from webui import device_location_store, ws
+from webui import config, device_location_store, ws
 from webui.auth_state import is_logged_in
-from webui.deps import locate_device
+from webui.deps import locate_device, open_live_info_watch, run_blocking
 from webui.forwarders import FORWARDER_TYPES, config_store, log_store
 from webui.geo import haversine_distance_m
 
@@ -108,6 +108,22 @@ def _serialize_location(location: dict) -> str:
         return str(location)
 
 
+def _merge_extra_info(location: dict, extra_info: dict | None) -> dict:
+    """Layers live battery/WiFi data (Auth/live_device_info.py) onto a copy
+    of location for forwarders that use it (see webui/forwarders/traccar.py,
+    phonetrack.py) - never mutates the original, since the same location is
+    shared across every due endpoint this cycle and only some of them may
+    have "fetch_live_info" on."""
+    if not extra_info:
+        return location
+    merged = dict(location)
+    if extra_info.get("battery_pct") is not None:
+        merged["battery_pct"] = extra_info["battery_pct"]
+    if extra_info.get("wifi_ssid") is not None:
+        merged["wifi_ssid"] = extra_info["wifi_ssid"]
+    return merged
+
+
 def _endpoint_target(endpoint_cfg: dict) -> str:
     """Short human-readable destination summary, for the forwarding log."""
     ftype = FORWARDER_TYPES.get(endpoint_cfg.get("type"))
@@ -139,16 +155,28 @@ async def _poll_device(canonic_id: str):
 
         name = device_cfg.get("display_name", canonic_id)
 
+        wants_live_info = config.ENABLE_LIVE_DEVICE_INFO and any(
+            endpoints[i].get("fetch_live_info") for i in due_indices
+        )
+
         if not is_logged_in():
             # Don't trigger the Google login flow from the background poller -
             # that's only ever meant to happen from a deliberate /auth click.
             locations = []
+            extra_info = None
         else:
+            # The watch has to be open *before* the locate happens - see
+            # Auth/live_device_info.py's module docstring - so this comes
+            # first, not after locate_device() below.
+            watch = await open_live_info_watch(canonic_id) if wants_live_info else None
             try:
                 locations = await locate_device(canonic_id, name)
             except Exception as e:
                 locations = []
                 logger.warning("Locate failed for %s: %s", name, e)
+            extra_info = await run_blocking(watch.wait_for_update, 15.0) if watch else None
+            if extra_info:
+                device_location_store.set_last_extra_info(canonic_id, extra_info, int(time.time()))
 
         if locations:
             # The Devices page's "last locate result" should reflect cron
@@ -165,7 +193,10 @@ async def _poll_device(canonic_id: str):
         results: dict[int, dict] = {}
         for location in locations:
             for i in due_indices:
-                status = await asyncio.to_thread(_forward_one, endpoints[i], location)
+                endpoint_location = location
+                if endpoints[i].get("fetch_live_info"):
+                    endpoint_location = _merge_extra_info(location, extra_info)
+                status = await asyncio.to_thread(_forward_one, endpoints[i], endpoint_location)
                 results[i] = {"status": status, "location": location}
                 log_store.append(
                     canonic_id=canonic_id,
@@ -173,7 +204,7 @@ async def _poll_device(canonic_id: str):
                     endpoint_type=endpoints[i].get("type", ""),
                     target=_endpoint_target(endpoints[i]),
                     status=status,
-                    payload=_serialize_location(location),
+                    payload=_serialize_location(endpoint_location),
                 )
         for i in due_indices:
             results.setdefault(i, {"status": "no location", "location": None})
@@ -216,22 +247,28 @@ async def forward_now(canonic_id: str, index: int) -> dict | None:
     name = device_cfg.get("display_name", canonic_id)
     endpoint_cfg = endpoints[index]
 
+    wants_live_info = config.ENABLE_LIVE_DEVICE_INFO and endpoint_cfg.get("fetch_live_info")
+    watch = await open_live_info_watch(canonic_id) if wants_live_info else None
     try:
         locations = await locate_device(canonic_id, name)
     except Exception as e:
         locations = []
         logger.warning("Locate failed for %s: %s", name, e)
+    extra_info = await run_blocking(watch.wait_for_update, 15.0) if watch else None
+    if extra_info:
+        device_location_store.set_last_extra_info(canonic_id, extra_info, int(time.time()))
 
     status = "no location"
     for location in locations:
-        status = await asyncio.to_thread(_dispatch_forward, endpoint_cfg, location)
+        endpoint_location = _merge_extra_info(location, extra_info) if wants_live_info else location
+        status = await asyncio.to_thread(_dispatch_forward, endpoint_cfg, endpoint_location)
         log_store.append(
             canonic_id=canonic_id,
             device_name=name,
             endpoint_type=endpoint_cfg.get("type", ""),
             target=_endpoint_target(endpoint_cfg),
             status=status,
-            payload=_serialize_location(location),
+            payload=_serialize_location(endpoint_location),
         )
         if status == "ok":
             endpoint_cfg["last_sent_lat"] = location["latitude"]
