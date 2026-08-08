@@ -2,6 +2,7 @@
 #  GoogleFindMyTools - A set of tools to interact with the Google Find My API
 #  Copyright © 2024 Leon Böttger. All rights reserved.
 #
+import logging
 import time
 
 from FMDNCrypto.eid_generator import ROTATION_PERIOD, generate_eid
@@ -10,6 +11,8 @@ from ProtoDecoders.DeviceUpdate_pb2 import DevicesList, PublicKeyIdList, UploadP
 from SpotApi.CreateBleDevice.config import max_truncated_eid_seconds_server
 from SpotApi.CreateBleDevice.util import hours_to_seconds
 from SpotApi.spot_request import spot_request
+
+logger = logging.getLogger(__name__)
 
 
 def refresh_custom_trackers(device_list: DevicesList):
@@ -37,12 +40,12 @@ def refresh_custom_trackers(device_list: DevicesList):
             request.deviceEids.append(new_truncated_ids)
 
     if needs_upload:
-        print("[UploadPrecomputedPublicKeyIds] Updating your registered µC devices...")
+        logger.info("Updating your registered µC devices...")
         try:
             bytes_data = request.SerializeToString()
             spot_request("UploadPrecomputedPublicKeyIds", bytes_data)
         except Exception as e:
-            print(f"[UploadPrecomputedPublicKeyIds] Failed to refresh custom trackers. Please file a bug report. Continuing... {str(e)}")
+            logger.error("Failed to refresh custom trackers. Please file a bug report. Continuing... %s", e)
 
 
 def get_next_eids(eik: bytes, pair_date: int, start_date: int, duration_seconds: int) -> list[PublicKeyIdList.PublicKeyIdInfo]:

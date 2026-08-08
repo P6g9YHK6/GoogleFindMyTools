@@ -2,12 +2,15 @@
 #  GoogleFindMyTools - A set of tools to interact with the Google Find My API
 #  Copyright © 2024 Leon Böttger. All rights reserved.
 #
+import logging
 from binascii import unhexlify
 
 from Auth.token_cache import get_cached_value_or_set
 from KeyBackup.cloud_key_decryptor import decrypt_owner_key
 from KeyBackup.shared_key_retrieval import get_shared_key
 from SpotApi.GetEidInfoForE2eeDevices.get_eid_info_request import get_eid_info
+
+logger = logging.getLogger(__name__)
 
 
 def _retrieve_owner_key(owner_key_version: int) -> str:
@@ -18,7 +21,7 @@ def _retrieve_owner_key(owner_key_version: int) -> str:
     owner_key = decrypt_owner_key(shared_key, encrypted_owner_key)
     returned_version = eid_info.encryptedOwnerKeyAndMetadata.ownerKeyVersion
 
-    print(f"Retrieved owner key with version: {returned_version}")
+    logger.info("Retrieved owner key with version: %s", returned_version)
 
     return owner_key.hex()
 

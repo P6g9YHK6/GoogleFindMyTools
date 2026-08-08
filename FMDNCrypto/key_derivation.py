@@ -3,7 +3,11 @@
 #  Copyright © 2024 Leon Böttger. All rights reserved.
 #
 
+import logging
+
 from FMDNCrypto.sha import calculate_truncated_sha256
+
+logger = logging.getLogger(__name__)
 
 
 class FMDNOwnerOperations:
@@ -21,4 +25,4 @@ class FMDNOwnerOperations:
             self.tracking_key = calculate_truncated_sha256(identity_key, 0x03)
 
         except Exception as e:
-            print(str(e))
+            logger.error("Failed to derive owner keys from identity key: %s", e)

@@ -4,6 +4,7 @@
 #
 
 import json
+import logging
 import time
 
 from selenium.common.exceptions import TimeoutException
@@ -18,6 +19,8 @@ from KeyBackup.response_parser import get_fmdn_shared_key
 from KeyBackup.shared_key_request import get_security_domain_request_url
 from KeyBackup.vault_web_api import fetch_vault_keys_via_web_app
 
+logger = logging.getLogger(__name__)
+
 
 def request_shared_key_flow():
     driver = create_driver()
@@ -26,7 +29,7 @@ def request_shared_key_flow():
         driver.get("https://accounts.google.com/")
 
         # Wait for user to sign in and redirect to https://myaccount.google.com
-        print(f"[SharedKeyFlow] Waiting up to {SIGN_IN_WAIT_S}s for you to sign in...")
+        logger.info("Waiting up to %ss for you to sign in...", SIGN_IN_WAIT_S)
         try:
             WebDriverWait(driver, SIGN_IN_WAIT_S).until(
                 ec.url_contains("https://myaccount.google.com")
@@ -39,7 +42,7 @@ def request_shared_key_flow():
                 f"Google account for the encryption confirmation step. Click \"Sign in "
                 f"with Google\" again to retry."
             ) from None
-        print("[SharedKeyFlow] Signed in successfully.")
+        logger.info("Signed in successfully.")
 
         # Best-effort: also pull every owner key version via the same internal
         # RPC the real Find My Device web app uses (see KeyBackup/vault_web_api.py).
@@ -85,7 +88,7 @@ def request_shared_key_flow():
         };
         """)
 
-        print(f"[SharedKeyFlow] Waiting up to {SIGN_IN_WAIT_S}s for the encryption confirmation...")
+        logger.info("Waiting up to %ss for the encryption confirmation...", SIGN_IN_WAIT_S)
         deadline = time.monotonic() + SIGN_IN_WAIT_S
         while time.monotonic() < deadline:
             try:
@@ -100,11 +103,11 @@ def request_shared_key_flow():
             try:
                 data = json.loads(message)
             except ValueError:
-                print(f"[SharedKeyFlow] Ignoring unparseable alert: {message!r}")
+                logger.warning("Ignoring unparseable alert: %r", message)
                 continue
 
             if data.get("method") == "setVaultSharedKeys":
-                print("[SharedKeyFlow] Received Shared Key.")
+                logger.info("Received Shared Key.")
                 return get_fmdn_shared_key(data["vaultKeys"]).hex()
             elif data.get("method") == "closeView":
                 raise RuntimeError(

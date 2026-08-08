@@ -3,12 +3,16 @@
 #  Copyright © 2024 Leon Böttger. All rights reserved.
 #
 
+import logging
+
 import httpx
 from bs4 import BeautifulSoup
 
 from Auth.spot_token_retrieval import get_spot_token
 from Auth.username_provider import get_username
 from SpotApi.grpc_parser import GrpcParser
+
+logger = logging.getLogger(__name__)
 
 
 def spot_request(api_scope: str, payload: bytes) -> bytes:
@@ -34,6 +38,6 @@ def spot_request(api_scope: str, payload: bytes) -> bytes:
             return result
         else:
             soup = BeautifulSoup(response.text, 'html.parser')
-            print("[NovaRequest] Error: ", soup.get_text())
+            logger.warning("Spot request to %s failed with %s: %s", api_scope, response.status_code, soup.get_text())
 
     return b''
