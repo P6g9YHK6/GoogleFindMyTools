@@ -75,6 +75,11 @@ def test_build_session_extracts_sapisid_from_cached_cookies(monkeypatch):
     session, sapisid = ldi._build_session()
     assert sapisid == "the-sapisid"
     assert session.cookies.get("AEC") == "aec-value"
+    # Without a browser-like UA, Google serves something other than the real
+    # page and _get_page_tokens can't find window.WIZ_global_data in it - see
+    # the comment above _BROWSER_USER_AGENT.
+    assert session.headers["User-Agent"] == ldi._BROWSER_USER_AGENT
+    assert "python-requests" not in session.headers["User-Agent"]
 
 
 def test_find_matching_blob_locates_the_right_base64_string():
