@@ -40,7 +40,6 @@ services:
       # trusted LAN.
       - HTTP_USER=${HTTP_USER:-}
       - HTTP_PASSWORD=${HTTP_PASSWORD:-}
-      - ENABLE_LIVE_DEVICE_INFO=${ENABLE_LIVE_DEVICE_INFO:-0}
     volumes:
       - data:/data
     restart: unless-stopped

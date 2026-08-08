@@ -3,7 +3,7 @@ import time
 
 from fastapi import APIRouter, Request
 
-from webui import config, device_location_store
+from webui import device_location_store
 from webui.deps import locate_device, open_live_info_watch, run_blocking
 from webui.forwarders import config_store
 from webui.templating import templates
@@ -18,8 +18,6 @@ def _wants_live_info(canonic_id: str) -> bool:
     """Same "fetch_live_info" toggle used for forwarding (Forwarding Settings
     page) - a manual Locate click populates the Devices page's live info too
     if any endpoint has it on, even though this click isn't itself a forward."""
-    if not config.ENABLE_LIVE_DEVICE_INFO:
-        return False
     device_cfg = config_store.get_device_config(canonic_id)
     endpoints = device_cfg.get("endpoints", []) if device_cfg else []
     return any(ep.get("fetch_live_info") for ep in endpoints)
