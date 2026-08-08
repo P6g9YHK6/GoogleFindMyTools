@@ -1,27 +1,32 @@
 {% extends "base.html" %}
-{% block title %}Forwarding Log - GoogleFindMyTools{% endblock %}
+{% block title %}Logs - GoogleFindMyTools{% endblock %}
 {% block content %}
-<h1>Forwarding Log</h1>
-<p>Every forwarding attempt across all devices and endpoints, newest first, capped to the most
-   recent entries so this never grows without bound.</p>
+<h1>Logs</h1>
+<p>Forwarding attempts and system events (locate failures, sign-in/FCM problems, rejected
+   requests, routine activity, ...) in one place, newest first, capped to the most recent
+   entries so this never grows without bound.</p>
 
-<table>
-  <thead>
-    <tr><th>Time</th><th>Device</th><th>Endpoint</th><th>Target</th><th>Result</th><th>Data sent</th></tr>
-  </thead>
-  <tbody>
-  {% for entry in entries %}
-    <tr>
-      <td>{{ entry.time_str }}</td>
-      <td>{{ entry.device_name }}</td>
-      <td>{{ entry.endpoint_type }}</td>
-      <td>{{ entry.target }}</td>
-      <td class="log-{{ entry.level }}">{{ entry.status }}</td>
-      <td><code class="log-payload">{{ entry.payload }}</code></td>
-    </tr>
-  {% else %}
-    <tr><td colspan="6">No forwarding attempts logged yet.</td></tr>
-  {% endfor %}
-  </tbody>
-</table>
+<form class="log-filters" method="get" action="/logs"
+      hx-get="/logs/table" hx-target="#log-table" hx-swap="innerHTML"
+      hx-trigger="input changed delay:400ms from:#log-search, change from:select[name='type'], change from:select[name='level']"
+      hx-push-url="true">
+  <input type="text" id="log-search" name="q" value="{{ filters.q }}"
+         placeholder="Search device, endpoint, message...">
+  <select name="type">
+    <option value="all" {% if filters.type == "all" %}selected{% endif %}>All types</option>
+    <option value="forwarding" {% if filters.type == "forwarding" %}selected{% endif %}>Forwarding</option>
+    <option value="system" {% if filters.type == "system" %}selected{% endif %}>System</option>
+  </select>
+  <select name="level">
+    <option value="all" {% if filters.level == "all" %}selected{% endif %}>All levels</option>
+    {% for level in level_choices %}
+    <option value="{{ level }}" {% if filters.level == level %}selected{% endif %}>{{ level|capitalize }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit">Filter</button>
+</form>
+
+<div id="log-table">
+  {% include "logs/_table.html" %}
+</div>
 {% endblock %}
