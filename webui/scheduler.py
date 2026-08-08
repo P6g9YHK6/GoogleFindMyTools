@@ -6,7 +6,7 @@ from datetime import datetime
 
 from croniter import croniter
 
-from webui import config, device_location_store, ws
+from webui import device_location_store, ws
 from webui.auth_state import is_logged_in
 from webui.deps import locate_device, open_live_info_watch, run_blocking
 from webui.forwarders import FORWARDER_TYPES, config_store, log_store
@@ -155,9 +155,7 @@ async def _poll_device(canonic_id: str):
 
         name = device_cfg.get("display_name", canonic_id)
 
-        wants_live_info = config.ENABLE_LIVE_DEVICE_INFO and any(
-            endpoints[i].get("fetch_live_info") for i in due_indices
-        )
+        wants_live_info = any(endpoints[i].get("fetch_live_info") for i in due_indices)
 
         if not is_logged_in():
             # Don't trigger the Google login flow from the background poller -
@@ -247,7 +245,7 @@ async def forward_now(canonic_id: str, index: int) -> dict | None:
     name = device_cfg.get("display_name", canonic_id)
     endpoint_cfg = endpoints[index]
 
-    wants_live_info = config.ENABLE_LIVE_DEVICE_INFO and endpoint_cfg.get("fetch_live_info")
+    wants_live_info = bool(endpoint_cfg.get("fetch_live_info"))
     watch = await open_live_info_watch(canonic_id) if wants_live_info else None
     try:
         locations = await locate_device(canonic_id, name)
