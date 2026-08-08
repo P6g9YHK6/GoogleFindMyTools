@@ -33,14 +33,10 @@ def create_location_request(canonic_device_id, fcm_registration_id, request_uuid
     return hex_payload
 
 
-def get_location_data_for_device(canonic_device_id, name, timeout: float = 60):
-
-    logger.info("Requesting location data for %s...", name)
-
+def _request_location_once(canonic_device_id, name, receiver, timeout):
     result = None
     received = threading.Event()
     request_uuid = generate_random_uuid()
-    receiver = FcmReceiver()
 
     def handle_location_response(response):
         nonlocal result
@@ -49,7 +45,6 @@ def get_location_data_for_device(canonic_device_id, name, timeout: float = 60):
         if device_update.fcmMetadata.requestUuid == request_uuid:
             logger.info("Location request for %s successful. Decrypting locations...", name)
             result = device_update
-            #print_device_update_protobuf(response)
             received.set()
 
     fcm_token = receiver.register_for_location_updates(handle_location_response)
@@ -59,16 +54,37 @@ def get_location_data_for_device(canonic_device_id, name, timeout: float = 60):
         nova_request(NOVA_ACTION_API_SCOPE, hex_payload)
 
         if not received.wait(timeout=timeout):
-            # This is the only signal of a "no FCM push ever arrived" failure -
-            # WARNING (not just a print) so it actually reaches logging-based
-            # monitoring/alerting (see webui/notify.py) instead of only ever
-            # showing up in a terminal someone happens to be watching.
-            logger.warning("Timed out after %ss waiting for %s.", timeout, name)
-            return []
+            return None
 
-        return decrypt_location_response_locations(result)
+        return result
     finally:
         receiver.unregister_callback(handle_location_response)
+
+
+def get_location_data_for_device(canonic_device_id, name, timeout: float = 60):
+
+    logger.info("Requesting location data for %s...", name)
+
+    receiver = FcmReceiver()
+    result = _request_location_once(canonic_device_id, name, receiver, timeout)
+
+    if result is None:
+        # Stale FCM registration tokens are a common cause of silent timeouts:
+        # GCM check-in still succeeds, MCS connects, but Google never pushes
+        # the locate response. Refresh once and retry before giving up.
+        logger.warning(
+            "Timed out after %ss waiting for %s; refreshing FCM credentials and retrying once.",
+            timeout,
+            name,
+        )
+        receiver = FcmReceiver.force_reregister()
+        result = _request_location_once(canonic_device_id, name, receiver, timeout)
+
+    if result is None:
+        logger.warning("Timed out after %ss waiting for %s.", timeout, name)
+        return []
+
+    return decrypt_location_response_locations(result)
 
 if __name__ == '__main__':
     get_location_data_for_device(get_example_data("sample_canonic_device_id"), "Test")

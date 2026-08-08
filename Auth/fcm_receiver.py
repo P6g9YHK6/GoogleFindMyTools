@@ -94,6 +94,24 @@ class FcmReceiver:
         FcmReceiver._instance = None
 
 
+    @classmethod
+    def force_reregister(cls):
+        """Drop cached FCM credentials and return a fresh FcmReceiver.
+
+        Google's check-in can keep accepting a stale android_id while the
+        associated FCM registration token no longer receives ADM pushes.
+        Locate then hangs until timeout with no notification. Clearing and
+        re-registering yields a new token that Google will actually push to.
+        """
+        logger.info("Forcing FCM re-registration...")
+        set_cached_value('fcm_credentials', None)
+        if cls._instance is not None:
+            cls._instance.clear()
+        receiver = cls()
+        receiver.get_fcm_token()
+        return receiver
+
+
     def get_android_id(self):
 
         if self.credentials is None:
