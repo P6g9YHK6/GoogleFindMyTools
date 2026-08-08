@@ -97,3 +97,54 @@ def test_parse_chunked_reads_repeated_length_prefixed_json_blocks():
 def test_open_watch_returns_none_when_no_cookies_cached(monkeypatch):
     monkeypatch.setattr(ldi, "get_cached_value", lambda name: None)
     assert ldi.open_watch("some-canonic-id") is None
+
+
+class _FakeResponse:
+    def __init__(self, text):
+        self.text = text
+
+    def raise_for_status(self):
+        pass
+
+
+class _FakeSession:
+    def __init__(self, text):
+        self._text = text
+
+    def get(self, *args, **kwargs):
+        return _FakeResponse(self._text)
+
+
+def _wiz_page(fdrfje_literal: str) -> str:
+    return (
+        '<script nonce="x">var AF_initDataKeys = [];window.WIZ_global_data = '
+        '{"AfY8Hf":true,"EP1ykd":["/_/*"],"FdrFJe":' + fdrfje_literal + ','
+        '"HiPsbb":1,"cfb2h":"prod_build_label","Im6cmf":"/android/find/_",'
+        '"SNlM0e":"the-csrf-token"};</script>'
+    )
+
+
+def test_get_page_tokens_handles_fdrfje_as_a_quoted_string():
+    # This is the actual format Google sends (confirmed both live and in the
+    # original HAR capture this module was built from) - large session ids
+    # don't fit a JS safe integer, so Google stringifies the field.
+    session = _FakeSession(_wiz_page('"975547745069287805"'))
+    tokens = ldi._get_page_tokens(session)
+    assert tokens == {"FdrFJe": "975547745069287805", "cfb2h": "prod_build_label", "SNlM0e": "the-csrf-token"}
+
+
+def test_get_page_tokens_still_handles_fdrfje_as_a_bare_number():
+    session = _FakeSession(_wiz_page("975547745069287805"))
+    tokens = ldi._get_page_tokens(session)
+    assert tokens["FdrFJe"] == "975547745069287805"
+
+
+def test_get_page_tokens_handles_a_negative_fdrfje():
+    session = _FakeSession(_wiz_page('"-1529750813986083965"'))
+    tokens = ldi._get_page_tokens(session)
+    assert tokens["FdrFJe"] == "-1529750813986083965"
+
+
+def test_get_page_tokens_returns_none_when_a_field_is_missing():
+    session = _FakeSession("<html>not the page we expected, no WIZ data here</html>")
+    assert ldi._get_page_tokens(session) is None

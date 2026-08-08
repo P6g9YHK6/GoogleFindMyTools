@@ -122,7 +122,13 @@ def _auth_headers(sapisid: str) -> dict:
 
 
 _WIZ_FIELD_RE = {
-    "FdrFJe": re.compile(r'"FdrFJe":(-?\d+)'),
+    # FdrFJe comes back as a quoted string, not a bare number - confirmed
+    # both in a live capture and in the original HAR this module was reverse
+    # engineered from (values like "-1529750813986083965" don't fit a JS
+    # safe integer, so Google stringifies it). The unquoted alternative is
+    # kept too in case that ever changes back - either way, only the digits
+    # end up in the capture group.
+    "FdrFJe": re.compile(r'"FdrFJe":"?(-?\d+)"?'),
     "cfb2h": re.compile(r'"cfb2h":"([^"]*)"'),
     "SNlM0e": re.compile(r'"SNlM0e":"([^"]*)"'),
 }
