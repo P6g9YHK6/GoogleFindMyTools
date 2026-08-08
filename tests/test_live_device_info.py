@@ -7,6 +7,11 @@ these ever need regenerating from scratch)."""
 
 import base64
 import hashlib
+import http.server
+import threading
+import time
+
+import requests
 
 from Auth import live_device_info as ldi
 
@@ -114,6 +119,9 @@ class _FakeSession:
     def get(self, *args, **kwargs):
         return _FakeResponse(self._text)
 
+    def post(self, *args, **kwargs):
+        return _FakeResponse(self._text)
+
 
 def _wiz_page(fdrfje_literal: str) -> str:
     return (
@@ -163,3 +171,142 @@ def test_decode_maybe_base64_json_handles_base64(monkeypatch):
     # This is the format the original HAR capture had.
     text = "WyJDaGk1cEZHWmZkVDM4V2hUM3Y4MTBzWndBa044ZVN4OVdTdHZNOS1ybFhJIiwzLG51bGwsIjE3ODYxMjA4MDI0NzQ4MDMiLCIxNzg2MTIwODAyNDc0OTM3Il0="
     assert ldi._decode_maybe_base64_json(text)[0] == "Chi5pFGZfdT38WhT3v810sZwAkN8eSx9WStvM9-rlXI"
+
+
+def test_open_channel_extracts_sid_and_server_timeout():
+    # Real shape from a live capture: [[0,["c","<sid>","",8,14,30000]]] - the
+    # trailing 30000 is the channel's own long-poll duration in ms.
+    session = _FakeSession('51\n[[0,["c","1dM1leahd1pvOO0anqReVg","",8,14,30000]]]')
+    channel_sid, server_timeout_s = ldi._open_channel(session, "sapisid", "gsessionid", "token")
+    assert channel_sid == "1dM1leahd1pvOO0anqReVg"
+    assert server_timeout_s == 30.0
+
+
+def test_open_channel_returns_none_none_when_unparseable():
+    session = _FakeSession("not a valid chunked response at all")
+    assert ldi._open_channel(session, "sapisid", "gsessionid", "token") == (None, None)
+
+
+def test_wait_for_update_uses_the_server_declared_timeout_as_a_floor(monkeypatch):
+    # The server's channel handshake said 30s - asking wait_for_update for
+    # only 15s must not translate into a 15s network timeout, since the
+    # server itself won't answer this long poll before its own 30s window is
+    # up. This was silently timing out on every real call until accounted
+    # for (see _open_channel/wait_for_update's comments).
+    captured = {}
+
+    class _RecordingSession:
+        def get(self, *args, **kwargs):
+            captured["timeout"] = kwargs.get("timeout")
+            return _FakeResponse("")  # empty body -> no envelopes -> "no update seen", not an error
+
+    watch = ldi.LiveInfoWatch(_RecordingSession(), "sapisid", "gsessionid", "channel_sid", "canonic-id",
+                               server_timeout_s=30.0)
+    watch.wait_for_update(timeout=15.0)
+    assert captured["timeout"] == 35.0  # max(15, 30) + 5s slack
+
+
+def test_wait_for_update_falls_back_to_the_caller_timeout_when_server_timeout_unknown():
+    captured = {}
+
+    class _RecordingSession:
+        def get(self, *args, **kwargs):
+            captured["timeout"] = kwargs.get("timeout")
+            return _FakeResponse("")
+
+    watch = ldi.LiveInfoWatch(_RecordingSession(), "sapisid", "gsessionid", "channel_sid", "canonic-id",
+                               server_timeout_s=None)
+    watch.wait_for_update(timeout=15.0)
+    assert captured["timeout"] == 20.0  # max(15, 0) + 5s slack
+
+
+class _LocalChannelServer(http.server.ThreadingHTTPServer):
+    """Real local HTTP server standing in for signaler-pa.clients6.google.com's
+    long-poll channel endpoint - the two tests below need actual chunked-
+    transfer timing to catch what a mocked session.get() can't: requests'
+    timeout= only bounds the gap *between* reads, not a whole streaming
+    request, since a server that keeps sending small chunks (exactly what
+    Google's real keep-alives do) keeps resetting that clock forever. This
+    is 127.0.0.1-only, not a real network call."""
+
+
+def _chunk(body: str) -> bytes:
+    return f"{len(body):x}\r\n{body}\r\n".encode()
+
+
+def test_wait_for_update_does_not_hang_past_its_deadline_on_endless_heartbeats(monkeypatch):
+    # Reproduces a real failure seen while debugging this: a channel that
+    # never stops sending keep-alives (and never sends a matching update)
+    # ran for 270s against the un-fixed code instead of respecting its ~30s
+    # deadline. This server would happily stream heartbeats for 30s straight;
+    # the test only passes if wait_for_update gives up long before that.
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Transfer-Encoding", "chunked")
+            self.end_headers()
+            for _ in range(60):  # 60 * 0.5s = 30s worth, way past this test's ~7s deadline
+                try:
+                    self.wfile.write(_chunk('8\n[[9,[]]]\n'))
+                    self.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError):
+                    return  # client gave up - exactly what's being tested
+                time.sleep(0.5)
+
+    server = _LocalChannelServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    monkeypatch.setattr(ldi, "_CHANNEL_URL", f"http://127.0.0.1:{server.server_address[1]}/channel")
+    try:
+        watch = ldi.LiveInfoWatch(requests.Session(), "sapisid", "gsessionid", "channel_sid", "some-canonic-id",
+                                   server_timeout_s=2.0)
+        t0 = time.monotonic()
+        result = watch.wait_for_update(timeout=1.0)  # request_timeout = max(1, 2) + 5 = 7s
+        elapsed = time.monotonic() - t0
+    finally:
+        server.shutdown()
+
+    assert result is None
+    assert elapsed < 15  # nowhere near the 30s of heartbeats the server was willing to send
+
+
+def test_wait_for_update_returns_as_soon_as_a_match_arrives_even_if_the_stream_stays_open(monkeypatch):
+    # The connection can easily stay open well past the moment the real
+    # update arrives (the server above does exactly this in practice) -
+    # checking for a match only once the loop ends would throw away data
+    # already in hand instead of returning with it immediately.
+    canonic_id = "some-canonic-id"
+    matching_blob_b64 = base64.b64encode(b"prefix-" + canonic_id.encode() + b"-suffix").decode()
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Transfer-Encoding", "chunked")
+            self.end_headers()
+            self.wfile.write(_chunk('8\n[[9,[]]]\n'))  # one heartbeat first, like the real channel
+            self.wfile.flush()
+            time.sleep(0.3)
+            envelope = f'[[9,["{matching_blob_b64}"]]]'
+            self.wfile.write(_chunk(f"{len(envelope)}\n{envelope}\n"))
+            self.wfile.flush()
+            time.sleep(10)  # server keeps the connection open long after - must not be waited out
+            self.wfile.write(b"0\r\n\r\n")
+
+    server = _LocalChannelServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    monkeypatch.setattr(ldi, "_CHANNEL_URL", f"http://127.0.0.1:{server.server_address[1]}/channel")
+    try:
+        watch = ldi.LiveInfoWatch(requests.Session(), "sapisid", "gsessionid", "channel_sid", canonic_id,
+                                   server_timeout_s=25.0)
+        t0 = time.monotonic()
+        watch.wait_for_update(timeout=1.0)  # request_timeout = max(1, 25) + 5 = 30s
+        elapsed = time.monotonic() - t0
+    finally:
+        server.shutdown()
+
+    assert elapsed < 5  # returned right after the match arrived (~0.3s in), not near the 30s deadline

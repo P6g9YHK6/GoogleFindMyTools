@@ -199,7 +199,7 @@ def _choose_server(session: requests.Session, sapisid: str, token: str) -> str |
     return decoded[0] if decoded else None
 
 
-def _open_channel(session: requests.Session, sapisid: str, gsessionid: str, token: str) -> str | None:
+def _open_channel(session: requests.Session, sapisid: str, gsessionid: str, token: str) -> tuple[str, float | None] | tuple[None, None]:
     watch_entry = [None, None, None, [9, 5], None, [[_TOPIC], [1], [[[token]]]]]
     req_data = json.dumps([[[1, watch_entry, None, None, 1], None, 3]])
     url = (f"{_CHANNEL_URL}?VER=8&gsessionid={gsessionid}&key={_CHANNEL_KEY}"
@@ -209,10 +209,18 @@ def _open_channel(session: requests.Session, sapisid: str, gsessionid: str, toke
     resp.raise_for_status()
     for envelope in _parse_chunked(resp.text):
         for item in envelope:
-            # [[0, ["c", "<channel sid>", "", 8, 14, 30000]]]
+            # [[0, ["c", "<channel sid>", "", 8, 14, 30000]]] - the last
+            # element is the server's own long-poll duration for this
+            # channel, in milliseconds (confirmed 30000 both live and in the
+            # original HAR). LiveInfoWatch.wait_for_update needs this: its
+            # request timeout must be at least this long, or the client
+            # gives up (ReadTimeoutError) before the server would ever
+            # naturally respond to a still-open long poll.
             if isinstance(item, list) and len(item) == 2 and isinstance(item[1], list) and item[1][:1] == ["c"]:
-                return item[1][1]
-    return None
+                inner = item[1]
+                server_timeout_s = inner[5] / 1000 if len(inner) > 5 and isinstance(inner[5], (int, float)) else None
+                return inner[1], server_timeout_s
+    return None, None
 
 
 def _find_matching_blob(obj, target: bytes) -> bytes | None:
@@ -345,28 +353,65 @@ class LiveInfoWatch:
     once. Blocking (like the rest of this project's Google calls) - callers
     run it via webui.deps.run_blocking."""
 
-    def __init__(self, session: requests.Session, sapisid: str, gsessionid: str, channel_sid: str, canonic_id: str):
+    def __init__(self, session: requests.Session, sapisid: str, gsessionid: str, channel_sid: str, canonic_id: str,
+                 server_timeout_s: float | None = None):
         self._session = session
         self._sapisid = sapisid
         self._gsessionid = gsessionid
         self._channel_sid = channel_sid
         self._canonic_id = canonic_id
+        # The channel's own declared long-poll duration (see _open_channel) -
+        # None if that couldn't be read, in which case timeout below is all
+        # there is to go on.
+        self._server_timeout_s = server_timeout_s
 
     def wait_for_update(self, timeout: float = 15.0) -> dict | None:
+        # `timeout` is a minimum, not the actual network timeout: the server
+        # won't respond to this long poll until either an update arrives or
+        # its own declared window elapses, so asking for less than that just
+        # means giving up before the server could ever naturally answer.
+        # +5s of slack for ordinary network/processing delay on top of that.
+        request_timeout = max(timeout, self._server_timeout_s or 0) + 5
+        deadline = time.monotonic() + request_timeout
         try:
             url = (f"{_CHANNEL_URL}?VER=8&gsessionid={self._gsessionid}&key={_CHANNEL_KEY}"
                    f"&RID=rpc&SID={self._channel_sid}&AID=0&CI=0&TYPE=xmlhttp&zx={_random_zx()}&t=1")
-            resp = self._session.get(url, headers=_auth_headers(self._sapisid), timeout=timeout)
+            # `timeout=` on its own only bounds the gap *between* reads, not
+            # the request as a whole - Google's channel sends periodic
+            # keep-alive chunks on this long poll that reset that clock every
+            # time one arrives, so a plain session.get() here can run for
+            # minutes instead of the ~30s the server itself declared
+            # (confirmed live: one real call ran 270s before this fix).
+            # Streaming the body and enforcing a real wall-clock deadline
+            # across the whole read is the only way to actually bound it.
+            resp = self._session.get(url, headers=_auth_headers(self._sapisid), timeout=request_timeout, stream=True)
             resp.raise_for_status()
+            # Check for a match after *every* chunk, not just once the loop
+            # ends - the connection can easily stay open well past the
+            # moment the real update arrives (observed live: the server kept
+            # streaming for another 20s+ after it), and waiting for the
+            # stream to end or the deadline to pass regardless would throw
+            # away data already in hand instead of returning with it
+            # immediately. decode_unicode=True is unreliable with
+            # chunk_size=None (can still hand back raw bytes depending on
+            # how the server framed the response) - decode ourselves instead.
+            chunks = []
             target = self._canonic_id.encode()
-            for envelope in _parse_chunked(resp.text):
-                blob = _find_matching_blob(envelope, target)
-                if blob is not None:
-                    return parse_live_info(blob)
+            for chunk in resp.iter_content(chunk_size=None):
+                chunks.append(chunk)
+                text_so_far = b"".join(chunks).decode("utf-8", "replace")
+                for envelope in _parse_chunked(text_so_far):
+                    blob = _find_matching_blob(envelope, target)
+                    if blob is not None:
+                        resp.close()
+                        return parse_live_info(blob)
+                if time.monotonic() >= deadline:
+                    break
+            resp.close()
             logger.info(
                 "No live update seen for %s within %ss - it may not have been actively "
                 "located, or doesn't support this (e.g. a BLE tag has no WiFi/battery)",
-                self._canonic_id, timeout,
+                self._canonic_id, request_timeout,
             )
             return None
         except Exception:
@@ -396,11 +441,11 @@ def open_watch(canonic_id: str) -> LiveInfoWatch | None:
         if not gsessionid:
             logger.warning("chooseServer call failed - skipping live info for %s", canonic_id)
             return None
-        channel_sid = _open_channel(session, sapisid, gsessionid, token)
+        channel_sid, server_timeout_s = _open_channel(session, sapisid, gsessionid, token)
         if not channel_sid:
             logger.warning("Could not open the live info channel - skipping live info for %s", canonic_id)
             return None
-        return LiveInfoWatch(session, sapisid, gsessionid, channel_sid, canonic_id)
+        return LiveInfoWatch(session, sapisid, gsessionid, channel_sid, canonic_id, server_timeout_s)
     except Exception:
         logger.exception("Failed to open a live info watch for %s (non-fatal)", canonic_id)
         return None
