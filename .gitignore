@@ -3,6 +3,7 @@
 /.idea
 /DULT/OwnerLookup/Results
 /Auth/secrets.json
+/Auth/auth.yaml
 /example_data.json
 /webui/data/
 __pycache__/
