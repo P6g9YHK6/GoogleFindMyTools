@@ -23,10 +23,8 @@ router = APIRouter()
 # a partial failure (e.g. aas_token cached but fcm_credentials never got
 # written) is visible at a glance instead of needing to shell in and read
 # secrets.json by hand to find out, as happened repeatedly while chasing that
-# exact bug. web_session_cookies is the one Auth/live_device_info.py needs
-# (captured via Auth/web_session.py) - without it, the "fetch live info"
-# endpoint toggle silently finds nothing every time.
-_DIAGNOSTIC_KEYS = ["username", "aas_token", "fcm_credentials", "shared_key", "owner_key", "web_session_cookies"]
+# exact bug.
+_DIAGNOSTIC_KEYS = ["username", "aas_token", "fcm_credentials", "shared_key", "owner_key"]
 
 
 def _auth_status() -> dict:

@@ -3,7 +3,6 @@ import time
 from collections import deque
 from collections.abc import Callable
 
-from Auth.live_device_info import open_watch as _open_live_info_watch
 from NovaApi.ExecuteAction.LocateTracker.location_request import get_location_data_for_device
 from NovaApi.ExecuteAction.PlaySound.sound_action import play_sound
 from SpotApi.CreateBleDevice.create_ble_device import register_esp32
@@ -97,11 +96,3 @@ async def set_sound(canonic_id: str, should_start: bool):
 
 async def register_tracker():
     return await run_blocking(register_esp32)
-
-
-async def open_live_info_watch(canonic_id: str):
-    """See Auth/live_device_info.py's module docstring - must be called
-    before the matching locate_device(), not after. Goes through the same
-    QueryGate throttle as every other Google call; returns None on any
-    failure (including the feature simply being off), never raises."""
-    return await run_blocking(_open_live_info_watch, canonic_id)

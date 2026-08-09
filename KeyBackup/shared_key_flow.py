@@ -13,7 +13,6 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 from Auth.auth_flow import SIGN_IN_WAIT_S
 from Auth.token_cache import set_cached_value
-from Auth.web_session import capture_web_session_cookies
 from chrome_driver import create_driver
 from KeyBackup.response_parser import get_fmdn_shared_key
 from KeyBackup.shared_key_request import get_security_domain_request_url
@@ -60,13 +59,6 @@ def request_shared_key_flow():
         for entry in fetch_vault_keys_via_web_app(driver):
             if entry["domain"] == "finder_hw":
                 set_cached_value(f"encrypted_owner_key_v{entry['version']}", entry["key"].hex())
-
-        # Same "best-effort, never fail sign-in" spirit as the vault key fetch
-        # above - this is what lets Auth/live_device_info.py query Google's
-        # real-time push channel later without a browser. driver has just
-        # visited www.google.com (for the vault key fetch), so this is the
-        # broadest cookie jar this session will have.
-        capture_web_session_cookies(driver)
 
         # Open the security domain request URL
         security_url = get_security_domain_request_url()

@@ -56,8 +56,8 @@ def _warn_if_unencrypted():
 
 def _encrypt(value):
     """value can be any JSON-able type (a plain string, or fcm_credentials'
-    nested dict, or web_session_cookies' list of dicts) - serialized to JSON
-    before encrypting so this isn't just for flat strings."""
+    nested dict) - serialized to JSON before encrypting so this isn't just
+    for flat strings."""
     key = _encryption_key()
     if key is None:
         return value

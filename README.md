@@ -11,10 +11,9 @@ It's built on top of [GoogleFindMyTools](https://github.com/leonboe1/GoogleFindM
 
 ## Features
 
-- **Devices page** - every tracker and phone on your account, in one list. Manual "Locate" and "Play sound" buttons, plus whatever the last scheduled poll found. Shows last-seen time for phones and tags alike, and (opt-in, see below) live battery percentage and WiFi network for phones.
+- **Devices page** - every tracker and phone on your account, in one list. Manual "Locate" and "Play sound" buttons, plus whatever the last scheduled poll found. Shows last-seen time for phones and tags alike.
 - **Scheduled forwarding, not a one-off export** - each device polls on its own cron schedule and forwards to as many destinations as you want (Traccar, Nextcloud PhoneTrack, or both), each with its own schedule and its own alias.
 - **Skip pointless updates** - two independent, opt-in gates per destination: skip sending if the device hasn't moved far enough, and skip re-sending the same stale cached fix Google keeps returning. Both are local math (haversine distance), no external API calls, no extra cost.
-- **Live battery & WiFi (opt-in)** - Google's real-time push channel exposes battery percentage and the connected WiFi network for phones while they're being actively located; the passive device list never carries this. Turn it on per destination and it's included in what gets forwarded (`batt`/`bat`) and shown on the Devices page.
 - **Forwarding Log** - every attempt, every device, every destination, with the exact payload sent and whether it succeeded - so a silent failure on your Traccar server's end doesn't stay silent here.
 - **System Log + error notifications** - every warning/error anywhere in the app (a failed locate, an expired token, a forwarding failure) is captured in a searchable in-app log and can be pushed out live through [Apprise](https://github.com/caronc/apprise) to whatever you already use (ntfy, Discord, Telegram, Pushover, email, 100+ others) - configured from the Config page, no restart needed.
 - **Register your own trackers** - pair a custom ESP32- or Zephyr-based BLE tracker straight from the web UI.
@@ -52,16 +51,12 @@ The Config page also has fields for the query throttle and Apprise notification 
 
 ## Using it
 
-- **Devices** (`/`) - list, locate, play sound, last-seen, battery/WiFi.
+- **Devices** (`/`) - list, locate, play sound, last-seen.
 - **Register Tracker** (`/register`) - pair a custom ESP32/Zephyr BLE tracker.
-- **Forwarding Settings** (`/settings`) - per device: display name/alias, and any number of forwarding endpoints (Traccar or PhoneTrack), each with its own cron schedule, alias, skip-if-close / skip-if-stale thresholds, and the live-info toggle.
+- **Forwarding Settings** (`/settings`) - per device: display name/alias, and any number of forwarding endpoints (Traccar or PhoneTrack), each with its own cron schedule, alias, and skip-if-close / skip-if-stale thresholds.
 - **Forwarding Log** (`/logs`) - every forward attempt, its target, status, and the exact payload sent.
 - **System Log** (`/logs/system`) - every warning/error anywhere in the app.
 - **Config** (`/auth`) - sign in/out, credential status, query throttle, and Apprise notification settings.
-
-### Live battery & WiFi info
-
-Turning on "fetch live info" for a forwarding endpoint makes it additionally open a watch on Google's real-time push channel right before that device's next locate, and waits briefly afterward for a matching update. This only ever returns anything for phones being actively located right then (BLE tags have no WiFi radio or OS-level battery to report). A failure here never affects the locate itself, it just means no extra data that cycle.
 
 ## Security
 
