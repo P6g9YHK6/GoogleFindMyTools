@@ -43,7 +43,7 @@ jobs:
         run: pip install -r requirements.txt -r requirements-web.txt -r requirements-dev.txt
 
       - name: Run tests
-        run: pytest -v
+        run: pytest -v --cov=webui --cov-report=term-missing
 
   dependency-audit:
     runs-on: ubuntu-latest

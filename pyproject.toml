@@ -17,3 +17,17 @@ asyncio_mode = "auto"
 # doesn't add the repo root to sys.path - without this, every test importing
 # "webui.*" or "tests.conftest" fails collection with ModuleNotFoundError.
 pythonpath = ["."]
+
+[tool.coverage.run]
+# Scoped to webui/ deliberately: that's the actively-tested app layer (see
+# tests/conftest.py). The original CLI-tool layer it's built on (Auth/,
+# NovaApi/, SpotApi/, ...) talks to live Google APIs and has never had a real
+# test suite around it - folding it into this number would just measure how
+# little of it happens to run, not anything meaningful about webui/ itself.
+source = ["webui"]
+
+[tool.coverage.report]
+# Currently ~83% - 80 leaves a little room for normal fluctuation while still
+# catching an actual regression (e.g. a big new router landing with no tests).
+fail_under = 80
+skip_covered = false
