@@ -1,26 +1,188 @@
 """Pure-logic unit tests for the forwarders package - no HTTP involved."""
 
-from webui.forwarders import FORWARDER_TYPES, blank_endpoint
+from webui.forwarders import PRESETS, blank_endpoint
 
 
-def test_registry_field_names_match_form_naming():
-    assert FORWARDER_TYPES["traccar"].form_field_name("url") == "traccar_url"
-    assert FORWARDER_TYPES["traccar"].form_field_name("device_id") == "traccar_device_id"
-    assert FORWARDER_TYPES["phonetrack"].form_field_name("base_url") == "phonetrack_base_url"
-    assert FORWARDER_TYPES["phonetrack"].form_field_name("device_name") == "phonetrack_device_name"
+def test_presets_cover_traccar_and_phonetrack_and_custom():
+    assert set(PRESETS) == {"custom", "traccar", "phonetrack"}
+    for preset in PRESETS.values():
+        assert preset["method"] in ("GET", "POST", "PUT", "PATCH", "DELETE")
+        assert isinstance(preset["params"], dict)
+        assert isinstance(preset["headers"], dict)
+        assert isinstance(preset["variables"], dict)
 
 
-def test_registry_target_labels():
-    assert FORWARDER_TYPES["traccar"].target_label({"url": "http://x", "device_id": "d1"}) == "http://x (device d1)"
-    assert FORWARDER_TYPES["phonetrack"].target_label({"base_url": "http://y", "device_name": "p1"}) == "http://y (p1)"
+def test_traccar_preset_templates_the_fix_as_query_params():
+    preset = PRESETS["traccar"]
+    assert preset["params"]["lat"] == "{{latitude}}"
+    assert preset["params"]["lon"] == "{{longitude}}"
+    assert preset["params"]["id"] == "{{device_id}}"
+    assert "device_id" in preset["variables"]
 
 
-def test_blank_endpoint_has_one_empty_config_per_registered_type():
+def test_phonetrack_preset_bakes_device_name_into_the_url():
+    preset = PRESETS["phonetrack"]
+    assert "{{device_name}}" in preset["url"]
+    assert preset["params"]["lat"] == "{{latitude}}"
+
+
+def test_blank_endpoint_starts_from_the_custom_preset():
     blank = blank_endpoint("*/5 * * * *")
     assert blank["cron"] == "*/5 * * * *"
-    assert blank["type"] in FORWARDER_TYPES
-    for key in FORWARDER_TYPES:
-        assert blank[key] == {}
+    assert blank["type"] == "custom"
+    assert blank["method"] == "GET"
+    assert blank["url"] == ""
+    assert blank["params"] == {}
+
+
+def test_forward_to_custom_renders_templated_url_and_params(monkeypatch):
+    from webui.forwarders import custom
+
+    captured = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            pass
+
+    def fake_request(method, url, **kwargs):
+        captured["method"] = method
+        captured["url"] = url
+        captured["params"] = kwargs.get("params")
+        captured["headers"] = kwargs.get("headers")
+        return FakeResponse()
+
+    monkeypatch.setattr(custom.httpx, "request", fake_request)
+
+    endpoint_cfg = {
+        "method": "GET",
+        "url": "http://traccar.local:5055/",
+        "params": {"id": "{{device_id}}", "lat": "{{latitude}}", "lon": "{{longitude}}"},
+        "headers": {},
+        "body_type": "none", "body": "",
+        "variables": {"device_id": "104"},
+    }
+    location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
+
+    assert custom.forward_to_custom(endpoint_cfg, location, "My Phone") is True
+    assert captured["method"] == "GET"
+    assert captured["url"] == "http://traccar.local:5055/"
+    assert captured["params"] == {"id": "104", "lat": "1.0", "lon": "2.0"}
+
+
+def test_forward_to_custom_leaves_unresolved_variables_visible(monkeypatch):
+    from webui.forwarders import custom
+
+    captured = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            pass
+
+    def fake_request(method, url, **kwargs):
+        captured["params"] = kwargs.get("params")
+        return FakeResponse()
+
+    monkeypatch.setattr(custom.httpx, "request", fake_request)
+
+    endpoint_cfg = {
+        "method": "GET", "url": "http://x/", "params": {"token": "{{typo_var}}"},
+        "headers": {}, "body_type": "none", "body": "", "variables": {},
+    }
+    location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
+    custom.forward_to_custom(endpoint_cfg, location, "My Phone")
+    assert captured["params"]["token"] == "{{typo_var}}"  # left as-is, not silently dropped
+
+
+def test_forward_to_custom_uses_device_name_override_over_display_name(monkeypatch):
+    from webui.forwarders import custom
+
+    captured = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            pass
+
+    def fake_request(method, url, **kwargs):
+        captured["url"] = url
+        return FakeResponse()
+
+    monkeypatch.setattr(custom.httpx, "request", fake_request)
+
+    endpoint_cfg = {
+        "method": "GET", "url": "https://nc.local/x/{{device_name}}", "params": {},
+        "headers": {}, "body_type": "none", "body": "", "variables": {}, "device_name": "phone1",
+    }
+    location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
+    custom.forward_to_custom(endpoint_cfg, location, "My Phone (Google name)")
+    assert captured["url"] == "https://nc.local/x/phone1"
+
+
+def test_forward_to_custom_falls_back_to_device_display_name(monkeypatch):
+    from webui.forwarders import custom
+
+    captured = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            pass
+
+    def fake_request(method, url, **kwargs):
+        captured["url"] = url
+        return FakeResponse()
+
+    monkeypatch.setattr(custom.httpx, "request", fake_request)
+
+    endpoint_cfg = {
+        "method": "GET", "url": "https://nc.local/x/{{device_name}}", "params": {},
+        "headers": {}, "body_type": "none", "body": "", "variables": {},
+    }
+    location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
+    custom.forward_to_custom(endpoint_cfg, location, "My Phone")
+    assert captured["url"] == "https://nc.local/x/My Phone"
+
+
+def test_forward_to_custom_skips_semantic_and_missing_coordinates():
+    from webui.forwarders import custom
+
+    endpoint_cfg = {"method": "GET", "url": "http://x/", "params": {}, "headers": {}, "body_type": "none", "body": "", "variables": {}}
+    assert custom.forward_to_custom(endpoint_cfg, {"is_semantic": True}, "n") is False
+    assert custom.forward_to_custom(endpoint_cfg, {"is_semantic": False, "latitude": None}, "n") is False
+
+
+def test_forward_to_custom_skips_when_url_is_blank():
+    from webui.forwarders import custom
+
+    endpoint_cfg = {"method": "GET", "url": "", "params": {}, "headers": {}, "body_type": "none", "body": "", "variables": {}}
+    location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
+    assert custom.forward_to_custom(endpoint_cfg, location, "n") is False
+
+
+def test_forward_to_custom_sends_a_json_body(monkeypatch):
+    from webui.forwarders import custom
+
+    captured = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            pass
+
+    def fake_request(method, url, **kwargs):
+        captured["method"] = method
+        captured["content"] = kwargs.get("content")
+        captured["headers"] = kwargs.get("headers")
+        return FakeResponse()
+
+    monkeypatch.setattr(custom.httpx, "request", fake_request)
+
+    endpoint_cfg = {
+        "method": "POST", "url": "http://x/", "params": {}, "headers": {},
+        "body_type": "json", "body": '{"lat": {{latitude}}}', "variables": {},
+    }
+    location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
+    custom.forward_to_custom(endpoint_cfg, location, "n")
+    assert captured["method"] == "POST"
+    assert captured["content"] == '{"lat": 1.0}'
+    assert captured["headers"]["Content-Type"] == "application/json"
 
 
 def test_config_store_round_trip(tmp_path, monkeypatch):
@@ -36,7 +198,7 @@ def test_config_store_round_trip(tmp_path, monkeypatch):
     assert "dev-1" in config_store.all_devices()
 
 
-def test_config_store_normalizes_legacy_shape(tmp_path, monkeypatch):
+def test_config_store_migrates_legacy_single_destination_shape(tmp_path, monkeypatch):
     from webui import config
     from webui.forwarders import config_store
 
@@ -52,16 +214,53 @@ def test_config_store_normalizes_legacy_shape(tmp_path, monkeypatch):
         "last_forward_time": 123,
     }
     normalized = config_store.normalize_device_config(legacy)
-    assert normalized["endpoints"] == [{
-        "type": "traccar", "traccar": {"url": "http://a", "device_id": "1"}, "cron": "*/2 * * * *",
-        "last_forward_status": "ok", "last_forward_time": 123,
-    }]
+    assert len(normalized["endpoints"]) == 1
+    ep = normalized["endpoints"][0]
+    assert ep["type"] == "traccar"
+    assert ep["url"] == "http://a/"
+    assert ep["params"]["lat"] == "{{latitude}}"
+    assert ep["variables"] == {"device_id": "1"}
+    assert ep["cron"] == "*/2 * * * *"
+    assert ep["last_forward_status"] == "ok"
+    assert ep["last_forward_time"] == 123
+    assert "traccar" not in ep  # the old nested sub-dict is gone, not just unused
 
     none_dest = config_store.normalize_device_config({"display_name": "x", "destination": "none"})
     assert none_dest["endpoints"] == []
 
     already_new = {"display_name": "x", "endpoints": []}
     assert config_store.normalize_device_config(already_new) is already_new
+
+
+def test_config_store_migrates_legacy_endpoints_list_shape(tmp_path, monkeypatch):
+    """Endpoints already living under "endpoints" (multi-endpoint era) but
+    still in the old nested traccar/phonetrack-sub-dict shape also need
+    upgrading - not just the older single-destination records."""
+    from webui import config
+    from webui.forwarders import config_store
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding.yaml")
+
+    legacy = {
+        "display_name": "X",
+        "endpoints": [
+            {"type": "traccar", "traccar": {"url": "http://a/", "device_id": "1"}, "cron": "*/5 * * * *"},
+            {
+                "type": "phonetrack", "phonetrack": {"base_url": "http://b", "device_name": "p1"},
+                "cron": "*/5 * * * *", "alias": "PT",
+            },
+        ],
+    }
+    normalized = config_store.normalize_device_config(legacy)
+    traccar_ep, phonetrack_ep = normalized["endpoints"]
+
+    assert traccar_ep["url"] == "http://a/"
+    assert traccar_ep["variables"] == {"device_id": "1"}
+
+    assert phonetrack_ep["url"] == "http://b/{{device_name}}"
+    assert phonetrack_ep["device_name"] == "p1"
+    assert phonetrack_ep["alias"] == "PT"
 
 
 def test_config_store_migrates_from_legacy_json(tmp_path, monkeypatch):
