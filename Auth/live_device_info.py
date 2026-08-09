@@ -27,17 +27,27 @@ matching push once the locate is under way:
     info = watch.wait_for_update() if watch else None
 """
 
+import asyncio
 import base64
 import hashlib
 import json
 import logging
 import os
+import queue
 import random
 import re
+import ssl
 import string
+import threading
 import time
+import urllib.parse
 
 import requests
+from aioquic.asyncio import connect as quic_connect
+from aioquic.asyncio.protocol import QuicConnectionProtocol
+from aioquic.h3.connection import H3Connection
+from aioquic.h3.events import DataReceived, HeadersReceived
+from aioquic.quic.configuration import QuicConfiguration
 
 from Auth.token_cache import get_cached_value
 
@@ -52,6 +62,9 @@ _FMD_PAGE_URL = "https://www.google.com/android/find/?login=&device=1&rs=1"
 _CHOOSE_SERVER_URL = "https://signaler-pa.clients6.google.com/punctual/v1/chooseServer"
 _CHANNEL_URL = "https://signaler-pa.clients6.google.com/punctual/multi-watch/channel"
 _TOPIC = "fmd_web"
+# Only ever overridden by tests, to run the HTTP/3 channel read against a
+# local self-signed server instead of the real one - see _listen_http3.
+_QUIC_VERIFY_MODE = ssl.CERT_REQUIRED
 
 _SAPISID_COOKIE_NAMES = ("SAPISID", "__Secure-3PAPISID")
 
@@ -422,7 +435,19 @@ def parse_live_info(blob: bytes) -> dict | None:
 class LiveInfoWatch:
     """A channel watch opened for one device, waiting to be read exactly
     once. Blocking (like the rest of this project's Google calls) - callers
-    run it via webui.deps.run_blocking."""
+    run it via webui.deps.run_blocking.
+
+    Starts listening on the channel immediately, in a background thread,
+    rather than waiting for a later wait_for_update() call to do it - a real
+    capture showed the website itself starts its long-poll GET only ~300ms
+    after opening the channel, *before* it triggers the live-status request
+    (SWJ22b) that actually causes Google to push something. This project's
+    own flow calls open_watch() then does a whole separate locate() (a
+    second or more) before ever calling wait_for_update() - if the update
+    only arrives once, right after SWJ22b, waiting that long to start
+    listening means missing it entirely, matching the module docstring's
+    note that the channel never delivers to a watch that wasn't already
+    open when the update happened."""
 
     def __init__(self, session: requests.Session, sapisid: str, gsessionid: str, channel_sid: str, canonic_id: str,
                  server_timeout_s: float | None = None):
@@ -432,61 +457,158 @@ class LiveInfoWatch:
         self._channel_sid = channel_sid
         self._canonic_id = canonic_id
         # The channel's own declared long-poll duration (see _open_channel) -
-        # None if that couldn't be read, in which case timeout below is all
-        # there is to go on.
-        self._server_timeout_s = server_timeout_s
+        # falls back to a plain default if that couldn't be read.
+        self._deadline_s = (server_timeout_s or 15.0) + 5  # +5s slack for ordinary network/processing delay
+        self._result: queue.Queue[dict | None] = queue.Queue(maxsize=1)
+        self._thread = threading.Thread(target=self._listen, daemon=True)
+        self._thread.start()
 
-    def wait_for_update(self, timeout: float = 15.0) -> dict | None:
-        # `timeout` is a minimum, not the actual network timeout: the server
-        # won't respond to this long poll until either an update arrives or
-        # its own declared window elapses, so asking for less than that just
-        # means giving up before the server could ever naturally answer.
-        # +5s of slack for ordinary network/processing delay on top of that.
-        request_timeout = max(timeout, self._server_timeout_s or 0) + 5
-        deadline = time.monotonic() + request_timeout
+    def _listen(self):
+        # aioquic is asyncio-only - run a private event loop just for this
+        # background thread rather than restructuring the rest of this
+        # (deliberately synchronous, run-via-webui.deps.run_blocking) class.
+        result = None
         try:
-            url = (f"{_CHANNEL_URL}?VER=8&gsessionid={self._gsessionid}&key={_CHANNEL_KEY}"
-                   f"&RID=rpc&SID={self._channel_sid}&AID=0&CI=0&TYPE=xmlhttp&zx={_random_zx()}&t=1")
-            # `timeout=` on its own only bounds the gap *between* reads, not
-            # the request as a whole - Google's channel sends periodic
-            # keep-alive chunks on this long poll that reset that clock every
-            # time one arrives, so a plain session.get() here can run for
-            # minutes instead of the ~30s the server itself declared
-            # (confirmed live: one real call ran 270s before this fix).
-            # Streaming the body and enforcing a real wall-clock deadline
-            # across the whole read is the only way to actually bound it.
-            resp = self._session.get(url, headers=_auth_headers(self._sapisid), timeout=request_timeout, stream=True)
-            resp.raise_for_status()
-            # Check for a match after *every* chunk, not just once the loop
-            # ends - the connection can easily stay open well past the
-            # moment the real update arrives (observed live: the server kept
-            # streaming for another 20s+ after it), and waiting for the
-            # stream to end or the deadline to pass regardless would throw
-            # away data already in hand instead of returning with it
-            # immediately. decode_unicode=True is unreliable with
-            # chunk_size=None (can still hand back raw bytes depending on
-            # how the server framed the response) - decode ourselves instead.
-            chunks = []
-            target = self._canonic_id.encode()
-            for chunk in resp.iter_content(chunk_size=None):
-                chunks.append(chunk)
-                text_so_far = b"".join(chunks).decode("utf-8", "replace")
-                for envelope in _parse_chunked(text_so_far):
-                    blob = _find_matching_blob(envelope, target)
-                    if blob is not None:
-                        resp.close()
-                        return parse_live_info(blob)
-                if time.monotonic() >= deadline:
-                    break
-            resp.close()
-            logger.info(
-                "No live update seen for %s within %ss - it may not have been actively "
-                "located, or doesn't support this (e.g. a BLE tag has no WiFi/battery)",
-                self._canonic_id, request_timeout,
-            )
-            return None
+            result = asyncio.run(self._listen_http3())
+            if result is None:
+                logger.info(
+                    "No live update seen for %s within %ss - it may not have been actively "
+                    "located, or doesn't support this (e.g. a BLE tag has no WiFi/battery)",
+                    self._canonic_id, self._deadline_s,
+                )
         except Exception:
             logger.exception("Live device info read failed for %s (non-fatal)", self._canonic_id)
+        self._result.put(result)
+
+    async def _listen_http3(self) -> dict | None:
+        # HTTP/3, not HTTP/1.1 or HTTP/2: a real browser capture (with a
+        # real push actually arriving, decoded via this same
+        # parse_live_info() and confirmed against ground truth - wifi
+        # "Mordor", battery 86%) showed the successful request used HTTP/3.
+        # Every earlier attempt here over HTTP/1.1 or HTTP/2 - however
+        # faithfully it replicated the request/response shapes otherwise -
+        # only ever got the channel's initial handshake and periodic
+        # keep-alives, never an actual pushed update, across many real
+        # attempts; Google's backend appears to only route live pushes to
+        # genuinely QUIC-negotiated clients. No stdlib support for this -
+        # aioquic is a real added dependency, justified only because both
+        # cheaper alternatives were tried first and neither worked.
+        parsed = urllib.parse.urlsplit(_CHANNEL_URL)
+        host, port = parsed.hostname, parsed.port or 443
+        path = (f"{parsed.path}?VER=8&gsessionid={self._gsessionid}&key={_CHANNEL_KEY}&RID=rpc"
+                f"&SID={self._channel_sid}&AID=0&CI=0&TYPE=xmlhttp&zx={_random_zx()}&t=1")
+
+        canonic_id = self._canonic_id  # captured for the nested class below - it has its own `self`
+        target = canonic_id.encode()
+        cookie_header = "; ".join(f"{c.name}={c.value}" for c in self._session.cookies)
+        # _auth_headers alone (Authorization/Origin/X-Goog-AuthUser) is what
+        # the other calls in this module send, and it's enough for those -
+        # but this is the one request that's supposed to receive an actual
+        # server-initiated push rather than just a synchronous reply, and a
+        # real capture's equivalent request carried a full normal-browser
+        # header set (User-Agent, Referer, Sec-Fetch-*, ...) that this was
+        # missing entirely. Unconfirmed whether that's actually why no push
+        # ever arrived here - but it's a real, concrete gap versus the
+        # capture that's cheap to close, unlike the alternatives already
+        # ruled out (HTTP/2, plain HTTP/1.1).
+        request_headers = [
+            (b":method", b"GET"),
+            (b":scheme", b"https"),
+            (b":authority", host.encode()),
+            (b":path", path.encode()),
+            (b"cookie", cookie_header.encode()),
+            (b"user-agent", _BROWSER_USER_AGENT.encode()),
+            (b"accept", b"*/*"),
+            (b"accept-language", b"en-US,en;q=0.9"),
+            (b"referer", f"{_ORIGIN}/".encode()),
+            (b"sec-fetch-dest", b"empty"),
+            (b"sec-fetch-mode", b"cors"),
+            (b"sec-fetch-site", b"same-site"),
+        ] + [(k.lower().encode(), v.encode()) for k, v in _auth_headers(self._sapisid).items()]
+
+        chunks: list[bytes] = []
+        result: dict | None = None
+
+        class _H3Client(QuicConnectionProtocol):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.h3 = H3Connection(self._quic)
+                self.done = asyncio.Event()
+
+            def quic_event_received(self, event):
+                # Unlike the rest of this module, this runs as a callback
+                # from inside asyncio's own datagram-received handling, not
+                # from code this class's own try/except can see - anything
+                # raised here becomes an "exception in callback" logged by
+                # asyncio itself instead of propagating to _run(), and
+                # self.done never gets set, so the caller just waits out the
+                # full deadline instead of failing fast (confirmed: exactly
+                # this, from a coincidental substring match on non-protobuf
+                # bytes that _find_matching_blob's plain substring search
+                # doesn't and can't rule out ahead of parsing it for real).
+                nonlocal result
+                try:
+                    self._handle_h3_events(event)
+                except Exception:
+                    logger.exception("Live device info read failed for %s (non-fatal)", canonic_id)
+                    self.done.set()
+
+            def _handle_h3_events(self, event):
+                nonlocal result
+                for h3_event in self.h3.handle_event(event):
+                    if isinstance(h3_event, DataReceived):
+                        chunks.append(h3_event.data)
+                        text_so_far = b"".join(chunks).decode("utf-8", "replace")
+                        for envelope in _parse_chunked(text_so_far):
+                            blob = _find_matching_blob(envelope, target)
+                            if blob is not None:
+                                result = parse_live_info(blob)
+                                self.done.set()
+                                return
+                        if h3_event.stream_ended:
+                            self.done.set()
+                    elif isinstance(h3_event, HeadersReceived) and h3_event.stream_ended:
+                        self.done.set()
+
+        # verify_mode overridable (see _QUIC_VERIFY_MODE) only so tests can
+        # run a local self-signed server - always the real, verifying
+        # default outside of that.
+        config = QuicConfiguration(is_client=True, alpn_protocols=["h3"])
+        config.verify_mode = _QUIC_VERIFY_MODE
+
+        async def _run() -> dict | None:
+            async with quic_connect(host, port, configuration=config, create_protocol=_H3Client) as protocol:
+                stream_id = protocol._quic.get_next_available_stream_id()
+                protocol.h3.send_headers(stream_id, request_headers, end_stream=True)
+                protocol.transmit()
+                await protocol.done.wait()
+            return result
+
+        try:
+            return await asyncio.wait_for(_run(), timeout=self._deadline_s)
+        except TimeoutError:
+            # A match found right as the deadline hit still counts - only
+            # give up empty-handed if nothing was ever found.
+            return result
+
+    def wait_for_update(self, timeout: float = 15.0) -> dict | None:
+        # The background listener (started in __init__, already running by
+        # the time this is called, with a head start on whatever gap there
+        # was between construction and this call) has its own deadline based
+        # on the channel's declared long-poll duration - wait at least that
+        # long. +10s beyond that on top: _listen's own network timeout isn't
+        # a perfectly tight bound (connect time, TLS, and general timing
+        # imprecision all sit outside what requests' timeout= actually
+        # measures), so without slack here this could give up and log a
+        # confusing "listener hadn't finished" right as _listen was about to
+        # report its own, more informative "no update" result (confirmed
+        # live: observed exactly that race).
+        wait_s = max(timeout, self._deadline_s) + 10
+        try:
+            return self._result.get(timeout=wait_s)
+        except queue.Empty:
+            logger.warning("Live info listener for %s hadn't finished after %ss - giving up anyway",
+                            self._canonic_id, wait_s)
             return None
 
 
@@ -518,6 +640,15 @@ def open_watch(canonic_id: str) -> LiveInfoWatch | None:
             logger.warning("Could not open the live info channel - skipping live info for %s", canonic_id)
             return None
 
+        # Start listening on the channel *before* asking Google to push
+        # anything to it - a real capture showed the website's own long-poll
+        # GET starts right after opening the channel, before it triggers
+        # SWJ22b below, and this project's LiveInfoWatch does the same in
+        # its own background thread as soon as it's constructed (see its
+        # docstring). Getting this order backwards means the update can
+        # arrive and be gone before anything is listening for it.
+        watch = LiveInfoWatch(session, sapisid, gsessionid, channel_sid, canonic_id, server_timeout_s)
+
         # Opening the channel above only sets up somewhere to *receive* a
         # push - it doesn't cause Google to ever send one. SWJ22b is what
         # actually asks the backend to ping this phone and route its answer
@@ -537,7 +668,7 @@ def open_watch(canonic_id: str) -> LiveInfoWatch | None:
             logger.info("No numeric device id found for %s (BLE tag, or not a phone) - "
                         "waiting on the channel without an explicit trigger", canonic_id)
 
-        return LiveInfoWatch(session, sapisid, gsessionid, channel_sid, canonic_id, server_timeout_s)
+        return watch
     except Exception:
         logger.exception("Failed to open a live info watch for %s (non-fatal)", canonic_id)
         return None

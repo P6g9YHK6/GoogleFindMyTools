@@ -5,14 +5,26 @@ docstring), used here as fixed, deterministic fixtures (stored as raw hex,
 generated straight from the original captured base64 - see git history if
 these ever need regenerating from scratch)."""
 
+import asyncio
 import base64
+import datetime
 import hashlib
-import http.server
+import ipaddress
 import json
-import threading
+import socket
+import ssl
 import time
 
 import requests
+from aioquic.asyncio import serve as quic_serve
+from aioquic.asyncio.protocol import QuicConnectionProtocol
+from aioquic.h3.connection import H3Connection
+from aioquic.h3.events import HeadersReceived
+from aioquic.quic.configuration import QuicConfiguration
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.x509.oid import NameOID
 
 from Auth import live_device_info as ldi
 
@@ -184,127 +196,154 @@ def test_open_channel_returns_none_none_when_unparseable():
     assert ldi._open_channel(session, "sapisid", "gsessionid", "token") == (None, None)
 
 
-def test_wait_for_update_uses_the_server_declared_timeout_as_a_floor(monkeypatch):
-    # The server's channel handshake said 30s - asking wait_for_update for
-    # only 15s must not translate into a 15s network timeout, since the
-    # server itself won't answer this long poll before its own 30s window is
-    # up. This was silently timing out on every real call until accounted
-    # for (see _open_channel/wait_for_update's comments).
-    captured = {}
-
-    class _RecordingSession:
-        def get(self, *args, **kwargs):
-            captured["timeout"] = kwargs.get("timeout")
-            return _FakeResponse("")  # empty body -> no envelopes -> "no update seen", not an error
-
-    watch = ldi.LiveInfoWatch(_RecordingSession(), "sapisid", "gsessionid", "channel_sid", "canonic-id",
+def test_live_info_watch_uses_the_server_declared_timeout_for_its_listener(monkeypatch):
+    # LiveInfoWatch starts listening at construction time, not when
+    # wait_for_update() is later called (see its docstring for why) - so its
+    # read deadline can only come from the channel's own declared long-poll
+    # duration, computed synchronously in __init__ before the background
+    # listener thread (which this doesn't need to wait for) ever runs.
+    # _CHANNEL_URL points somewhere nothing is listening so that thread fails
+    # fast instead of trying real network access.
+    monkeypatch.setattr(ldi, "_CHANNEL_URL", "http://127.0.0.1:1/channel")
+    watch = ldi.LiveInfoWatch(requests.Session(), "sapisid", "gsessionid", "channel_sid", "canonic-id",
                                server_timeout_s=30.0)
-    watch.wait_for_update(timeout=15.0)
-    assert captured["timeout"] == 35.0  # max(15, 30) + 5s slack
+    assert watch._deadline_s == 35.0  # 30 + 5s slack
 
 
-def test_wait_for_update_falls_back_to_the_caller_timeout_when_server_timeout_unknown():
-    captured = {}
-
-    class _RecordingSession:
-        def get(self, *args, **kwargs):
-            captured["timeout"] = kwargs.get("timeout")
-            return _FakeResponse("")
-
-    watch = ldi.LiveInfoWatch(_RecordingSession(), "sapisid", "gsessionid", "channel_sid", "canonic-id",
+def test_live_info_watch_falls_back_to_a_default_when_server_timeout_unknown(monkeypatch):
+    monkeypatch.setattr(ldi, "_CHANNEL_URL", "http://127.0.0.1:1/channel")
+    watch = ldi.LiveInfoWatch(requests.Session(), "sapisid", "gsessionid", "channel_sid", "canonic-id",
                                server_timeout_s=None)
-    watch.wait_for_update(timeout=15.0)
-    assert captured["timeout"] == 20.0  # max(15, 0) + 5s slack
+    assert watch._deadline_s == 20.0  # 15s default + 5s slack
 
 
-class _LocalChannelServer(http.server.ThreadingHTTPServer):
-    """Real local HTTP server standing in for signaler-pa.clients6.google.com's
-    long-poll channel endpoint - the two tests below need actual chunked-
-    transfer timing to catch what a mocked session.get() can't: requests'
-    timeout= only bounds the gap *between* reads, not a whole streaming
-    request, since a server that keeps sending small chunks (exactly what
-    Google's real keep-alives do) keeps resetting that clock forever. This
-    is 127.0.0.1-only, not a real network call."""
+def _free_udp_port() -> int:
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
 
 
-def _chunk(body: str) -> bytes:
-    return f"{len(body):x}\r\n{body}\r\n".encode()
+def _self_signed_cert(tmp_path):
+    """A throwaway cert for 127.0.0.1, good for an hour - only ever used to
+    let the tests below run a real local HTTP/3 server; LiveInfoWatch itself
+    always verifies real certs (see _QUIC_VERIFY_MODE, only ever overridden
+    here)."""
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "127.0.0.1")])
+    now = datetime.datetime.now(datetime.UTC)
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(name).issuer_name(name).public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now).not_valid_after(now + datetime.timedelta(hours=1))
+        .add_extension(x509.SubjectAlternativeName([x509.IPAddress(ipaddress.ip_address("127.0.0.1"))]),
+                        critical=False)
+        .sign(key, hashes.SHA256())
+    )
+    certfile, keyfile = tmp_path / "cert.pem", tmp_path / "key.pem"
+    certfile.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
+    keyfile.write_bytes(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.TraditionalOpenSSL,
+                                           serialization.NoEncryption()))
+    return str(certfile), str(keyfile)
 
 
-def test_wait_for_update_does_not_hang_past_its_deadline_on_endless_heartbeats(monkeypatch):
+async def _run_local_h3_server(certfile, keyfile, port, on_headers_received):
+    """Real local HTTP/3/QUIC server (127.0.0.1 only, not a real network
+    call) - the two tests below need actual H3-stream timing to verify
+    LiveInfoWatch's own asyncio.wait_for deadline against a real asyncio
+    server, the same way the equivalent HTTP/1.1 version of these tests
+    (see git history) needed a real local HTTP server rather than a mocked
+    session.get(): several supposedly-reliable timeout mechanisms turned out
+    not to be, and only a real server/client round trip caught it each time.
+    on_headers_received(h3_conn, stream_id) does the actual response -
+    scheduled as its own task so it can use asyncio.sleep for timing without
+    blocking new connections."""
+    class ServerProtocol(QuicConnectionProtocol):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.h3 = H3Connection(self._quic)
+
+        def quic_event_received(self, event):
+            for h3_event in self.h3.handle_event(event):
+                if isinstance(h3_event, HeadersReceived):
+                    asyncio.ensure_future(on_headers_received(self, h3_event.stream_id))
+
+    config = QuicConfiguration(is_client=False, alpn_protocols=["h3"])
+    config.load_cert_chain(certfile, keyfile)
+    return await quic_serve("127.0.0.1", port, configuration=config, create_protocol=ServerProtocol)
+
+
+def _use_local_h3_channel(monkeypatch, port):
+    monkeypatch.setattr(ldi, "_CHANNEL_URL", f"https://127.0.0.1:{port}/channel")
+    monkeypatch.setattr(ldi, "_QUIC_VERIFY_MODE", ssl.CERT_NONE)
+
+
+async def test_wait_for_update_does_not_hang_past_its_deadline_on_endless_heartbeats(monkeypatch, tmp_path):
     # Reproduces a real failure seen while debugging this: a channel that
     # never stops sending keep-alives (and never sends a matching update)
-    # ran for 270s against the un-fixed code instead of respecting its ~30s
-    # deadline. This server would happily stream heartbeats for 30s straight;
-    # the test only passes if wait_for_update gives up long before that.
-    class Handler(http.server.BaseHTTPRequestHandler):
-        def log_message(self, *a):
-            pass
+    # ran for 270s against one early, unfixed version of this instead of
+    # respecting its ~7s deadline. This server would happily stream
+    # heartbeats for 30s straight; the test only passes if wait_for_update
+    # gives up long before that.
+    async def send_heartbeats_forever(protocol, stream_id):
+        protocol.h3.send_headers(stream_id, [(b":status", b"200")])
+        protocol.transmit()
+        for _ in range(60):  # 60 * 0.5s = 30s worth, way past this test's ~7s deadline
+            protocol.h3.send_data(stream_id, b"8\n[[9,[]]]\n", end_stream=False)
+            protocol.transmit()
+            await asyncio.sleep(0.5)
 
-        def do_GET(self):
-            self.send_response(200)
-            self.send_header("Transfer-Encoding", "chunked")
-            self.end_headers()
-            for _ in range(60):  # 60 * 0.5s = 30s worth, way past this test's ~7s deadline
-                try:
-                    self.wfile.write(_chunk('8\n[[9,[]]]\n'))
-                    self.wfile.flush()
-                except (BrokenPipeError, ConnectionResetError):
-                    return  # client gave up - exactly what's being tested
-                time.sleep(0.5)
-
-    server = _LocalChannelServer(("127.0.0.1", 0), Handler)
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-    monkeypatch.setattr(ldi, "_CHANNEL_URL", f"http://127.0.0.1:{server.server_address[1]}/channel")
+    certfile, keyfile = _self_signed_cert(tmp_path)
+    port = _free_udp_port()
+    server = await _run_local_h3_server(certfile, keyfile, port, send_heartbeats_forever)
+    _use_local_h3_channel(monkeypatch, port)
     try:
         watch = ldi.LiveInfoWatch(requests.Session(), "sapisid", "gsessionid", "channel_sid", "some-canonic-id",
                                    server_timeout_s=2.0)
         t0 = time.monotonic()
-        result = watch.wait_for_update(timeout=1.0)  # request_timeout = max(1, 2) + 5 = 7s
+        result = await asyncio.to_thread(watch.wait_for_update, timeout=1.0)  # deadline = max(1, 2) + 5 = 7s
         elapsed = time.monotonic() - t0
     finally:
-        server.shutdown()
+        server.close()
 
     assert result is None
     assert elapsed < 15  # nowhere near the 30s of heartbeats the server was willing to send
 
 
-def test_wait_for_update_returns_as_soon_as_a_match_arrives_even_if_the_stream_stays_open(monkeypatch):
+async def test_wait_for_update_returns_as_soon_as_a_match_arrives_even_if_the_stream_stays_open(monkeypatch, tmp_path):
     # The connection can easily stay open well past the moment the real
     # update arrives (the server above does exactly this in practice) -
-    # checking for a match only once the loop ends would throw away data
+    # checking for a match only once the stream ends would throw away data
     # already in hand instead of returning with it immediately.
     canonic_id = "some-canonic-id"
     matching_blob_b64 = base64.b64encode(b"prefix-" + canonic_id.encode() + b"-suffix").decode()
 
-    class Handler(http.server.BaseHTTPRequestHandler):
-        def log_message(self, *a):
-            pass
+    async def send_heartbeat_then_match_then_stay_open(protocol, stream_id):
+        protocol.h3.send_headers(stream_id, [(b":status", b"200")])
+        protocol.h3.send_data(stream_id, b"8\n[[9,[]]]\n", end_stream=False)  # one heartbeat first
+        protocol.transmit()
+        await asyncio.sleep(0.3)
+        envelope = f'[[9,["{matching_blob_b64}"]]]'
+        protocol.h3.send_data(stream_id, f"{len(envelope)}\n{envelope}\n".encode(), end_stream=False)
+        protocol.transmit()
+        await asyncio.sleep(10)  # server keeps the connection open long after - must not be waited out
+        protocol.h3.send_data(stream_id, b"", end_stream=True)
+        protocol.transmit()
 
-        def do_GET(self):
-            self.send_response(200)
-            self.send_header("Transfer-Encoding", "chunked")
-            self.end_headers()
-            self.wfile.write(_chunk('8\n[[9,[]]]\n'))  # one heartbeat first, like the real channel
-            self.wfile.flush()
-            time.sleep(0.3)
-            envelope = f'[[9,["{matching_blob_b64}"]]]'
-            self.wfile.write(_chunk(f"{len(envelope)}\n{envelope}\n"))
-            self.wfile.flush()
-            time.sleep(10)  # server keeps the connection open long after - must not be waited out
-            self.wfile.write(b"0\r\n\r\n")
-
-    server = _LocalChannelServer(("127.0.0.1", 0), Handler)
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-    monkeypatch.setattr(ldi, "_CHANNEL_URL", f"http://127.0.0.1:{server.server_address[1]}/channel")
+    certfile, keyfile = _self_signed_cert(tmp_path)
+    port = _free_udp_port()
+    server = await _run_local_h3_server(certfile, keyfile, port, send_heartbeat_then_match_then_stay_open)
+    _use_local_h3_channel(monkeypatch, port)
     try:
         watch = ldi.LiveInfoWatch(requests.Session(), "sapisid", "gsessionid", "channel_sid", canonic_id,
                                    server_timeout_s=25.0)
         t0 = time.monotonic()
-        watch.wait_for_update(timeout=1.0)  # request_timeout = max(1, 25) + 5 = 30s
+        await asyncio.to_thread(watch.wait_for_update, timeout=1.0)  # deadline = max(1, 25) + 5 = 30s
         elapsed = time.monotonic() - t0
     finally:
-        server.shutdown()
+        server.close()
 
     assert elapsed < 5  # returned right after the match arrived (~0.3s in), not near the 30s deadline
 
