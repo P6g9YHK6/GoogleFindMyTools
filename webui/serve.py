@@ -8,6 +8,15 @@ untouched by any of this - HTTPS only ever applies through this module.
 
 import uvicorn
 
+# webui.main (not just uvicorn.run's "webui.main:app" import-string below)
+# is imported explicitly here so its logging.basicConfig() has already run
+# before _uvicorn_kwargs() below gets a chance to log anything (it can, via
+# tls.ensure_cert() logging the generated cert's fingerprint). Without this,
+# that log call runs before any handler is configured on the root logger,
+# and an INFO message with no handler configured is silently dropped
+# entirely - not just unformatted, genuinely never shown - unlike a
+# WARNING/ERROR, which at least reaches Python's own last-resort handler.
+import webui.main  # noqa: F401
 from webui import config, tls
 
 
