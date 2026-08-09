@@ -359,8 +359,30 @@ details ul {
   counter-increment: endpoint;
 }
 
-.endpoint-block > legend::before {
-  content: "Endpoint " counter(endpoint) " ";
+.endpoint-block > legend .endpoint-index::before {
+  content: "Endpoint " counter(endpoint);
+  font-weight: 600;
+}
+
+.endpoint-legend-text {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.endpoint-block--new {
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 12%, transparent), var(--shadow);
+}
+
+.new-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
 }
 
 .btn-secondary {
@@ -435,6 +457,263 @@ details ul {
 .cron-raw.cron-invalid {
   border-color: var(--danger);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 18%, transparent);
+}
+
+/* Query-builder endpoint block: preset + top-level fields */
+.top-row {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.top-row label {
+  flex: 1 1 220px;
+}
+
+.method-url-row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  margin: 0.75rem 0 1rem;
+}
+
+.method-field {
+  flex: 0 0 8rem;
+}
+
+.url-row-field {
+  flex: 1 1 auto;
+}
+
+.method-field label, .url-row-field label {
+  margin: 0;
+}
+
+/* Query params / headers / variables key-value tables */
+.kv-section {
+  margin: 1rem 0;
+}
+
+.kv-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.kv-head h3 {
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.kv-body td {
+  padding: 0.45rem 0.6rem;
+}
+
+.kv-body input[type="text"] {
+  padding: 0.4rem 0.55rem;
+}
+
+.kv-remove-cell {
+  width: 2.25rem;
+  padding: 0.45rem 0.4rem !important;
+}
+
+.btn-remove-row {
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+  box-shadow: none;
+  padding: 0.2rem 0.4rem;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.btn-remove-row:hover:not(:disabled) {
+  color: var(--danger);
+  background: transparent;
+  box-shadow: none;
+}
+
+.btn-add {
+  background: var(--surface);
+  color: var(--primary);
+  border: 1px dashed var(--border);
+  box-shadow: none;
+  font-size: 0.78rem;
+  padding: 0.3rem 0.6rem;
+}
+
+.btn-add:hover:not(:disabled) {
+  border-color: var(--primary);
+  background: var(--surface-alt);
+  box-shadow: none;
+}
+
+.body-type-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.body-type-row h3 {
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.body-type-row select {
+  width: auto;
+  flex: 0 0 11rem;
+}
+
+.body-textarea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  min-height: 6rem;
+  resize: vertical;
+}
+
+/* Variable chips */
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.5rem 0 1rem;
+}
+
+.chip {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--border));
+  border-radius: 999px;
+  padding: 0.28rem 0.65rem;
+  box-shadow: none;
+}
+
+.chip:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--primary) 18%, var(--surface));
+  box-shadow: var(--shadow);
+}
+
+/* Request preview */
+.preview-block {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.83rem;
+  line-height: 1.7;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.9rem 1rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text);
+  margin: 0;
+}
+
+.preview-block .preview-muted {
+  color: var(--text-muted);
+}
+
+.method-badge {
+  display: inline-block;
+  font-weight: 700;
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  margin-right: 0.4rem;
+}
+
+.method-badge.get { color: var(--primary); background: color-mix(in srgb, var(--primary) 16%, transparent); }
+.method-badge.post { color: var(--success); background: color-mix(in srgb, var(--success) 16%, transparent); }
+.method-badge.put, .method-badge.patch { color: var(--warning); background: color-mix(in srgb, var(--warning) 16%, transparent); }
+.method-badge.delete { color: var(--danger); background: color-mix(in srgb, var(--danger) 16%, transparent); }
+
+.tok-resolved { color: var(--success); }
+.tok-unresolved {
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 16%, transparent);
+  border-radius: 3px;
+  padding: 0 2px;
+}
+
+/* Toggle + the field(s) it gates - hidden entirely, not just greyed out,
+   when the checkbox is off, with a left rule tying them to their toggle. */
+.toggle-group {
+  margin: 0.9rem 0;
+}
+
+.toggle-controlled {
+  margin: 0.6rem 0 0 1.6rem;
+  padding-left: 0.85rem;
+  border-left: 2px solid var(--border);
+}
+
+.toggle-controlled[hidden] {
+  display: none;
+}
+
+.toggle-controlled label {
+  margin: 0.4rem 0;
+}
+
+.toggle-controlled .field-hint {
+  margin: 0.3rem 0 0;
+}
+
+/* Save feedback + unsaved-changes flag */
+.device-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.save-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.save-toast {
+  display: inline-block;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--success);
+  animation: save-toast-fade 2.4s ease forwards;
+  animation-delay: 1s;
+}
+
+@keyframes save-toast-fade {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+.unsaved-banner {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 35%, var(--border));
+  border-radius: var(--radius-sm);
+  padding: 0.4rem 0.75rem;
+  margin: 0 0 0.75rem;
+}
+
+.unsaved-banner::before {
+  content: "● ";
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .save-toast {
+    animation: none;
+  }
 }
 
 /* Forwarding log */

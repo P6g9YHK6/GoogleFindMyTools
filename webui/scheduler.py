@@ -9,7 +9,7 @@ from croniter import croniter
 from webui import device_location_store, ws
 from webui.auth_state import is_logged_in
 from webui.deps import locate_device
-from webui.forwarders import FORWARDER_TYPES, config_store, log_store
+from webui.forwarders import config_store, forward_to_custom, log_store
 from webui.geo import haversine_distance_m
 
 logger = logging.getLogger("webui.scheduler")
@@ -70,32 +70,29 @@ def _stale_duplicate(endpoint_cfg: dict, location: dict, now: float | None = Non
     return abs(location["time"] - last_fix_time) < gap_s
 
 
-def _dispatch_forward(endpoint_cfg: dict, location: dict) -> str:
-    """Sends to whichever forwarder type this endpoint is configured for, with
-    no distance-skip check - used both by the normal scheduled path (after it
-    passes _too_close_to_bother) and by the "send now" button, which is
-    meant to bypass that check entirely. Adding a new destination type never
-    touches this function - see webui/forwarders/registry.py."""
-    ftype = FORWARDER_TYPES.get(endpoint_cfg.get("type"))
-    if ftype is None:
-        return "skipped"
+def _dispatch_forward(endpoint_cfg: dict, location: dict, device_display_name: str = "") -> str:
+    """Sends this endpoint's request, with no distance-skip check - used both
+    by the normal scheduled path (after it passes _too_close_to_bother) and
+    by the "send now" button, which is meant to bypass that check entirely.
+    Every endpoint goes through the same generic templated request (see
+    webui/forwarders/custom.py); Traccar/PhoneTrack are presets that pre-fill
+    it, not separate code paths - see webui/forwarders/presets.py."""
     try:
-        cfg = endpoint_cfg.get(ftype.key) or {}
-        ok = ftype.forward(cfg, location)
+        ok = forward_to_custom(endpoint_cfg, location, device_display_name)
         return "ok" if ok else "skipped"
     except Exception as e:
         logger.warning("Forwarding failed: %s", e)
         return f"error: {e}"
 
 
-def _forward_one(endpoint_cfg: dict, location: dict) -> str:
+def _forward_one(endpoint_cfg: dict, location: dict, device_display_name: str = "") -> str:
     if _too_close_to_bother(endpoint_cfg, location):
         threshold = endpoint_cfg.get("min_movement_m") or DEFAULT_MIN_MOVEMENT_M
         return f"skipped: moved less than {threshold:g}m"
     if _stale_duplicate(endpoint_cfg, location):
         gap = endpoint_cfg.get("min_update_gap_m") or DEFAULT_MIN_UPDATE_GAP_M
         return f"skipped: not updated in the last {gap:g}m"
-    return _dispatch_forward(endpoint_cfg, location)
+    return _dispatch_forward(endpoint_cfg, location, device_display_name)
 
 
 def _serialize_location(location: dict) -> str:
@@ -110,10 +107,9 @@ def _serialize_location(location: dict) -> str:
 
 def _endpoint_target(endpoint_cfg: dict) -> str:
     """Short human-readable destination summary, for the forwarding log."""
-    ftype = FORWARDER_TYPES.get(endpoint_cfg.get("type"))
-    if ftype is None:
-        return ""
-    label = ftype.target_label(endpoint_cfg.get(ftype.key) or {})
+    url = endpoint_cfg.get("url") or ""
+    method = endpoint_cfg.get("method") or "GET"
+    label = f"{method} {url}".strip()
     alias = endpoint_cfg.get("alias")
     return f"{alias} ({label})" if alias else label
 
@@ -166,7 +162,7 @@ async def _poll_device(canonic_id: str):
         for location in locations:
             for i in due_indices:
                 endpoint_location = location
-                status = await asyncio.to_thread(_forward_one, endpoints[i], endpoint_location)
+                status = await asyncio.to_thread(_forward_one, endpoints[i], endpoint_location, name)
                 results[i] = {"status": status, "location": location}
                 log_store.append(
                     canonic_id=canonic_id,
@@ -226,7 +222,7 @@ async def forward_now(canonic_id: str, index: int) -> dict | None:
     status = "no location"
     for location in locations:
         endpoint_location = location
-        status = await asyncio.to_thread(_dispatch_forward, endpoint_cfg, endpoint_location)
+        status = await asyncio.to_thread(_dispatch_forward, endpoint_cfg, endpoint_location, name)
         log_store.append(
             canonic_id=canonic_id,
             device_name=name,

@@ -112,8 +112,6 @@ class FcmReceiver:
             base64_string = obj['data']['com.google.android.apps.adm.FCM_PAYLOAD']
             decoded_bytes = base64.b64decode(base64_string)
 
-            # print("[FCMReceiver] Decoded FMDN Message:", decoded_bytes.hex())
-
             # Convert to hex string
             hex_string = binascii.hexlify(decoded_bytes).decode('utf-8')
 

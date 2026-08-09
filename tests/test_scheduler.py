@@ -30,27 +30,40 @@ def test_serialize_location_falls_back_to_str_for_unserializable_values():
     assert "weird-value" in payload
 
 
-def test_forward_one_dispatches_via_registry():
+def _traccar_endpoint(**overrides) -> dict:
+    endpoint = {
+        "type": "traccar", "method": "GET", "url": "http://x/",
+        "params": {"id": "{{device_id}}", "lat": "{{latitude}}", "lon": "{{longitude}}"},
+        "headers": {}, "body_type": "none", "body": "",
+        "variables": {"device_id": "d1"},
+    }
+    endpoint.update(overrides)
+    return endpoint
+
+
+def test_forward_one_dispatches_via_the_generic_custom_forwarder():
     location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
 
-    # empty url -> httpx raises before any network call, dispatch still worked
-    status = scheduler._forward_one({"type": "traccar", "traccar": {"url": "", "device_id": ""}}, location)
+    # blank url -> httpx never even gets a chance to run, and forward_to_custom
+    # reports it as a no-op rather than an error.
+    status = scheduler._forward_one({"method": "GET", "url": "", "params": {}, "headers": {}, "body_type": "none", "body": "", "variables": {}}, location)
+    assert status == "skipped"
+
+    # an unroutable host raises inside httpx - that surfaces as an error status.
+    unroutable = _traccar_endpoint(url="http://127.0.0.1:9/")
+    status = scheduler._forward_one(unroutable, location)
     assert status.startswith("error:")
 
-    assert scheduler._forward_one({"type": "unregistered-type"}, location) == "skipped"
 
-
-def test_endpoint_target_uses_registry_label():
-    target = scheduler._endpoint_target({"type": "phonetrack", "phonetrack": {"base_url": "http://y", "device_name": "p1"}})
-    assert target == "http://y (p1)"
-    assert scheduler._endpoint_target({"type": "unregistered-type"}) == ""
+def test_endpoint_target_uses_the_method_and_url():
+    target = scheduler._endpoint_target({"method": "GET", "url": "http://y/p1"})
+    assert target == "GET http://y/p1"
+    assert scheduler._endpoint_target({}) == "GET"
 
 
 def test_endpoint_target_is_prefixed_with_alias_when_set():
-    target = scheduler._endpoint_target({
-        "type": "phonetrack", "phonetrack": {"base_url": "http://y", "device_name": "p1"}, "alias": "My phone",
-    })
-    assert target == "My phone (http://y (p1))"
+    target = scheduler._endpoint_target({"method": "GET", "url": "http://y/p1", "alias": "My phone"})
+    assert target == "My phone (GET http://y/p1)"
 
 
 def test_too_close_to_bother_requires_the_toggle_and_a_prior_position():
@@ -121,14 +134,11 @@ def test_stale_duplicate_requires_the_toggle_and_a_prior_send():
 
 def test_forward_one_reports_stale_duplicate_skip_without_dispatching(monkeypatch):
     dispatched = []
-    monkeypatch.setattr(scheduler, "_dispatch_forward", lambda cfg, loc: dispatched.append(loc) or "ok")
+    monkeypatch.setattr(scheduler, "_dispatch_forward", lambda cfg, loc, name="": dispatched.append(loc) or "ok")
 
     now = 1_000_000.0
     stale_time = now - scheduler.FRESH_FIX_AGE_S - 1
-    endpoint_cfg = {
-        "type": "traccar", "traccar": {"url": "http://x", "device_id": "d1"},
-        "skip_if_stale": True, "min_update_gap_m": 10, "last_sent_fix_time": stale_time,
-    }
+    endpoint_cfg = _traccar_endpoint(skip_if_stale=True, min_update_gap_m=10, last_sent_fix_time=stale_time)
 
     duplicate_location = {"is_semantic": False, "time": stale_time, "latitude": 1.0, "longitude": 2.0}
     monkeypatch.setattr(scheduler.time, "time", lambda: now)
@@ -141,12 +151,9 @@ def test_forward_one_reports_stale_duplicate_skip_without_dispatching(monkeypatc
 
 def test_forward_one_reports_distance_skip_without_dispatching(monkeypatch):
     dispatched = []
-    monkeypatch.setattr(scheduler, "_dispatch_forward", lambda cfg, loc: dispatched.append(loc) or "ok")
+    monkeypatch.setattr(scheduler, "_dispatch_forward", lambda cfg, loc, name="": dispatched.append(loc) or "ok")
 
-    endpoint_cfg = {
-        "type": "traccar", "traccar": {"url": "http://x", "device_id": "d1"},
-        "skip_if_close": True, "min_movement_m": 100, "last_sent_lat": 45.0, "last_sent_lon": 9.0,
-    }
+    endpoint_cfg = _traccar_endpoint(skip_if_close=True, min_movement_m=100, last_sent_lat=45.0, last_sent_lon=9.0)
 
     close_location = {"is_semantic": False, "latitude": 45.0, "longitude": 9.0}
     assert scheduler._forward_one(endpoint_cfg, close_location) == "skipped: moved less than 100m"
@@ -179,8 +186,8 @@ async def test_poll_device_shares_one_locate_call_across_due_endpoints(monkeypat
     config_store.set_device_config(canonic_id, {
         "display_name": "Test",
         "endpoints": [
-            {"type": "traccar", "traccar": {"url": "http://127.0.0.1:9", "device_id": "d1"}, "cron": "* * * * *"},
-            {"type": "phonetrack", "phonetrack": {"base_url": "http://127.0.0.1:9", "device_name": "d2"}, "cron": "* * * * *"},
+            _traccar_endpoint(cron="* * * * *", url="http://127.0.0.1:9/"),
+            _traccar_endpoint(cron="* * * * *", url="http://127.0.0.1:9/", type="phonetrack"),
         ],
     })
 
@@ -229,7 +236,7 @@ async def test_poll_device_records_last_sent_position_on_success(monkeypatch, tm
     monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding_config.json")
     monkeypatch.setattr(config, "FORWARD_LOG_PATH", tmp_path / "forward_log.json")
     monkeypatch.setattr(scheduler, "is_logged_in", lambda: True)
-    monkeypatch.setattr(scheduler, "_dispatch_forward", lambda cfg, loc: "ok")
+    monkeypatch.setattr(scheduler, "_dispatch_forward", lambda cfg, loc, name="": "ok")
 
     tick_done = asyncio.Event()
 
@@ -249,9 +256,7 @@ async def test_poll_device_records_last_sent_position_on_success(monkeypatch, tm
     canonic_id = "position-tracking-device"
     config_store.set_device_config(canonic_id, {
         "display_name": "Test",
-        "endpoints": [{
-            "type": "traccar", "traccar": {"url": "http://x", "device_id": "d1"}, "cron": "* * * * *",
-        }],
+        "endpoints": [_traccar_endpoint(cron="* * * * *")],
     })
 
     task = asyncio.create_task(scheduler._poll_device(canonic_id))
@@ -284,7 +289,7 @@ async def test_poll_device_persists_last_location_for_the_devices_page(monkeypat
     monkeypatch.setattr(config, "FORWARD_LOG_PATH", tmp_path / "forward.log")
     monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
     monkeypatch.setattr(scheduler, "is_logged_in", lambda: True)
-    monkeypatch.setattr(scheduler, "_dispatch_forward", lambda cfg, loc: "ok")
+    monkeypatch.setattr(scheduler, "_dispatch_forward", lambda cfg, loc, name="": "ok")
 
     tick_done = asyncio.Event()
     fix = {"is_semantic": False, "latitude": 12.5, "longitude": 34.5, "time": 1}
@@ -305,9 +310,7 @@ async def test_poll_device_persists_last_location_for_the_devices_page(monkeypat
     canonic_id = "position-tracking-device-2"
     config_store.set_device_config(canonic_id, {
         "display_name": "Test",
-        "endpoints": [{
-            "type": "traccar", "traccar": {"url": "http://x", "device_id": "d1"}, "cron": "* * * * *",
-        }],
+        "endpoints": [_traccar_endpoint(cron="* * * * *")],
     })
 
     task = asyncio.create_task(scheduler._poll_device(canonic_id))

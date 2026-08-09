@@ -5,7 +5,6 @@ import pathlib
 # only while a login is actually in progress. The web app still proxies it through
 # its own origin (webui/routers/vnc_proxy.py) rather than exposing it directly.
 BROWSER_NOVNC_URL = os.environ.get("BROWSER_NOVNC_URL", "http://localhost:6901")
-WEBUI_PORT = int(os.environ.get("WEBUI_PORT", "4321"))
 
 # Where the on-demand Chrome/Xvfb/noVNC stack lives - a tmpfs mount in Docker,
 # wiped on every container restart. See webui/browser_provisioning.py.
