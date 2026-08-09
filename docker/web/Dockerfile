@@ -38,4 +38,7 @@ EXPOSE 4321
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD ["python3", "docker/web/healthcheck.py"]
 
-CMD ["uvicorn", "webui.main:app", "--host", "0.0.0.0", "--port", "4321"]
+# webui/serve.py wraps the same plain uvicorn invocation the CMD used to be
+# directly, adding a self-signed HTTPS option (HTTPS_ENABLED, see
+# webui/config.py and webui/tls.py) - a no-op wrapper unless that's set.
+CMD ["python3", "-m", "webui.serve"]
