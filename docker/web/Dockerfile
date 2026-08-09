@@ -3,8 +3,13 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY requirements.txt requirements-web.txt /app/
-RUN pip install --no-cache-dir -r requirements.txt -r requirements-web.txt
+# requirements.lock is the fully pinned, hash-checked resolution of
+# requirements.txt + requirements-web.txt (see CONTRIBUTING.md for how to
+# regenerate it) - installing from it instead of the loose *.txt files means
+# a rebuild of this exact commit always gets the exact same dependency
+# versions, not whatever happens to be newest on the day it's built.
+COPY requirements.lock /app/
+RUN pip install --no-cache-dir -r requirements.lock
 
 # Only what's needed to run apt-get itself at runtime (ca-certificates for the
 # HTTPS downloads, procps for pkill during teardown) and to actually install

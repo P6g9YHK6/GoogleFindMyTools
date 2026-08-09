@@ -20,6 +20,24 @@ pip install -r requirements.txt -r requirements-web.txt -r requirements-dev.txt
 Run the web app locally with `uvicorn webui.main:app --reload`, or build the
 whole Docker image with `docker compose -f docker-compose.dev.yml up --build`.
 
+## Updating dependencies
+
+`requirements.txt`/`requirements-web.txt` are the source of truth (loose,
+human-edited version constraints) - CI installs from these directly, so
+they're what actually gets exercised against whatever's newest on PyPI.
+`requirements.lock` is a fully pinned, hash-checked resolution of both,
+regenerated with [uv](https://github.com/astral-sh/uv):
+
+```
+uv pip compile requirements.txt requirements-web.txt -o requirements.lock --python-version 3.11 --generate-hashes
+```
+
+Only the Docker image build installs from `requirements.lock` (see
+`docker/web/Dockerfile`), so a rebuild of the same commit always gets the
+same dependency versions instead of whatever's newest that day. Regenerate
+it whenever you change either `requirements*.txt` file, and commit the
+result in the same PR.
+
 ## Before opening a PR
 
 ```
