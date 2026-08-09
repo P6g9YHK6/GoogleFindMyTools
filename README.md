@@ -63,8 +63,8 @@ The Config page also has fields for the query throttle and Apprise notification 
 > [!CAUTION]
 > `HTTP_USER`/`HTTP_PASSWORD` adds Basic Auth only - no HTTPS. This app is meant for a trusted LAN (or behind your own reverse proxy/VPN if you need remote access), not exposed directly to the public internet.
 
-- Set `HTTP_USER`/`HTTP_PASSWORD` to gate the whole UI.
-- Set `SECRETS_ENCRYPTION_KEY` to encrypt credentials at rest instead of plain YAML.
+- Set `HTTP_USER`/`HTTP_PASSWORD` to gate the whole UI, including `/docs` (FastAPI's interactive API explorer) - it's one more route behind the same middleware, not a separate hole.
+- Set `SECRETS_ENCRYPTION_KEY` to encrypt credentials at rest instead of plain YAML. Back this up somewhere alongside (or independent of) your `GFMT_DATA_DIR` volume: it's not stored anywhere itself, and losing or changing it makes every already-encrypted value in `auth.yaml` permanently unreadable - your only recovery is signing in again from scratch, not restoring the key.
 - Everything - config, credentials, logs - lives in the one data directory you control; nothing phones home except to Google's own APIs and (if you configure it) your Apprise notification targets.
 
 ## Publishing the image
