@@ -785,3 +785,12 @@ details ul {
 .table-scroll table {
   min-width: 40rem;
 }
+
+/* A single long unbroken token (a URL, a stack trace path, ...) in the
+   Detail column would otherwise force the whole table wider than the page
+   with nothing to scroll it back in - every column would need horizontal
+   scrolling just to read, not only Detail. Let it wrap instead, so only a
+   genuinely narrow viewport ever needs .table-scroll's horizontal scroll. */
+.table-scroll td {
+  overflow-wrap: anywhere;
+}
