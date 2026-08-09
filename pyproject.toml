@@ -31,3 +31,13 @@ source = ["webui"]
 # catching an actual regression (e.g. a big new router landing with no tests).
 fail_under = 80
 skip_covered = false
+
+[tool.mypy]
+ignore_missing_imports = true
+exclude = ["_pb2\\.pyi?$"]
+# CI only points this at webui/ - without this, mypy still fully type-checks
+# whatever webui/ imports (Auth/, KeyBackup/, FMDNCrypto/, ...) and reports
+# errors from that original CLI-tool layer too, which isn't what "webui" was
+# asking for. silent still uses those modules' signatures for inference, just
+# doesn't report errors found inside them.
+follow_imports = "silent"

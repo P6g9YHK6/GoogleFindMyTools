@@ -27,6 +27,16 @@ jobs:
       - name: Ruff
         run: ruff check .
 
+      - name: mypy (advisory)
+        # webui/ currently has ~29 real type errors (loosely-typed config
+        # dicts passed around as dict[Any, Any], mostly - see pyproject.toml's
+        # [tool.mypy]). Not blocking merges on those yet since fixing them
+        # properly means real design changes (TypedDicts for endpoint/device
+        # config), not one-line fixes - this just keeps the count visible in
+        # every run instead of silently drifting further.
+        continue-on-error: true
+        run: mypy webui
+
   test:
     runs-on: ubuntu-latest
     steps:
