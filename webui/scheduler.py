@@ -23,6 +23,14 @@ DEFAULT_MIN_UPDATE_GAP_M = 30
 # re-serving the same stale cached report - always sent regardless of the
 # stale-duplicate gate below.
 FRESH_FIX_AGE_S = 120
+# After this many consecutive failed attempts, escalate a destination's
+# ongoing failures via logger.error (picked up by the System Log and, if
+# configured, Apprise - see webui/notify.py) rather than leaving it visible
+# only to whoever happens to check the Forwarding Log. Repeats every further
+# multiple of this instead of once, so a destination that's been down for
+# days still gets an occasional reminder instead of one message that scrolls
+# off and is never mentioned again.
+FORWARD_FAILURE_ESCALATION_THRESHOLD = 3
 
 
 def _next_run(cron_expr: str, base: datetime) -> datetime | None:
@@ -114,6 +122,34 @@ def _endpoint_target(endpoint_cfg: dict) -> str:
     return f"{alias} ({label})" if alias else label
 
 
+def _record_forward_result(
+    endpoint_cfg: dict, status: str, location: dict | None, device_display_name: str, now_ts: int | None = None,
+):
+    """Updates one endpoint's persisted last-forward state after a single
+    attempt (used by both the cron poll loop and "send now"), and escalates
+    via logger.error once it's crossed FORWARD_FAILURE_ESCALATION_THRESHOLD
+    consecutive failures - see that constant's comment. A "skipped" status
+    (the distance/staleness gates, or simply nothing to send) is neither
+    success nor failure, so it's left out of the streak entirely rather than
+    resetting or extending it."""
+    endpoint_cfg["last_forward_status"] = status
+    endpoint_cfg["last_forward_time"] = now_ts if now_ts is not None else int(time.time())
+
+    if status == "ok" and location is not None:
+        endpoint_cfg["last_sent_lat"] = location["latitude"]
+        endpoint_cfg["last_sent_lon"] = location["longitude"]
+        endpoint_cfg["last_sent_fix_time"] = location.get("time")
+        endpoint_cfg["consecutive_failures"] = 0
+    elif status.startswith("error"):
+        failures = endpoint_cfg.get("consecutive_failures", 0) + 1
+        endpoint_cfg["consecutive_failures"] = failures
+        if failures % FORWARD_FAILURE_ESCALATION_THRESHOLD == 0:
+            logger.error(
+                "Forwarding to %s for %s has failed %d times in a row (latest: %s)",
+                _endpoint_target(endpoint_cfg), device_display_name, failures, status,
+            )
+
+
 async def _poll_device(canonic_id: str):
     while True:
         device_cfg = config_store.get_device_config(canonic_id)
@@ -181,12 +217,7 @@ async def _poll_device(canonic_id: str):
         for i, result in results.items():
             if i >= len(fresh_endpoints):
                 continue
-            fresh_endpoints[i]["last_forward_status"] = result["status"]
-            fresh_endpoints[i]["last_forward_time"] = now_ts
-            if result["status"] == "ok" and result["location"] is not None:
-                fresh_endpoints[i]["last_sent_lat"] = result["location"]["latitude"]
-                fresh_endpoints[i]["last_sent_lon"] = result["location"]["longitude"]
-                fresh_endpoints[i]["last_sent_fix_time"] = result["location"].get("time")
+            _record_forward_result(fresh_endpoints[i], result["status"], result["location"], name, now_ts)
         config_store.set_device_config(canonic_id, fresh_cfg)
 
         if due_indices:
@@ -231,13 +262,13 @@ async def forward_now(canonic_id: str, index: int) -> dict | None:
             status=status,
             payload=_serialize_location(endpoint_location),
         )
-        if status == "ok":
-            endpoint_cfg["last_sent_lat"] = location["latitude"]
-            endpoint_cfg["last_sent_lon"] = location["longitude"]
-            endpoint_cfg["last_sent_fix_time"] = location.get("time")
+        _record_forward_result(endpoint_cfg, status, endpoint_location, name)
 
-    endpoint_cfg["last_forward_status"] = status
-    endpoint_cfg["last_forward_time"] = int(time.time())
+    if not locations:
+        # Nothing to record per-location above - still needs its
+        # last_forward_status/time updated to reflect this attempt.
+        _record_forward_result(endpoint_cfg, status, None, name)
+
     config_store.set_device_config(canonic_id, device_cfg)
     return endpoint_cfg
 

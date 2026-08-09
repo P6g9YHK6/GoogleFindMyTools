@@ -66,6 +66,58 @@ def test_endpoint_target_is_prefixed_with_alias_when_set():
     assert target == "My phone (GET http://y/p1)"
 
 
+def test_record_forward_result_resets_streak_on_success():
+    endpoint_cfg = {"consecutive_failures": 2}
+    location = {"latitude": 1.0, "longitude": 2.0, "time": 5}
+
+    scheduler._record_forward_result(endpoint_cfg, "ok", location, "Test", now_ts=100)
+
+    assert endpoint_cfg["last_forward_status"] == "ok"
+    assert endpoint_cfg["last_forward_time"] == 100
+    assert endpoint_cfg["last_sent_lat"] == 1.0
+    assert endpoint_cfg["last_sent_lon"] == 2.0
+    assert endpoint_cfg["last_sent_fix_time"] == 5
+    assert endpoint_cfg["consecutive_failures"] == 0
+
+
+def test_record_forward_result_counts_consecutive_failures_but_not_skips():
+    endpoint_cfg = {"method": "GET", "url": "http://x/"}
+
+    scheduler._record_forward_result(endpoint_cfg, "skipped: moved less than 50m", None, "Test", now_ts=1)
+    assert "consecutive_failures" not in endpoint_cfg  # skips don't start (or break) a failure streak
+
+    scheduler._record_forward_result(endpoint_cfg, "error: boom", None, "Test", now_ts=2)
+    assert endpoint_cfg["consecutive_failures"] == 1
+
+    scheduler._record_forward_result(endpoint_cfg, "skipped: not updated in the last 30m", None, "Test", now_ts=3)
+    assert endpoint_cfg["consecutive_failures"] == 1  # unchanged by the skip in between
+
+    scheduler._record_forward_result(endpoint_cfg, "error: boom again", None, "Test", now_ts=4)
+    assert endpoint_cfg["consecutive_failures"] == 2
+
+
+def test_record_forward_result_escalates_at_the_threshold(caplog):
+    endpoint_cfg = {"method": "GET", "url": "http://x/", "alias": "My server"}
+
+    with caplog.at_level("ERROR", logger="webui.scheduler"):
+        for _ in range(scheduler.FORWARD_FAILURE_ESCALATION_THRESHOLD - 1):
+            scheduler._record_forward_result(endpoint_cfg, "error: boom", None, "Test")
+        assert not caplog.records  # not yet at the threshold
+
+        scheduler._record_forward_result(endpoint_cfg, "error: boom", None, "Test")
+        assert len(caplog.records) == 1
+        assert "My server" in caplog.records[0].message
+        assert "Test" in caplog.records[0].message
+
+        # keeps failing past the threshold -> escalates again at the next multiple, not every time
+        for _ in range(scheduler.FORWARD_FAILURE_ESCALATION_THRESHOLD - 1):
+            scheduler._record_forward_result(endpoint_cfg, "error: boom", None, "Test")
+        assert len(caplog.records) == 1
+
+        scheduler._record_forward_result(endpoint_cfg, "error: boom", None, "Test")
+        assert len(caplog.records) == 2
+
+
 def test_too_close_to_bother_requires_the_toggle_and_a_prior_position():
     location = {"is_semantic": False, "latitude": 45.0, "longitude": 9.0}
 
