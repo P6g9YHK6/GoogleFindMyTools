@@ -44,3 +44,28 @@ jobs:
 
       - name: Run tests
         run: pytest -v
+
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dev tools
+        run: pip install -r requirements-dev.txt
+
+      - name: pip-audit
+        run: |
+          pip-audit -r requirements.txt -r requirements-web.txt \
+            --ignore-vuln PYSEC-2026-1325
+        # PYSEC-2026-1325: the Minerva timing side-channel in python-ecdsa's
+        # sign_digest()/ECDH path. Upstream has explicitly said side-channel
+        # attacks are out of scope and there's no planned fix - failing CI on
+        # it forever wouldn't catch anything actionable. Revisit if ecdsa
+        # ships a fix, or gets replaced (see FMDNCrypto/, Auth/firebase_messaging/).
