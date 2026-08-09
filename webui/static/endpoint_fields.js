@@ -129,8 +129,8 @@
 
   function blockVars(block) {
     const vars = Object.assign({}, SAMPLE_VALUES);
-    const deviceName = block.querySelector(".device-name-input");
-    vars.device_name = (deviceName && deviceName.value) || deviceName?.placeholder || "";
+    vars.device_name = block.dataset.deviceAlias || "";
+    vars.device_alias = block.dataset.deviceAlias || "";
     const alias = block.querySelector(".endpoint-alias");
     vars.endpoint_alias = (alias && alias.value) || "";
     readKvTable(block, "var").forEach(([k, v]) => { vars[k] = v; });

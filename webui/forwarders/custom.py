@@ -29,15 +29,20 @@ def _render(template: str, ctx: dict) -> str:
 
 def build_context(endpoint_cfg: dict, location: dict, device_display_name: str) -> dict:
     """Every {{variable}} available to this endpoint's templates - the
-    location fix, this endpoint's own alias/device-name override, and its
-    own custom variables (Traccar's device_id, a bearer token, ...)."""
+    location fix, this endpoint's own alias, and its own custom variables
+    (Traccar's device_id, a bearer token, ...).
+
+    device_name and device_alias are both just the device's own alias/name -
+    two names for the same value (not overridable per endpoint), kept as
+    two tokens so existing templates written against either name work."""
     ctx = {
         "latitude": location.get("latitude"),
         "longitude": location.get("longitude"),
         "altitude_m": location.get("altitude"),
         "accuracy_m": location.get("accuracy"),
         "fix_timestamp": location.get("time"),
-        "device_name": endpoint_cfg.get("device_name") or device_display_name or "",
+        "device_name": device_display_name or "",
+        "device_alias": device_display_name or "",
         "endpoint_alias": endpoint_cfg.get("alias") or "",
     }
     ctx.update(endpoint_cfg.get("variables") or {})

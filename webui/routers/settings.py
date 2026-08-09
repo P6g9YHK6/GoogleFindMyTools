@@ -229,10 +229,6 @@ async def update_device_settings(
         if alias:
             entry["alias"] = alias
 
-        device_name = field("device_name").strip()
-        if device_name:
-            entry["device_name"] = device_name
-
         cron_expr = field("cron").strip()
         if not cron_expr or not croniter.is_valid(cron_expr):
             errors.append(f"Endpoint {len(endpoints) + 1}: \"{cron_expr}\" is not a valid cron expression")
