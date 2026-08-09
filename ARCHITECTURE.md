@@ -70,6 +70,11 @@ Everything about *where* a location goes, separate from *when* (that's
 - `config_store.py` - persisted per-device forwarding config
   (`forwarding.yaml`): which endpoints, their schedules, thresholds, and
   last-sent state.
+- `policy.py` - the skip-if-close/skip-if-stale gates, the dispatch-and-log
+  call every endpoint goes through, and consecutive-failure escalation.
+  Everything about *where* a location goes and whether this particular fix
+  is worth sending, with no idea of cron schedules or *when* it's called -
+  that's `webui/scheduler.py`, built on top of this.
 - `custom.py` - the one generic HTTP request builder every endpoint sends
   through (method/URL/headers/params/body, all with `{{variable}}`
   templating).

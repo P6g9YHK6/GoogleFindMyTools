@@ -9,7 +9,7 @@ from ProtoDecoders.decoder import get_canonic_ids, parse_device_list_protobuf
 from webui import scheduler
 from webui.auth_state import is_logged_in
 from webui.deps import run_blocking
-from webui.forwarders import BUILTIN_VARIABLES, PRESETS, config_store
+from webui.forwarders import BUILTIN_VARIABLES, PRESETS, config_store, policy
 from webui.forwarders import blank_endpoint as new_blank_endpoint
 from webui.templating import templates
 
@@ -237,16 +237,16 @@ async def update_device_settings(
         if field("skip_if_close", "0") == "1":
             entry["skip_if_close"] = True
             try:
-                entry["min_movement_m"] = float(field("min_movement_m") or scheduler.DEFAULT_MIN_MOVEMENT_M)
+                entry["min_movement_m"] = float(field("min_movement_m") or policy.DEFAULT_MIN_MOVEMENT_M)
             except ValueError:
-                entry["min_movement_m"] = scheduler.DEFAULT_MIN_MOVEMENT_M
+                entry["min_movement_m"] = policy.DEFAULT_MIN_MOVEMENT_M
 
         if field("skip_if_stale", "0") == "1":
             entry["skip_if_stale"] = True
             try:
-                entry["min_update_gap_m"] = float(field("min_update_gap_m") or scheduler.DEFAULT_MIN_UPDATE_GAP_M)
+                entry["min_update_gap_m"] = float(field("min_update_gap_m") or policy.DEFAULT_MIN_UPDATE_GAP_M)
             except ValueError:
-                entry["min_update_gap_m"] = scheduler.DEFAULT_MIN_UPDATE_GAP_M
+                entry["min_update_gap_m"] = policy.DEFAULT_MIN_UPDATE_GAP_M
 
         # Best-effort: carry forward this endpoint's last status/position if it
         # still looks like the same logical endpoint (same position, same
