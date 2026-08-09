@@ -43,6 +43,15 @@ def test_wrong_credentials_are_logged(client, monkeypatch, caplog):
     assert any("invalid credentials" in r.message for r in caplog.records)
 
 
+def test_health_check_is_exempt_from_auth(client, monkeypatch):
+    monkeypatch.setattr(config, "HTTP_USER", "alice")
+    monkeypatch.setattr(config, "HTTP_PASSWORD", "secret")
+
+    resp = client.get("/health")
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ok"}
+
+
 def test_missing_credentials_are_not_logged(client, monkeypatch, caplog):
     """The very first hit of a protected page never carries an Authorization
     header at all - that's normal, not a failed login attempt, and shouldn't

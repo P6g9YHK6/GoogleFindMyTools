@@ -29,6 +29,15 @@ class BasicAuthMiddleware:
             await self.app(scope, receive, send)
             return
 
+        if scope["type"] == "http" and scope.get("path") == "/health":
+            # Docker's HEALTHCHECK (see docker/web/healthcheck.py) hits this
+            # from inside the container with no credentials, and it reveals
+            # nothing beyond "the process is up" - not worth making the
+            # container orchestrator's liveness probe carry HTTP_USER/
+            # HTTP_PASSWORD around to ask a question this trivial.
+            await self.app(scope, receive, send)
+            return
+
         headers = dict(scope.get("headers") or [])
         auth_header = headers.get(b"authorization", b"").decode("latin-1")
 

@@ -28,4 +28,9 @@ ENV DISPLAY=:99 \
 
 EXPOSE 4321
 
+# See webui/main.py's /health route and docker/web/healthcheck.py - a plain
+# Python script rather than curl, which isn't part of this image.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD ["python3", "docker/web/healthcheck.py"]
+
 CMD ["uvicorn", "webui.main:app", "--host", "0.0.0.0", "--port", "4321"]

@@ -46,6 +46,15 @@ app.include_router(logs.router)
 app.include_router(vnc_proxy.router)
 
 
+@app.get("/health")
+async def health():
+    """Liveness probe for Docker's HEALTHCHECK (see docker/web/healthcheck.py)
+    - just confirms the app is up and answering, no real work done. Exempt
+    from BasicAuthMiddleware (see webui/auth_middleware.py) since the
+    container's own healthcheck can't practically carry credentials."""
+    return {"status": "ok"}
+
+
 @app.websocket("/ws/locations")
 async def ws_locations(websocket: WebSocket):
     await ws.manager.connect(websocket)
