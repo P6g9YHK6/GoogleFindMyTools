@@ -26,6 +26,10 @@ os.environ["GFMT_SECRETS_DIR"] = tempfile.mkdtemp(prefix="gfmt-test-secrets-")
 os.environ["GFMT_NONINTERACTIVE"] = "1"
 os.environ.pop("HTTP_USER", None)  # deterministic: no basic auth in tests
 os.environ.pop("HTTP_PASSWORD", None)
+os.environ.pop("HTTPS_ENABLED", None)  # deterministic: no self-signed TLS in tests
+os.environ.pop("GFMT_TLS_CERT_PATH", None)
+os.environ.pop("GFMT_TLS_KEY_PATH", None)
+os.environ.pop("GFMT_TLS_SAN", None)
 os.environ.pop("APPRISE_URLS", None)  # deterministic: no real notifications fired from tests
 
 import pytest  # noqa: E402

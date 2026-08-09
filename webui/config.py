@@ -39,6 +39,31 @@ QUERY_MIN_SPREAD_S = float(os.environ.get("QUERY_MIN_SPREAD_S", "1"))
 HTTP_USER = os.environ.get("HTTP_USER")
 HTTP_PASSWORD = os.environ.get("HTTP_PASSWORD")
 
+# Opt-in self-signed HTTPS - see webui/tls.py and webui/serve.py (the
+# Docker image's actual entrypoint, see docker/web/Dockerfile). A toggle,
+# not a dual HTTP+HTTPS listener: exact "1" match (not a truthy-string
+# check) matching the GFMT_NONINTERACTIVE convention elsewhere, so
+# HTTPS_ENABLED=0 can't accidentally enable it. Unset by default - see
+# README.
+HTTPS_ENABLED = os.environ.get("HTTPS_ENABLED") == "1"
+# Bring-your-own-cert escape hatch - if either is set, webui/tls.py requires
+# both files to actually exist (fails loudly rather than silently falling
+# back to a self-signed cert the operator didn't ask for). Unset means
+# "generate and persist a self-signed cert instead" - see TLS_CERT_PATH/
+# TLS_KEY_PATH below.
+GFMT_TLS_CERT_PATH = os.environ.get("GFMT_TLS_CERT_PATH")
+GFMT_TLS_KEY_PATH = os.environ.get("GFMT_TLS_KEY_PATH")
+# Extra hostnames/IPs (comma-separated) to add to the generated self-signed
+# cert's Subject Alternative Names, beyond localhost/127.0.0.1/::1 - set
+# this to your LAN hostname or static IP if you reach this box by either.
+GFMT_TLS_SAN = os.environ.get("GFMT_TLS_SAN")
+# How long a generated self-signed cert is valid for. Deliberately not a
+# much longer "set and forget" duration: Apple's ATS policy hard-caps
+# accepted TLS server cert validity at 825 days, even for a cert the user
+# manually trusts - a longer-lived one would just keep silently failing in
+# Safari/iOS/macOS with no obvious error pointing at why.
+GFMT_TLS_VALIDITY_DAYS = int(os.environ.get("GFMT_TLS_VALIDITY_DAYS", "825"))
+
 # Lets forwarding_config.json live in a mounted directory (e.g. in Docker,
 # alongside GFMT_SECRETS_DIR under the same volume) instead of always sitting
 # next to this module - see Auth/token_cache.py for the same pattern.
@@ -65,3 +90,10 @@ SYSTEM_LOG_MAX_ENTRIES = int(os.environ.get("SYSTEM_LOG_MAX_ENTRIES", "5000"))
 # it came from a manual Locate click or a scheduled poll - see
 # webui/device_location_store.py and the Devices page.
 DEVICE_LOCATIONS_PATH = DATA_DIR / "device_locations.yaml"
+
+# Default location for a generated self-signed cert/key (see webui/tls.py) -
+# flat in DATA_DIR like everything else here, so the existing volume mount
+# covers it with no new subfolder. Only used when GFMT_TLS_CERT_PATH/
+# GFMT_TLS_KEY_PATH above aren't set.
+TLS_CERT_PATH = DATA_DIR / "tls_cert.pem"
+TLS_KEY_PATH = DATA_DIR / "tls_key.pem"
