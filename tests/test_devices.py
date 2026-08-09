@@ -20,34 +20,6 @@ def test_devices_table_shows_last_seen_when_available(client):
     assert datetime.fromtimestamp(FAKE_LAST_SEEN).strftime("%Y-%m-%d %H:%M:%S") in resp.text
 
 
-def test_devices_table_shows_battery_and_wifi_when_extra_info_present(client, tmp_path, monkeypatch):
-    from webui import config, device_location_store
-
-    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
-
-    device_location_store.set_last_extra_info(
-        FAKE_CANONIC_ID, {"battery_pct": 95, "wifi_ssid": "Mordor", "wifi_signal": 4}, fetched_at=1700000000,
-    )
-
-    resp = client.get("/devices/table")
-    assert resp.status_code == 200
-    assert "95%" in resp.text
-    assert "Mordor" in resp.text
-    assert "(4/4)" in resp.text
-
-
-def test_devices_table_shows_dashes_when_no_extra_info(client, tmp_path, monkeypatch):
-    from webui import config
-
-    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
-
-    resp = client.get("/devices/table")
-    assert resp.status_code == 200
-    assert resp.text.count("-") >= 3  # last seen, battery, and wifi columns all fall back to this
-
-
 def test_devices_table_not_logged_in(client, monkeypatch):
     from webui.routers import devices
 

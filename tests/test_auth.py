@@ -10,7 +10,7 @@ def test_auth_status_fragment_logged_in(client):
     assert resp.status_code == 200
     assert "Signed in" in resp.text
     assert "not yet confirmed" in resp.text  # shared_key never cached either
-    assert resp.text.count("<em>missing</em>") == 6
+    assert resp.text.count("<em>missing</em>") == 5
 
 
 def test_auth_status_fragment_not_logged_in(client, monkeypatch):

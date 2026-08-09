@@ -176,7 +176,6 @@ async def update_device_settings(
     min_movements = form.getlist("min_movement_m")
     stale_flags = form.getlist("skip_if_stale")
     min_update_gaps = form.getlist("min_update_gap_m")
-    live_info_flags = form.getlist("fetch_live_info")
     # Grab every registered type's fields up front, keyed the same way the
     # template names its inputs (see ForwarderType.form_field_name) - adding a
     # new type to the registry is picked up here automatically, no new
@@ -230,9 +229,6 @@ async def update_device_settings(
                 entry["min_update_gap_m"] = float(min_update_gaps[i]) if i < len(min_update_gaps) else scheduler.DEFAULT_MIN_UPDATE_GAP_M
             except ValueError:
                 entry["min_update_gap_m"] = scheduler.DEFAULT_MIN_UPDATE_GAP_M
-
-        if (live_info_flags[i] if i < len(live_info_flags) else "0") == "1":
-            entry["fetch_live_info"] = True
 
         # Best-effort: carry forward this endpoint's last status/position if it
         # still looks like the same logical endpoint at this position - these

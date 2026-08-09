@@ -210,49 +210,6 @@ def test_skip_if_stale_defaults_off_when_not_submitted(client):
     assert "skip_if_stale" not in saved
 
 
-def test_fetch_live_info_toggle_is_saved(client):
-    resp = _post_form(
-        client,
-        f"/settings/devices/{FAKE_CANONIC_ID}",
-        display_name=["My Tracker"],
-        endpoint_type=["traccar"],
-        cron=["*/5 * * * *"],
-        fetch_live_info=["1"],
-        traccar_url=["http://x"],
-        traccar_device_id=["d1"],
-        phonetrack_base_url=[""],
-        phonetrack_device_name=[""],
-    )
-    assert resp.status_code == 200
-    assert "checked" in resp.text
-
-    from webui.forwarders import config_store
-
-    saved = config_store.get_device_config(FAKE_CANONIC_ID)["endpoints"][0]
-    assert saved["fetch_live_info"] is True
-
-
-def test_fetch_live_info_defaults_off_when_not_submitted(client):
-    resp = _post_form(
-        client,
-        f"/settings/devices/{FAKE_CANONIC_ID}",
-        display_name=["My Tracker"],
-        endpoint_type=["traccar"],
-        cron=["*/5 * * * *"],
-        fetch_live_info=["0"],
-        traccar_url=["http://x"],
-        traccar_device_id=["d1"],
-        phonetrack_base_url=[""],
-        phonetrack_device_name=[""],
-    )
-    assert resp.status_code == 200
-
-    from webui.forwarders import config_store
-
-    saved = config_store.get_device_config(FAKE_CANONIC_ID)["endpoints"][0]
-    assert "fetch_live_info" not in saved
-
-
 def test_send_now_forwards_immediately_bypassing_schedule_and_skip(client, monkeypatch):
     from webui import scheduler
     from webui.forwarders import config_store
