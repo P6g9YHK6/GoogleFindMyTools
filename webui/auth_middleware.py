@@ -1,9 +1,12 @@
 import base64
 import hmac
+import logging
 
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from webui import config
+
+logger = logging.getLogger("webui.auth_middleware")
 
 
 class BasicAuthMiddleware:
@@ -32,6 +35,16 @@ class BasicAuthMiddleware:
         if self._is_authorized(auth_header):
             await self.app(scope, receive, send)
             return
+
+        if auth_header:
+            # Only log when credentials were actually sent and rejected - not
+            # on every plain request, since a browser's very first hit of any
+            # protected page has no Authorization header at all (that's what
+            # prompts it to ask the user for one), and logging that as a
+            # "failed login" would just be noise on every normal visit.
+            client = scope.get("client")
+            client_host = client[0] if client else "unknown"
+            logger.warning("Rejected %s request from %s: invalid credentials", scope["type"], client_host)
 
         if scope["type"] == "websocket":
             await send({"type": "websocket.close", "code": 4401})
