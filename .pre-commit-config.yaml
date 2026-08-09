@@ -1,0 +1,9 @@
+# Local mirror of the lint step CI runs (.github/workflows/test.yml) so lint
+# issues get caught before a push instead of after. Install with:
+#   pip install pre-commit && pre-commit install
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.0
+    hooks:
+      - id: ruff
+        args: [--fix]
