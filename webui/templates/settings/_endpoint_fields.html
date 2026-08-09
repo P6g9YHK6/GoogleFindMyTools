@@ -9,7 +9,8 @@
    headers/variables rows never get mixed up with another's - see
    routers/settings.py's update_device_settings. #}
 {% set is_new = is_new if is_new is defined else False %}
-<fieldset class="endpoint-block{% if is_new %} endpoint-block--new{% endif %}" data-ep-idx="{{ idx }}">
+<fieldset class="endpoint-block{% if is_new %} endpoint-block--new{% endif %}" data-ep-idx="{{ idx }}"
+          data-device-alias="{{ row.name if row is defined else '' }}">
   <input type="hidden" name="ep_order" value="{{ idx }}">
   {# The "Endpoint N" numbering itself comes from .endpoint-block > legend::before
      (see app.css) - this span only ever holds the optional alias next to it. #}
@@ -33,14 +34,9 @@
         {% endfor %}
       </select>
     </label>
-    <label>Device name
-      <input type="text" name="ep-{{ idx }}-device_name" class="templatable device-name-input"
-             {% if row is defined and row.name %}placeholder="{{ row.name }}"{% endif %}
-             value="{{ endpoint.device_name or '' }}">
-    </label>
   </div>
   <p class="field-hint preset-hint">{{ (presets.get(endpoint.type) or presets.get('custom')).hint }}</p>
-  <p class="field-hint">"Device name" fills <code>{{ '{{device_name}}' }}</code> below. It defaults to this tracker's own name, but the target service may know it by something else - override it here, e.g. to match the device name registered in PhoneTrack.</p>
+  <p class="field-hint"><code>{{ '{{device_name}}' }}</code>/<code>{{ '{{device_alias}}' }}</code> below both fill in with this tracker's own name. If the target service needs to know it by something else, add a custom variable under Variables and use that instead.</p>
 
   <fieldset>
     <legend>Request</legend>

@@ -93,7 +93,11 @@ def test_forward_to_custom_leaves_unresolved_variables_visible(monkeypatch):
     assert captured["params"]["token"] == "{{typo_var}}"  # left as-is, not silently dropped
 
 
-def test_forward_to_custom_uses_device_name_override_over_display_name(monkeypatch):
+def test_forward_to_custom_device_name_is_not_overridable(monkeypatch):
+    """A stray "device_name" key on an endpoint (e.g. left over from an old
+    config) must not change what {{device_name}}/{{device_alias}} resolve
+    to - both are always the device's own real alias, never overridable
+    per endpoint - see webui/forwarders/custom.py's build_context()."""
     from webui.forwarders import custom
 
     captured = {}
@@ -109,15 +113,15 @@ def test_forward_to_custom_uses_device_name_override_over_display_name(monkeypat
     monkeypatch.setattr(custom.httpx, "request", fake_request)
 
     endpoint_cfg = {
-        "method": "GET", "url": "https://nc.local/x/{{device_name}}", "params": {},
+        "method": "GET", "url": "https://nc.local/x/{{device_name}}/{{device_alias}}", "params": {},
         "headers": {}, "body_type": "none", "body": "", "variables": {}, "device_name": "phone1",
     }
     location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
-    custom.forward_to_custom(endpoint_cfg, location, "My Phone (Google name)")
-    assert captured["url"] == "https://nc.local/x/phone1"
+    custom.forward_to_custom(endpoint_cfg, location, "My Phone")
+    assert captured["url"] == "https://nc.local/x/My Phone/My Phone"
 
 
-def test_forward_to_custom_falls_back_to_device_display_name(monkeypatch):
+def test_forward_to_custom_device_name_uses_device_display_name(monkeypatch):
     from webui.forwarders import custom
 
     captured = {}
@@ -258,8 +262,8 @@ def test_config_store_migrates_legacy_endpoints_list_shape(tmp_path, monkeypatch
     assert traccar_ep["url"] == "http://a/"
     assert traccar_ep["variables"] == {"device_id": "1"}
 
-    assert phonetrack_ep["url"] == "http://b/{{device_name}}"
-    assert phonetrack_ep["device_name"] == "p1"
+    assert phonetrack_ep["url"] == "http://b/p1"
+    assert "device_name" not in phonetrack_ep
     assert phonetrack_ep["alias"] == "PT"
 
 

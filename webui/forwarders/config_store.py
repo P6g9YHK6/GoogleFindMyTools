@@ -51,8 +51,12 @@ def _migrate_legacy_endpoint(entry: dict) -> dict:
         sub = entry.get("phonetrack") or {}
         preset = PRESETS["phonetrack"]
         migrated["method"] = preset["method"]
-        migrated["url"] = (sub.get("base_url") or "").rstrip("/") + "/{{device_name}}"
-        migrated["device_name"] = sub.get("device_name", "")
+        # The old per-endpoint device_name override doesn't exist anymore
+        # (see webui/forwarders/custom.py) - bake whatever it was set to
+        # directly into the URL as a literal, which sends the exact same
+        # request as before rather than silently switching to the account's
+        # device alias for anyone who had it set to something else.
+        migrated["url"] = (sub.get("base_url") or "").rstrip("/") + "/" + sub.get("device_name", "")
         migrated["params"] = dict(preset["params"])
         migrated["headers"] = {}
         migrated["body_type"] = "none"

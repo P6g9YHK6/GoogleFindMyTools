@@ -43,7 +43,7 @@ def test_save_mixed_endpoints_and_drop_blank_block(client):
             "ep-0-var_key": ["device_id"], "ep-0-var_value": ["dev1"],
 
             "ep-1-endpoint_type": "phonetrack", "ep-1-url": "https://nc.local/x/{{device_name}}",
-            "ep-1-device_name": "phone1", "ep-1-cron": "0 */2 * * *",
+            "ep-1-cron": "0 */2 * * *",
 
             "ep-2-endpoint_type": "custom", "ep-2-url": "",  # left blank -> dropped
             "ep-2-cron": "*/10 * * * *",
@@ -64,7 +64,7 @@ def test_save_mixed_endpoints_and_drop_blank_block(client):
 
     assert saved["endpoints"][1]["type"] == "phonetrack"
     assert saved["endpoints"][1]["url"] == "https://nc.local/x/{{device_name}}"
-    assert saved["endpoints"][1]["device_name"] == "phone1"
+    assert "device_name" not in saved["endpoints"][1]
     assert saved["endpoints"][1]["cron"] == "0 */2 * * *"
 
 
@@ -135,7 +135,11 @@ def test_endpoint_alias_is_saved_and_shown_in_legend(client):
     assert config_store.get_device_config(FAKE_CANONIC_ID)["endpoints"][0]["alias"] == "Home Traccar"
 
 
-def test_endpoint_device_name_is_saved(client):
+def test_endpoint_device_name_is_not_a_saveable_field(client):
+    """There's no per-endpoint "Device name" override anymore -
+    {{device_name}}/{{device_alias}} always resolve to the device's own
+    real alias (see webui/forwarders/custom.py) - a posted "device_name"
+    field (e.g. from a stale cached page) must be ignored, not saved."""
     resp = _post_form(
         client,
         f"/settings/devices/{FAKE_CANONIC_ID}",
@@ -149,7 +153,7 @@ def test_endpoint_device_name_is_saved(client):
     assert resp.status_code == 200
     from webui.forwarders import config_store
 
-    assert config_store.get_device_config(FAKE_CANONIC_ID)["endpoints"][0]["device_name"] == "phone1"
+    assert "device_name" not in config_store.get_device_config(FAKE_CANONIC_ID)["endpoints"][0]
 
 
 def test_endpoint_method_headers_and_body_are_saved(client):

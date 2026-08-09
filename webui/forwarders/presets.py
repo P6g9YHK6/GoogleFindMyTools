@@ -74,7 +74,8 @@ BUILTIN_VARIABLES: list[tuple[str, str]] = [
     ("altitude_m", "Altitude in meters, if Google reported one"),
     ("accuracy_m", "Google's radius of uncertainty for the fix, in meters"),
     ("fix_timestamp", "Unix timestamp (seconds) of when Google recorded this fix - not when it was sent"),
-    ("device_name", "Device name sent to this endpoint - set with the “Device name” field above"),
+    ("device_name", "This device's own alias/name (same value as device_alias below)"),
+    ("device_alias", "This device's own alias/name (same value as device_name above)"),
     ("endpoint_alias", "This endpoint's own alias, as set above"),
     ("tracker_id", "This app's own internal id for the tracker (not a target service's device id)"),
 ]
@@ -87,7 +88,6 @@ def blank_endpoint(cron: str) -> dict:
     return {
         "type": DEFAULT_PRESET_KEY,
         "alias": "",
-        "device_name": "",
         "method": preset["method"],
         "url": preset["url"],
         "params": dict(preset["params"]),
