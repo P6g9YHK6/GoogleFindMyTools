@@ -86,7 +86,9 @@ rather than holding logic themselves: `devices.py` (`/`), `locate.py`
 `settings.py` (forwarding config UI), `logs.py` (Forwarding Log + System
 Log pages), `auth.py` (sign in/out, the Config page), `vnc_proxy.py`
 (proxies the embedded browser view through the app's own origin instead of
-exposing noVNC directly).
+exposing noVNC directly), `metrics.py` (`/metrics` - Prometheus text,
+derived on each scrape from state the app already keeps, nothing new
+persisted).
 
 ## Data on disk
 

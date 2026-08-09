@@ -18,7 +18,8 @@ It's built on top of [GoogleFindMyTools](https://github.com/leonboe1/GoogleFindM
 - **System Log + error notifications** - every warning/error anywhere in the app (a failed locate, an expired token, a forwarding failure) is captured in a searchable in-app log and can be pushed out live through [Apprise](https://github.com/caronc/apprise) to whatever you already use (ntfy, Discord, Telegram, Pushover, email, 100+ others) - configured from the Config page, no restart needed.
 - **Register your own trackers** - pair a custom ESP32- or Zephyr-based BLE tracker straight from the web UI.
 - **Account-wide rate limiting** - every call to Google's backend (device list, locate, sound, register) goes through one shared throttle, tunable live from the Config page, so a burst of manual clicks and every device's poll loop can never combine into something that gets your account flagged.
-- **Everything survives a restart** - device/forwarding config, the last known location per device, and every log all live in one plain-YAML data directory you mount as a volume. No database to run.
+- **Everything survives a restart** - device/forwarding config, the last known location per device, and every log all live in one plain-YAML data directory you mount as a volume. No database to run. The Forwarding Log and System Log are each capped at a fixed number of entries (`FORWARD_LOG_MAX_ENTRIES` / `SYSTEM_LOG_MAX_ENTRIES`) - oldest entries roll off automatically rather than growing either file forever.
+- **`/metrics`** - a small set of Prometheus-format gauges (uptime, sign-in status, query-throttle queue depth, forwarding/system log entry counts by outcome) if you already scrape other self-hosted services and want this one in the same dashboard. Behind the same Basic Auth as everything else when configured.
 
 ## Quick start
 
@@ -57,6 +58,7 @@ The Config page also has fields for the query throttle and Apprise notification 
 - **Forwarding Log** (`/logs`) - every forward attempt, its target, status, and the exact payload sent.
 - **System Log** (`/logs/system`) - every warning/error anywhere in the app.
 - **Config** (`/auth`) - sign in/out, credential status, query throttle, and Apprise notification settings.
+- **Metrics** (`/metrics`) - Prometheus-format text, for scraping rather than browsing.
 
 ## Security
 
