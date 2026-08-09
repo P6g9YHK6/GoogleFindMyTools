@@ -153,3 +153,68 @@ async def test_start_resets_stale_cleanup_warning(monkeypatch):
     assert browser_provisioning.get_state()["cleanup_warning"] is None
 
     await asyncio.wait_for(ran.wait(), timeout=2)
+
+
+def _stub_out_stack(monkeypatch):
+    """_run_flow's own concern is the sign-in state machine, not actually
+    installing/downloading/launching anything - each of those three steps
+    already has its own dedicated tests above. Stubbed as async no-ops here
+    so the smoke tests below exercise only the orchestration."""
+
+    async def fake_install_x_stack():
+        pass
+
+    async def fake_download_chrome():
+        return "/fake/chrome"
+
+    async def fake_start_x_stack():
+        pass
+
+    monkeypatch.setattr(browser_provisioning, "_install_x_stack", fake_install_x_stack)
+    monkeypatch.setattr(browser_provisioning, "_download_chrome", fake_download_chrome)
+    monkeypatch.setattr(browser_provisioning, "_start_x_stack", fake_start_x_stack)
+    monkeypatch.setattr(browser_provisioning, "_runtime_dir", lambda: "/tmp")
+
+
+async def test_run_flow_reaches_done_on_a_full_successful_sign_in(monkeypatch):
+    """End-to-end smoke test of _run_flow's own state machine (install ->
+    download -> launch -> sign in -> shared key -> teardown as "done") -
+    the individual pieces are covered elsewhere; this is the one thing
+    tying them together that wasn't covered by any single-function test."""
+    browser_provisioning._chrome_bin = None
+    browser_provisioning._processes.clear()
+    browser_provisioning._state.update(phase="idle", message="", percent=0, error=None, cleanup_warning=None)
+
+    _stub_out_stack(monkeypatch)
+
+    cached_values = {"aas_token": "tok", "fcm_credentials": {"x": 1}, "shared_key": "key"}
+    monkeypatch.setattr(browser_provisioning, "get_aas_token", lambda: "tok")
+    monkeypatch.setattr(browser_provisioning, "get_shared_key", lambda: "key")
+    monkeypatch.setattr(browser_provisioning, "get_cached_value", lambda name: cached_values.get(name))
+
+    await browser_provisioning._run_flow()
+
+    state = browser_provisioning.get_state()
+    assert state["phase"] == "done"
+    assert state["error"] is None
+
+
+async def test_run_flow_reports_timeout_when_sign_in_never_completes(monkeypatch):
+    browser_provisioning._chrome_bin = None
+    browser_provisioning._processes.clear()
+    browser_provisioning._state.update(phase="idle", message="", percent=0, error=None, cleanup_warning=None)
+
+    _stub_out_stack(monkeypatch)
+    monkeypatch.setattr(config, "GFMT_BROWSER_IDLE_TIMEOUT_S", 0.05)
+
+    def never_signs_in():
+        raise TimeoutError("Timed out waiting for the Google sign-in page.")
+
+    monkeypatch.setattr(browser_provisioning, "get_aas_token", never_signs_in)
+    monkeypatch.setattr(browser_provisioning, "get_cached_value", lambda name: None)
+
+    await browser_provisioning._run_flow()
+
+    state = browser_provisioning.get_state()
+    assert state["phase"] == "timeout"
+    assert "Google sign-in" in state["message"]
