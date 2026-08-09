@@ -12,7 +12,7 @@ RUN pip install --no-cache-dir -r requirements.txt -r requirements-web.txt
 # portable "Chrome for Testing" zip at runtime, not via apt, and none of the
 # browser/X11/VNC stack is baked into this image - see webui/browser_provisioning.py.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates procps \
+        ca-certificates procps tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 COPY . /app

@@ -50,8 +50,8 @@ def retrieve_identity_key(device_registration: DeviceRegistration) -> bytes:
 
     try:
         return decrypt_eik(get_owner_key(), encrypted_identity_key)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Current owner key didn't decrypt this tracker's identity key (%s), trying next.", e)
 
     # The account-level "current" owner key (owner_key_version=-1) didn't decrypt
     # this tracker's identity key - retry by asking explicitly for the version the
@@ -61,8 +61,9 @@ def retrieve_identity_key(device_registration: DeviceRegistration) -> bytes:
     needed_version = encrypted_user_secrets.ownerKeyVersion
     try:
         return decrypt_eik(get_owner_key(owner_key_version=needed_version), encrypted_identity_key)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Owner key version %s didn't decrypt this tracker's identity key (%s), trying next.",
+                      needed_version, e)
 
     # Last resort: GetEidInfoForE2eeDevices always hands back its own idea of
     # "current" regardless of which version we ask it for (both attempts
