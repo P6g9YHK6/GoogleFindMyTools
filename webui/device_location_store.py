@@ -35,8 +35,7 @@ def _save_unlocked(data: dict):
 
 def get_last_location(canonic_id: str) -> dict | None:
     """{"locations": [...], "fetched_at": <unix ts>}, or None if nothing's
-    ever been obtained for this device - which includes a device that only
-    ever had its extra_info (see get_last_extra_info) set, never a location."""
+    ever been obtained for this device."""
     with _lock:
         entry = _load_unlocked().get(canonic_id)
         if not entry or "locations" not in entry:
@@ -52,23 +51,4 @@ def set_last_location(canonic_id: str, locations: list[dict], fetched_at: int):
         entry = data.setdefault(canonic_id, {})
         entry["locations"] = locations
         entry["fetched_at"] = fetched_at
-        _save_unlocked(data)
-
-
-def get_last_extra_info(canonic_id: str) -> dict | None:
-    """{"battery_pct": ..., "wifi_ssid": ..., "wifi_signal": ..., "raw_extra":
-    ..., "fetched_at": <unix ts>}, or None if nothing's ever been obtained -
-    see Auth/live_device_info.py. Only ever populated for devices with the
-    "fetch_live_info" endpoint toggle on (Forwarding Settings page)."""
-    with _lock:
-        return _load_unlocked().get(canonic_id, {}).get("extra_info")
-
-
-def set_last_extra_info(canonic_id: str, extra_info: dict, fetched_at: int):
-    """Only ever call this with a non-empty `extra_info` - same "never
-    clobber a real result with nothing" discipline as set_last_location."""
-    with _lock:
-        data = _load_unlocked()
-        entry = data.setdefault(canonic_id, {})
-        entry["extra_info"] = {**extra_info, "fetched_at": fetched_at}
         _save_unlocked(data)

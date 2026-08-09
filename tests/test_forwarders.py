@@ -23,54 +23,6 @@ def test_blank_endpoint_has_one_empty_config_per_registered_type():
         assert blank[key] == {}
 
 
-def test_traccar_forward_includes_battery_only_when_present(monkeypatch):
-    from webui.forwarders import traccar
-
-    captured = {}
-
-    class FakeResponse:
-        def raise_for_status(self):
-            pass
-
-    def fake_get(url, params, timeout):
-        captured["params"] = params
-        return FakeResponse()
-
-    monkeypatch.setattr(traccar.httpx, "get", fake_get)
-
-    location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
-    assert traccar.forward_to_traccar("http://x", "d1", location) is True
-    assert "batt" not in captured["params"]
-
-    location_with_battery = {**location, "battery_pct": 95}
-    traccar.forward_to_traccar("http://x", "d1", location_with_battery)
-    assert captured["params"]["batt"] == 95
-
-
-def test_phonetrack_forward_includes_battery_only_when_present(monkeypatch):
-    from webui.forwarders import phonetrack
-
-    captured = {}
-
-    class FakeResponse:
-        def raise_for_status(self):
-            pass
-
-    def fake_get(url, params, timeout):
-        captured["params"] = params
-        return FakeResponse()
-
-    monkeypatch.setattr(phonetrack.httpx, "get", fake_get)
-
-    location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
-    assert phonetrack.forward_to_phonetrack("http://x", "d1", location) is True
-    assert "bat" not in captured["params"]
-
-    location_with_battery = {**location, "battery_pct": 95}
-    phonetrack.forward_to_phonetrack("http://x", "d1", location_with_battery)
-    assert captured["params"]["bat"] == 95
-
-
 def test_config_store_round_trip(tmp_path, monkeypatch):
     from webui import config
     from webui.forwarders import config_store
