@@ -4,6 +4,7 @@ import threading
 import yaml
 
 from webui import config
+from webui.forwarders.presets import PRESETS
 
 _lock = threading.Lock()
 
@@ -23,11 +24,68 @@ def _seconds_to_cron(seconds) -> str:
     return f"0 */{hours} * * *"
 
 
+def _migrate_legacy_endpoint(entry: dict) -> dict:
+    """Upgrades one endpoint saved before the generic query-builder existed -
+    a nested "traccar"/"phonetrack" sub-dict and no top-level "url" - into the
+    current method/url/params/headers/variables shape, using the same preset
+    templates the settings UI now offers (see presets.py). A no-op on
+    endpoints that already look like the current shape, so this is safe to
+    run unconditionally on every load."""
+    if not isinstance(entry, dict) or "url" in entry:
+        return entry
+
+    etype = entry.get("type")
+    migrated = {k: v for k, v in entry.items() if k not in ("traccar", "phonetrack")}
+
+    if etype == "traccar":
+        sub = entry.get("traccar") or {}
+        preset = PRESETS["traccar"]
+        migrated["method"] = preset["method"]
+        migrated["url"] = (sub.get("url") or "").rstrip("/") + "/"
+        migrated["params"] = dict(preset["params"])
+        migrated["headers"] = {}
+        migrated["body_type"] = "none"
+        migrated["body"] = ""
+        migrated["variables"] = {"device_id": sub.get("device_id", "")}
+    elif etype == "phonetrack":
+        sub = entry.get("phonetrack") or {}
+        preset = PRESETS["phonetrack"]
+        migrated["method"] = preset["method"]
+        migrated["url"] = (sub.get("base_url") or "").rstrip("/") + "/{{device_name}}"
+        migrated["device_name"] = sub.get("device_name", "")
+        migrated["params"] = dict(preset["params"])
+        migrated["headers"] = {}
+        migrated["body_type"] = "none"
+        migrated["body"] = ""
+        migrated["variables"] = {}
+    else:
+        # Unknown/missing legacy type - fall back to Custom/blank rather than
+        # silently dropping the endpoint; the URL is just empty until the
+        # user fills it back in themselves.
+        preset = PRESETS["custom"]
+        migrated.setdefault("type", "custom")
+        migrated["method"] = preset["method"]
+        migrated["url"] = preset["url"]
+        migrated["params"] = dict(preset["params"])
+        migrated["headers"] = dict(preset["headers"])
+        migrated["body_type"] = preset["body_type"]
+        migrated["body"] = preset["body"]
+        migrated["variables"] = dict(preset["variables"])
+
+    return migrated
+
+
 def normalize_device_config(device_cfg: dict) -> dict:
-    """Convert a pre-multi-endpoint device record into the current endpoints-list
-    shape. A no-op on records that already have "endpoints"."""
+    """Convert a pre-multi-endpoint device record into the current
+    endpoints-list shape, and every endpoint in it into the current generic
+    query-builder shape. A no-op (same object) on records that need neither."""
     if "endpoints" in device_cfg:
-        return device_cfg
+        migrated_endpoints = [_migrate_legacy_endpoint(e) for e in device_cfg["endpoints"]]
+        if migrated_endpoints == device_cfg["endpoints"]:
+            return device_cfg
+        normalized = dict(device_cfg)
+        normalized["endpoints"] = migrated_endpoints
+        return normalized
 
     normalized = dict(device_cfg)
     destination = normalized.pop("destination", "none")
@@ -51,7 +109,7 @@ def normalize_device_config(device_cfg: dict) -> dict:
         })
     # destination == "none" (or missing) -> empty list, forwarding stays disabled
 
-    normalized["endpoints"] = endpoints
+    normalized["endpoints"] = [_migrate_legacy_endpoint(e) for e in endpoints]
     return normalized
 
 

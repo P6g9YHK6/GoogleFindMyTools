@@ -10,5 +10,6 @@
   {% include "settings/_device_row.html" %}
 {% endfor %}
 
+<script id="presets-data" type="application/json">{{ presets_json | safe }}</script>
 <script src="/static/endpoint_fields.js"></script>
 {% endblock %}

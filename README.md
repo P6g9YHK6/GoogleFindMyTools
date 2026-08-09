@@ -12,7 +12,7 @@ It's built on top of [GoogleFindMyTools](https://github.com/leonboe1/GoogleFindM
 ## Features
 
 - **Devices page** - every tracker and phone on your account, in one list. Manual "Locate" and "Play sound" buttons, plus whatever the last scheduled poll found. Shows last-seen time for phones and tags alike.
-- **Scheduled forwarding, not a one-off export** - each device polls on its own cron schedule and forwards to as many destinations as you want (Traccar, Nextcloud PhoneTrack, or both), each with its own schedule and its own alias.
+- **Scheduled forwarding, not a one-off export** - each device polls on its own cron schedule and forwards to as many destinations as you want, each with its own schedule and its own alias. Every destination is really the same generic HTTP request builder (method, URL, headers, query params, body, all with `{{latitude}}`-style placeholders) - Traccar and Nextcloud PhoneTrack are just presets that pre-fill it, so you can add a custom endpoint (a different self-hosted service, a webhook, whatever takes HTTP) without waiting on this project to add it by name.
 - **Skip pointless updates** - two independent, opt-in gates per destination: skip sending if the device hasn't moved far enough, and skip re-sending the same stale cached fix Google keeps returning. Both are local math (haversine distance), no external API calls, no extra cost.
 - **Forwarding Log** - every attempt, every device, every destination, with the exact payload sent and whether it succeeded - so a silent failure on your Traccar server's end doesn't stay silent here.
 - **System Log + error notifications** - every warning/error anywhere in the app (a failed locate, an expired token, a forwarding failure) is captured in a searchable in-app log and can be pushed out live through [Apprise](https://github.com/caronc/apprise) to whatever you already use (ntfy, Discord, Telegram, Pushover, email, 100+ others) - configured from the Config page, no restart needed.
@@ -53,7 +53,7 @@ The Config page also has fields for the query throttle and Apprise notification 
 
 - **Devices** (`/`) - list, locate, play sound, last-seen.
 - **Register Tracker** (`/register`) - pair a custom ESP32/Zephyr BLE tracker.
-- **Forwarding Settings** (`/settings`) - per device: display name/alias, and any number of forwarding endpoints (Traccar or PhoneTrack), each with its own cron schedule, alias, and skip-if-close / skip-if-stale thresholds.
+- **Forwarding Settings** (`/settings`) - per device: display name/alias, and any number of forwarding endpoints. Each endpoint is a query builder (method, URL, headers, params, body) that a preset (Traccar, Nextcloud PhoneTrack, or Custom) pre-fills and you can still tweak freely, plus its own cron schedule, alias, device-name override, and skip-if-close / skip-if-stale thresholds. Unsaved edits are flagged, and there's a raw YAML editor for anything the form doesn't cover.
 - **Forwarding Log** (`/logs`) - every forward attempt, its target, status, and the exact payload sent.
 - **System Log** (`/logs/system`) - every warning/error anywhere in the app.
 - **Config** (`/auth`) - sign in/out, credential status, query throttle, and Apprise notification settings.
