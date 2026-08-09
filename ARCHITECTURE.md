@@ -36,11 +36,14 @@ to Google directly - it always goes through the CLI-tool layer.
   `asyncio.Task` per device (see `_poll_device`), sleeping until the next
   endpoint's cron fires, locating, then forwarding to each due endpoint
   (skip-if-close / skip-if-stale gates included).
-- `auth_state.py` / `browser_provisioning.py` - the web login flow. A
-  Chrome-in-Xvfb-in-noVNC stack is provisioned on demand (installed once
-  per container lifetime, torn down after each sign-in attempt) and its
-  progress is pushed live over `/ws/provision`; see the module docstring
-  and comments in `browser_provisioning.py` for the state machine.
+- `auth_state.py` / `browser_provisioning.py` / `browser_stack.py` - the web
+  login flow, split into the sign-in state machine (`browser_provisioning.py`
+  - what phase it's in, when to tear down, pushing progress live over
+  `/ws/provision`) and the Chrome-in-Xvfb-in-noVNC stack that state machine
+  drives (`browser_stack.py` - installing, launching, and killing the actual
+  processes, provisioned on demand and torn down after each sign-in attempt
+  but left installed/downloaded for the rest of the container's life). See
+  each module's own docstring for specifics.
 - `auth_middleware.py` - optional HTTP Basic Auth gating the whole ASGI
   app (HTTP and WebSocket alike), a no-op unless both `HTTP_USER` and
   `HTTP_PASSWORD` are set.
