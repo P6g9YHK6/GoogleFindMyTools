@@ -47,6 +47,10 @@ Copy `.env.example` to `.env` and fill in what you need, or pass these directly 
 | `LOCATE_CONCURRENCY` | 5 | Max number of devices being actively located at once. |
 | `LOCATE_TIMEOUT_S` | 60 | How long to wait for a single locate before giving up. |
 | `QUERY_THROTTLE_MAX` / `QUERY_THROTTLE_WINDOW_S` / `QUERY_MIN_SPREAD_S` | 20 / 60 / 1 | Account-wide rate limit against Google's backend. Also editable live from the Config page - no restart needed. |
+| `HTTPS_ENABLED` | unset | Set to `1` to serve HTTPS instead of HTTP on the same port, using a self-signed certificate generated automatically on first start and reused after that (not regenerated every restart). See [Security](#security). |
+| `GFMT_TLS_CERT_PATH` / `GFMT_TLS_KEY_PATH` | unset | Bring your own cert/key instead of the self-signed one - both must point at existing files, or startup fails rather than silently falling back to self-signed. |
+| `GFMT_TLS_SAN` | unset | Comma-separated extra hostnames/IPs to add to the generated self-signed cert (it always covers `localhost`/`127.0.0.1`/`::1`) - set this to your LAN hostname or static IP if you reach the box by either. |
+| `GFMT_TLS_VALIDITY_DAYS` | 825 | How long a generated self-signed cert is valid for. Defaults to Apple's ATS cap (Safari/iOS/macOS reject longer-lived certs even after you manually trust them) - raise it if you don't care about Safari. |
 
 The Config page also has fields for the query throttle and Apprise notification settings, applied immediately without a restart.
 
@@ -63,9 +67,10 @@ The Config page also has fields for the query throttle and Apprise notification 
 ## Security
 
 > [!CAUTION]
-> `HTTP_USER`/`HTTP_PASSWORD` adds Basic Auth only - no HTTPS. This app is meant for a trusted LAN (or behind your own reverse proxy/VPN if you need remote access), not exposed directly to the public internet.
+> By default this is plain HTTP with no auth - meant for a trusted LAN (or behind your own reverse proxy/VPN if you need remote access), not exposed directly to the public internet. `HTTPS_ENABLED=1` gets you transport encryption (see below), but self-signed TLS still isn't the same as a real reverse proxy or VPN for anything beyond casual LAN use.
 
 - Set `HTTP_USER`/`HTTP_PASSWORD` to gate the whole UI, including `/docs` (FastAPI's interactive API explorer) - it's one more route behind the same middleware, not a separate hole.
+- Set `HTTPS_ENABLED=1` to serve HTTPS with an automatically generated, persisted self-signed certificate - no separate reverse proxy needed. Your browser will show a one-time "not trusted" warning the first time (expected for any self-signed cert, not a sign something's wrong) - accept/pin it, or point `GFMT_TLS_CERT_PATH`/`GFMT_TLS_KEY_PATH` at a real cert instead if you have one. This defeats passive network snooping but gives no identity guarantee the way a CA-signed cert does. It's a toggle, not a dual mode - with it on, plain `http://` to the same port gets a connection reset, not a redirect.
 - Set `SECRETS_ENCRYPTION_KEY` to encrypt credentials at rest instead of plain YAML. Back this up somewhere alongside (or independent of) your `GFMT_DATA_DIR` volume: it's not stored anywhere itself, and losing or changing it makes every already-encrypted value in `auth.yaml` permanently unreadable - your only recovery is signing in again from scratch, not restoring the key.
 - Everything - config, credentials, logs - lives in the one data directory you control; nothing phones home except to Google's own APIs and (if you configure it) your Apprise notification targets.
 

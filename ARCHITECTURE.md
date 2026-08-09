@@ -47,6 +47,12 @@ to Google directly - it always goes through the CLI-tool layer.
 - `auth_middleware.py` - optional HTTP Basic Auth gating the whole ASGI
   app (HTTP and WebSocket alike), a no-op unless both `HTTP_USER` and
   `HTTP_PASSWORD` are set.
+- `tls.py` / `serve.py` - optional self-signed HTTPS. `tls.py`'s
+  `ensure_cert()` generates and persists a cert (or validates a
+  bring-your-own one), `serve.py` is the Docker image's actual entrypoint
+  (see `docker/web/Dockerfile`'s `CMD`) that wires the cert into uvicorn
+  when `HTTPS_ENABLED` is set - a no-op wrapper around a plain uvicorn
+  invocation otherwise.
 - `settings_store.py` - persisted overrides (`config.yaml`) for things that
   used to be env-var-only (query throttle, Apprise settings), editable live
   from the Config page.

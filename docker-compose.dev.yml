@@ -18,9 +18,10 @@
 # default env (see docker/web/Dockerfile), so a single volume mounted there
 # covers all of it - no subfolders to keep track of.
 #
-# LAN-only setup: no HTTPS in front of the service, and no auth unless both
-# HTTP_USER and HTTP_PASSWORD are set. See the "Web UI" section in
-# README.md before exposing this beyond your own network.
+# LAN-only setup by default: plain HTTP (set HTTPS_ENABLED=1 for a
+# self-signed cert instead - see README.md's Security section), and no auth
+# unless both HTTP_USER and HTTP_PASSWORD are set. See the "Web UI" section
+# in README.md before exposing this beyond your own network.
 services:
   web:
     build:
@@ -42,6 +43,8 @@ services:
       - HTTP_USER=${HTTP_USER:-}
       - HTTP_PASSWORD=${HTTP_PASSWORD:-}
       - SECRETS_ENCRYPTION_KEY=${SECRETS_ENCRYPTION_KEY:-}
+      - HTTPS_ENABLED=${HTTPS_ENABLED:-}
+      - GFMT_TLS_SAN=${GFMT_TLS_SAN:-}
     volumes:
       - data:/data
     restart: unless-stopped
