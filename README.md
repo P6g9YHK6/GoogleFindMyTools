@@ -86,3 +86,9 @@ The original scripts this project is built on still work standalone, without Doc
 - `python main.py`
 
 On first run this walks you through the same Google sign-in as the web UI, storing the result in `Auth/auth.yaml` - copy that file to run on a headless machine without Chrome. (Upgrading from an older version that still has `Auth/secrets.json` migrates it automatically the first time it's read; the old file is left in place, untouched.) `SECRETS_ENCRYPTION_KEY` (see [Configuration](#configuration)) applies here too.
+
+## TODO
+
+- Finish the live data scraper: battery level, wifi, wifi signal strength, force a phone update.
+- ESP32 firmware builder in the web UI.
+- AirTag support, with the help of a reverse-engineered locate app: [AirtagAlex](https://github.com/icepick3000/AirtagAlex/blob/main/AirtagAlex.sh), [demo video](https://www.youtube.com/watch?v=9VQ-_ztG9aM).
