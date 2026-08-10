@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Maintainer>
+  <Icon>https://raw.githubusercontent.com/P6g9YHK6/GoogleFindMyTools/main/webui/static/logo-512.png</Icon>
+  <Profile>
+    Self-hosted Google Find My Device / Find Hub location forwarder to Traccar or Nextcloud PhoneTrack.
+  </Profile>
+  <WebPage>https://github.com/P6g9YHK6/GoogleFindMyTools</WebPage>
+</Maintainer>
