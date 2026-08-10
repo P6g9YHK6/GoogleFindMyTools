@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>GoogleFindMyTools</Name>
+  <Repository>ghcr.io/p6g9yhk6/googlefindmytools:latest</Repository>
+  <Registry>https://github.com/P6g9YHK6/GoogleFindMyTools/pkgs/container/googlefindmytools</Registry>
+  <Network>bridge</Network>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/P6g9YHK6/GoogleFindMyTools/issues</Support>
+  <Project>https://github.com/P6g9YHK6/GoogleFindMyTools</Project>
+  <Overview>A self-hosted app that logs into your Google account, polls your Find My Device trackers and Android phones, and forwards each new location to your own Traccar or Nextcloud PhoneTrack server - so you keep your location history on your own infrastructure instead of nowhere. One container, a web UI, nothing else to run.&#13;&#10;&#13;&#10;CAUTION: this holds long-lived Google account tokens and live device location data. It defaults to plain HTTP with no auth, meant for a trusted LAN - set HTTP_USER/HTTP_PASSWORD and/or HTTPS_ENABLED below before exposing it any further.&#13;&#10;&#13;&#10;First-time Google sign-in installs Chrome/Xvfb/noVNC on demand inside the container (needs outbound internet to Debian's mirrors and storage.googleapis.com the first time only), then walks you through the actual login right in the web UI - no separate VNC client needed.&#13;&#10;&#13;&#10;GitHub: https://github.com/P6g9YHK6/GoogleFindMyTools</Overview>
+  <Category>Tools:Utilities</Category>
+  <WebUI>http://[IP]:[PORT:4321]</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/P6g9YHK6/GoogleFindMyTools/main/templates/googlefindmytools.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/P6g9YHK6/GoogleFindMyTools/main/webui/static/logo-512.png</Icon>
+  <ReadMe>https://raw.githubusercontent.com/P6g9YHK6/GoogleFindMyTools/main/README.md</ReadMe>
+  <License>GPLv3</License>
+  <ExtraParams>--shm-size=1g --tmpfs /run/gfmt-browser:rw,exec,nosuid,size=1g</ExtraParams>
+  <Requires>Outbound internet access to Debian's package mirrors and storage.googleapis.com on first Google sign-in, to fetch Chrome/Xvfb/noVNC on demand.</Requires>
+  <Config Name="WebUI Port" Target="4321" Default="4321" Mode="tcp" Description="Port the web UI (and its API) listens on." Type="Port" Display="always" Required="true" Mask="false">4321</Config>
+  <Config Name="Data" Target="/data" Default="/mnt/user/appdata/googlefindmytools" Mode="rw" Description="Everything persisted lives flat in here: Google auth tokens, per-device forwarding config, location history, and logs. Back this directory up." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/googlefindmytools</Config>
+  <Config Name="HTTP_USER" Target="HTTP_USER" Default="" Description="Set together with HTTP_PASSWORD to require this username/password pair (HTTP Basic Auth) for the whole web UI, including the embedded Google login view. Leave both blank to run without auth (trusted LAN only)." Type="Variable" Display="always" Required="false" Mask="false"/>
+  <Config Name="HTTP_PASSWORD" Target="HTTP_PASSWORD" Default="" Description="Paired with HTTP_USER above - see its description." Type="Variable" Display="always" Required="false" Mask="true"/>
+  <Config Name="SECRETS_ENCRYPTION_KEY" Target="SECRETS_ENCRYPTION_KEY" Default="" Description="Any string. When set, every credential in auth.yaml (OAuth tokens, FCM credentials, vault keys) is encrypted at rest with AES-256-GCM instead of stored as plain text. Losing or changing this makes existing encrypted values unreadable - your only recovery is signing in again." Type="Variable" Display="always" Required="false" Mask="true"/>
+  <Config Name="HTTPS_ENABLED" Target="HTTPS_ENABLED" Default="" Description="Set to 1 to serve HTTPS instead of HTTP on the same port, using a self-signed certificate generated automatically on first start and reused after that. See the Security section of the README before turning this on." Type="Variable" Display="always" Required="false" Mask="false"/>
+  <Config Name="TZ" Target="TZ" Default="" Description="Timezone for timestamps shown in the UI and logs, e.g. America/Chicago." Type="Variable" Display="always" Required="false" Mask="false"/>
+  <Config Name="GFMT_TLS_SAN" Target="GFMT_TLS_SAN" Default="" Description="Comma-separated extra hostnames/IPs to add to the generated self-signed HTTPS cert (it always covers localhost/127.0.0.1/::1) - set this to your LAN hostname or static IP if you reach this box by either." Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="GFMT_TLS_CERT_PATH" Target="GFMT_TLS_CERT_PATH" Default="" Description="Bring your own cert instead of the self-signed one - must point at an existing file inside the container (e.g. under /data), or startup fails rather than silently falling back to self-signed. Set alongside GFMT_TLS_KEY_PATH." Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="GFMT_TLS_KEY_PATH" Target="GFMT_TLS_KEY_PATH" Default="" Description="Paired with GFMT_TLS_CERT_PATH above - see its description." Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="GFMT_TLS_VALIDITY_DAYS" Target="GFMT_TLS_VALIDITY_DAYS" Default="825" Description="How long a generated self-signed cert is valid for. Defaults to Apple's ATS cap (Safari/iOS/macOS reject longer-lived certs even after you manually trust them) - raise it if you don't care about Safari." Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="DEFAULT_POLL_INTERVAL_S" Target="DEFAULT_POLL_INTERVAL_S" Default="300" Description="Fallback poll interval (seconds) for a newly added device before you set its own cron schedule." Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="LOCATE_CONCURRENCY" Target="LOCATE_CONCURRENCY" Default="5" Description="Max number of devices being actively located at once." Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="LOCATE_TIMEOUT_S" Target="LOCATE_TIMEOUT_S" Default="60" Description="How long (seconds) to wait for a single locate before giving up." Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="QUERY_THROTTLE_MAX" Target="QUERY_THROTTLE_MAX" Default="20" Description="Account-wide rate limit against Google's backend: max calls per QUERY_THROTTLE_WINDOW_S. Also editable live from the Config page - no restart needed." Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="QUERY_THROTTLE_WINDOW_S" Target="QUERY_THROTTLE_WINDOW_S" Default="60" Description="Window (seconds) the QUERY_THROTTLE_MAX limit applies over." Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="QUERY_MIN_SPREAD_S" Target="QUERY_MIN_SPREAD_S" Default="1" Description="Minimum spacing (seconds) enforced between individual calls to Google's backend." Type="Variable" Display="advanced" Required="false" Mask="false"/>
+</Container>
