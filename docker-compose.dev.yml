@@ -29,11 +29,12 @@ services:
       dockerfile: docker/web/Dockerfile
     ports:
       - "4321:4321"
-    # Chrome under Xvfb needs more than Docker's default 64MB /dev/shm.
+    # Chrome under Xvfb needs more than Docker's default 64MB /dev/shm, and its
+    # tmpfs mount needs exec (Docker defaults to noexec, which blocks running the
+    # extracted Chrome binary with a misleading "Permission denied"). Both are only
+    # needed during sign-in - once signed in, comment them out; uncomment before
+    # signing in again.
     shm_size: "1g"
-    # Docker's tmpfs mounts default to noexec, which silently blocks running
-    # the Chrome binary extracted into this directory ("Permission denied",
-    # not an actual file permission issue) - exec overrides that default.
     tmpfs:
       - /run/gfmt-browser:rw,exec,nosuid,size=1g
     environment:
