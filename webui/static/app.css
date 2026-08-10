@@ -129,6 +129,24 @@ nav a:hover {
   text-decoration: none;
 }
 
+nav a.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text);
+  font-weight: 600;
+  margin-right: 0.5rem;
+}
+
+nav a.brand img {
+  border-radius: 50%;
+  display: block;
+}
+
+nav a.brand:hover {
+  background: none;
+}
+
 /* Buttons */
 button, input[type="submit"] {
   font-family: inherit;

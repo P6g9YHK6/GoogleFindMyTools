@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="webui/static/logo.png" alt="GoogleFindMyTools logo" width="160">
+</p>
+
 # GoogleFindMyTools
 
 [![Lint and test](https://github.com/P6g9YHK6/GoogleFindMyTools/actions/workflows/test.yml/badge.svg)](https://github.com/P6g9YHK6/GoogleFindMyTools/actions/workflows/test.yml)
