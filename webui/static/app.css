@@ -132,19 +132,37 @@ nav a:hover {
 nav a.brand {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  color: var(--text);
-  font-weight: 600;
   margin-right: 0.5rem;
+  padding: 0.3rem 0.5rem;
 }
 
 nav a.brand img {
-  border-radius: 50%;
+  height: 28px;
+  width: auto;
   display: block;
 }
 
 nav a.brand:hover {
   background: none;
+}
+
+/* Footer */
+footer {
+  max-width: 960px;
+  margin: 3rem auto 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+footer a {
+  color: var(--text-muted);
+  text-decoration: underline;
+}
+
+footer a:hover {
+  color: var(--text);
 }
 
 /* Buttons */

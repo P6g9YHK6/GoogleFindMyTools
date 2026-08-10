@@ -14,7 +14,7 @@
 </head>
 <body>
   <nav>
-    <a href="/" class="brand"><img src="/static/logo.png" alt="" width="28" height="28">GoogleFindMyTools</a>
+    <a href="/" class="brand"><img src="/static/logo.png" alt="GoogleFindMyTools" height="28"></a>
     <a href="/">Devices</a>
     <a href="/register">Register Tracker</a>
     <a href="/settings">Forwarding Settings</a>
@@ -24,6 +24,16 @@
   <main>
     {% block content %}{% endblock %}
   </main>
+  <footer>
+    {% if build_sha != "dev" %}
+      Build <a href="https://github.com/P6g9YHK6/GoogleFindMyTools/commit/{{ build_sha }}" target="_blank" rel="noopener">{{ build_sha_short }}</a>
+    {% else %}
+      Build {{ build_sha_short }}
+    {% endif %}
+    {% if build_date %}&middot; {{ build_date }}{% endif %}
+    &middot; up {{ uptime_str }}
+    &middot; <a href="https://github.com/P6g9YHK6/GoogleFindMyTools" target="_blank" rel="noopener">Source</a>
+  </footer>
   <script src="/static/app.js"></script>
 </body>
 </html>

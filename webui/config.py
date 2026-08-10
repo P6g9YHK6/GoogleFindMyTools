@@ -1,5 +1,6 @@
 import os
 import pathlib
+import time
 
 # noVNC/websockify run in this same container now (see webui/browser_provisioning.py),
 # only while a login is actually in progress. The web app still proxies it through
@@ -97,3 +98,15 @@ DEVICE_LOCATIONS_PATH = DATA_DIR / "device_locations.yaml"
 # GFMT_TLS_KEY_PATH above aren't set.
 TLS_CERT_PATH = DATA_DIR / "tls_cert.pem"
 TLS_KEY_PATH = DATA_DIR / "tls_key.pem"
+
+# Baked in at image build time (see docker/web/Dockerfile and
+# .github/workflows/docker-publish.yml) so the footer can show what's
+# actually running without the container reading back its own image's OCI
+# labels. "dev" means a local/dev build with no --build-arg passed - see
+# webui/templating.py, which treats that as "no real commit to link to".
+GFMT_BUILD_SHA = os.environ.get("GFMT_BUILD_SHA", "dev")
+GFMT_BUILD_DATE = os.environ.get("GFMT_BUILD_DATE", "")
+
+# Process start time, for the footer's uptime display and /metrics'
+# gfmt_uptime_seconds (webui/routers/metrics.py) - one clock, two consumers.
+APP_START_TIME = time.monotonic()

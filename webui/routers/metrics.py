@@ -18,8 +18,6 @@ from webui.forwarders import config_store, log_store
 
 router = APIRouter()
 
-_START_TIME = time.monotonic()
-
 _FORWARD_STATUSES = ("ok", "error", "skipped")
 _SYSTEM_LEVELS = ("info", "warning", "error", "critical")
 
@@ -36,7 +34,7 @@ def _render() -> str:
     lines = [
         "# HELP gfmt_uptime_seconds Seconds since this process started.",
         "# TYPE gfmt_uptime_seconds counter",
-        f"gfmt_uptime_seconds {time.monotonic() - _START_TIME:.0f}",
+        f"gfmt_uptime_seconds {time.monotonic() - config.APP_START_TIME:.0f}",
         "",
         "# HELP gfmt_logged_in Whether a Google account is currently signed in (1) or not (0).",
         "# TYPE gfmt_logged_in gauge",
