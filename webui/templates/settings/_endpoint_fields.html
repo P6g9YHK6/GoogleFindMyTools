@@ -30,7 +30,7 @@
   {% endif %}
 
   <div class="top-row">
-    <label>Alias
+    <label>Endpoint alias
       <input type="text" class="endpoint-alias" name="ep-{{ idx }}-alias" placeholder="e.g. Home Traccar" value="{{ endpoint.alias or '' }}">
     </label>
     {% if is_new %}
@@ -51,7 +51,7 @@
   {% if is_new %}
     <p class="field-hint preset-hint">{{ (presets.get(endpoint.type) or presets.get('custom')).hint }}</p>
   {% endif %}
-  <p class="field-hint"><code>{{ '{{device_name}}' }}</code> is this tracker's real name from your Google account; <code>{{ '{{device_alias}}' }}</code> is the local nickname you set above.</p>
+  <p class="field-hint">Optional label for this endpoint block itself, e.g. "Home Traccar" - available as <code>{{ '{{endpoint_alias}}' }}</code> below. Separate from the device alias set at the top of this device's settings, which is <code>{{ '{{device_alias}}' }}</code>.</p>
 
   <div class="endpoint-sections">
   <fieldset class="preview-fieldset">
