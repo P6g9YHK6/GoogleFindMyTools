@@ -42,7 +42,21 @@ async def _rows(overrides: dict[str, dict] | None = None, saved_id: str | None =
 
     rows = []
     for google_name, canonic_id, _last_seen in canonic_ids:
-        device_cfg = devices.get(canonic_id) or {"display_name": google_name, "endpoints": []}
+        device_cfg = devices.get(canonic_id)
+        if device_cfg is None:
+            device_cfg = {"display_name": google_name, "endpoints": []}
+        elif device_cfg.get("google_name") != google_name:
+            # Keep the account's real name in sync on local disk too (only
+            # for devices actually saved already - this must never be what
+            # creates a config entry for a device the user hasn't added).
+            # webui/scheduler.py's poll loop never talks to Google's API
+            # itself, so this is the only place {{device_name}} (see
+            # webui/forwarders/custom.py) has anywhere to read the real name
+            # from at forward time - {{device_alias}} instead reads
+            # display_name, the separate local nickname set below.
+            device_cfg = dict(device_cfg, google_name=google_name)
+            config_store.set_device_config(canonic_id, device_cfg)
+            devices[canonic_id] = device_cfg
         save_error = None
         if overrides and canonic_id in overrides:
             device_cfg = overrides[canonic_id]["config"]

@@ -161,7 +161,12 @@
 
   function blockVars(block) {
     const vars = Object.assign({}, SAMPLE_VALUES);
-    vars.device_name = block.dataset.deviceAlias || "";
+    // device_name (the fixed Google account name) and device_alias (the
+    // local nickname) are genuinely different values now - see
+    // webui/forwarders/custom.py's build_context - rendered into these two
+    // data attributes server-side (_endpoint_fields.html) so this preview
+    // doesn't need its own copy of that fallback logic.
+    vars.device_name = block.dataset.deviceName || block.dataset.deviceAlias || "";
     vars.device_alias = block.dataset.deviceAlias || "";
     const alias = block.querySelector(".endpoint-alias");
     vars.endpoint_alias = (alias && alias.value) || "";
