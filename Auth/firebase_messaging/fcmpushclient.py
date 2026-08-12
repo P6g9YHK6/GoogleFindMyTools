@@ -786,9 +786,16 @@ class FcmPushClient:  # pylint:disable=too-many-instance-attributes
             self.credentials_updated_callback,
             http_client_session=self._http_client_session,
         )
-        self.credentials = await self.register.checkin_or_register()
-        # await self.register.fcm_refresh_install()
-        await self.register.close()
+        try:
+            self.credentials = await self.register.checkin_or_register()
+            # await self.register.fcm_refresh_install()
+        finally:
+            # Close even when checkin_or_register() raises (e.g. a checkin
+            # attempt exhausts its retries) - otherwise FcmRegister's own
+            # aiohttp ClientSession/TCPConnector never gets closed and
+            # aiohttp logs "Unclosed client session"/"Unclosed connector
+            # connections" once it's garbage collected.
+            await self.register.close()
         return self.credentials["fcm"]["registration"]["token"]
 
     async def start(self) -> None:
