@@ -536,6 +536,33 @@ details ul {
   margin: 0.75rem 0 0;
 }
 
+/* Request/Variables/Preview/Schedule fieldsets inside an endpoint block -
+   stacked by default (mobile-first); once there's room for at least two
+   ~320px columns side by side, let them flow into a row instead of each
+   eating the block's full width down the page. auto-fit + minmax means
+   the column count itself isn't hardcoded - it settles at whatever fits
+   the viewport (1 on a phone, 2-4 on a wide desktop). */
+.endpoint-sections {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+  align-items: start;
+}
+
+@media (min-width: 700px) {
+  .endpoint-sections {
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 1rem;
+  }
+
+  .endpoint-sections > fieldset {
+    /* Grid `gap` already spaces these out - the generic "fieldset fieldset"
+       margin would just stack on top of it, widening the gap unevenly
+       between rows vs. within a row. */
+    margin: 0;
+  }
+}
+
 /* Query-builder endpoint block: preset + top-level fields */
 .top-row {
   display: flex;
