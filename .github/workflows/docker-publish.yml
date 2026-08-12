@@ -10,6 +10,23 @@ permissions:
   contents: read
   packages: write
 
+# Two runs of this workflow building at the same time (e.g. a push landing
+# while an earlier push's build is still running) used to both read from and
+# write to the same shared "type=gha" cache scope below. GitHub's Actions
+# cache isn't safe against that - concurrent writes to one scope can leave
+# it holding blobs that don't actually match what a later build's layers
+# hash to, so a build can silently "cache hit" onto a stale layer instead of
+# rebuilding it, even though its build args (GFMT_BUILD_SHA, the app code
+# via COPY) changed. That's exactly what happened on 2026-08-12: the image
+# ended up a mix of days-old and current files despite every run reporting
+# success. Queuing runs instead of letting them overlap removes the
+# concurrent-write case entirely; switching the cache itself to the
+# registry backend below removes the other half - a registry cache push is
+# one atomic tag replace, not an incrementally-mutated shared index.
+concurrency:
+  group: docker-publish
+  cancel-in-progress: false
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
@@ -60,5 +77,11 @@ jobs:
           build-args: |
             GFMT_BUILD_SHA=${{ github.sha }}
             GFMT_BUILD_DATE=${{ steps.build_date.outputs.date }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Registry cache instead of "type=gha": a normal image push under
+          # a dedicated :buildcache tag, so it's content-addressed and each
+          # push atomically replaces the whole cache manifest - no shared
+          # mutable index that concurrent runs (or GHA's own cache eviction)
+          # can leave in an inconsistent state. See the concurrency block
+          # above for the other half of this fix.
+          cache-from: type=registry,ref=ghcr.io/${{ steps.owner.outputs.lower }}/googlefindmytools:buildcache
+          cache-to: type=registry,ref=ghcr.io/${{ steps.owner.outputs.lower }}/googlefindmytools:buildcache,mode=max
