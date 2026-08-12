@@ -50,13 +50,36 @@ class FcmReceiver:
         self.credentials = get_cached_value('fcm_credentials')
         self.location_update_callbacks = []
         self._callbacks_lock = threading.Lock()
+        self._start_lock = threading.Lock()
         self.pc = FcmPushClient(self._on_notification, fcm_config, self.credentials, self._on_credentials_updated)
+
+
+    def _ensure_listening(self):
+        """Starts the background FCM listener exactly once, even if several
+        callers race to be the first one that needs it - e.g. two devices'
+        polls landing close together, which is the common case right after
+        a restart (every device's schedule is freshly evaluated at once).
+        The bare `if not self._listening: self._start_listener_in_background()`
+        this replaced let two callers both see False and both start a
+        listener concurrently against the same shared self.pc, corrupting
+        its internal connection state - observed in production as
+        "readexactly() called while another coroutine is already waiting
+        for incoming data", crashing the listener and timing out every
+        locate that was waiting on it. Returns the account's gcm android_id
+        either way, matching what _start_listener_in_background() itself
+        returns, so get_android_id() below can use this as its one path
+        regardless of whether this call actually started anything."""
+        if self._listening:
+            return self.credentials['gcm']['android_id']
+        with self._start_lock:
+            if self._listening:
+                return self.credentials['gcm']['android_id']
+            return self._start_listener_in_background()
 
 
     def register_for_location_updates(self, callback):
 
-        if not self._listening:
-            self._start_listener_in_background()
+        self._ensure_listening()
 
         with self._callbacks_lock:
             self.location_update_callbacks.append(callback)
@@ -71,8 +94,7 @@ class FcmReceiver:
 
 
     def get_fcm_token(self):
-        if not self._listening:
-            self._start_listener_in_background()
+        self._ensure_listening()
 
         return self.credentials['fcm']['registration']['token']
 
@@ -97,7 +119,7 @@ class FcmReceiver:
     def get_android_id(self):
 
         if self.credentials is None:
-            return self._start_listener_in_background()
+            return self._ensure_listening()
 
         return self.credentials['gcm']['android_id']
 
