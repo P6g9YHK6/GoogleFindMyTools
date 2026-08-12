@@ -55,8 +55,23 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Phones: the fixed 1.5rem side padding above eats a lot of a ~375px
+   viewport - shrink it instead of leaving less room for content than a
+   desktop window gets. */
+@media (max-width: 480px) {
+  body {
+    padding: 0 0.85rem 2rem;
+  }
+}
+
 main {
-  max-width: 960px;
+  /* Was a flat 960px - most of what lives in here (the endpoint request
+     builder's side-by-side rows, key/value tables, forwarding log) is
+     genuinely wide content that benefits from a bigger monitor instead of
+     wrapping/scrolling sooner than it needs to. 1200px is still well short
+     of "full-bleed on an ultrawide" (long paragraphs elsewhere stay
+     readable), just wider than a single dense form column needs to be. */
+  max-width: 1200px;
   margin: 0 auto;
 }
 
@@ -102,6 +117,7 @@ code {
 nav {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.5rem;
   padding: 1rem 0;
   margin: 0 0 1.5rem;
@@ -148,7 +164,7 @@ nav a.brand:hover {
 
 /* Footer */
 footer {
-  max-width: 960px;
+  max-width: 1200px; /* matches main's width above, see its comment */
   margin: 3rem auto 0;
   padding-top: 1rem;
   border-top: 1px solid var(--border);
@@ -382,6 +398,16 @@ details ul {
   border-radius: var(--radius-sm);
 }
 
+.vnc-frame {
+  width: 100%;
+  /* Was a flat 600px (set inline by provision.js) - fine on a laptop, but
+     more than the whole viewport height on a phone in landscape, forcing
+     extra scrolling to see the embedded Google sign-in at all. Caps to
+     70% of viewport height instead, whichever is smaller. */
+  height: min(600px, 70vh);
+  border: 1px solid #ccc;
+}
+
 /* Forwarding settings: endpoints */
 .url-input {
   width: 100%;
@@ -512,10 +538,18 @@ details ul {
 
 .top-row label {
   flex: 1 1 220px;
+  /* Flex items default to min-width: auto, which for a <select> resolves to
+     its widest <option>'s own width ("Traccar (OsmAnd protocol)", ...) -
+     flex-shrink then has nothing to shrink below and the row overflows the
+     viewport instead of wrapping, on a narrow enough screen. This lets it
+     actually shrink to the 220px basis (and below, if wrapped) like a plain
+     text input already would. */
+  min-width: 0;
 }
 
 .method-url-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.6rem;
   align-items: flex-start;
   margin: 0.75rem 0 1rem;
@@ -523,10 +557,14 @@ details ul {
 
 .method-field {
   flex: 0 0 8rem;
+  min-width: 0; /* same <select> min-content footgun as .top-row label above */
 }
 
 .url-row-field {
-  flex: 1 1 auto;
+  /* Same 220px wrap point as .top-row above - narrower than that and the
+     URL field drops to its own line under Method instead of squeezing. */
+  flex: 1 1 220px;
+  min-width: 0;
 }
 
 .method-field label, .url-row-field label {
@@ -555,6 +593,11 @@ details ul {
 }
 
 .kv-body input[type="text"] {
+  /* Without this an <input>'s intrinsic ~20-character width just sits
+     inside whatever the table cell happens to be, not tracking it - too
+     cramped for a real value on a narrow screen, wastefully narrow on a
+     wide one. */
+  width: 100%;
   padding: 0.4rem 0.55rem;
 }
 
@@ -818,6 +861,7 @@ details ul {
 
 .log-filters select {
   flex: 0 1 auto;
+  min-width: 0; /* same <select> min-content footgun as .top-row label */
 }
 
 /* Lets a wide table (e.g. Logs, with its Detail/payload column) scroll

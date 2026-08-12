@@ -86,9 +86,8 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!vncContainer.dataset.shown) {
         vncContainer.innerHTML =
           "<p>Complete the Google sign-in below:</p>" +
-          '<iframe title="Embedded Chrome login" ' +
-          'src="/vnc/vnc.html?autoconnect=true&resize=scale&path=websockify" ' +
-          'style="width:100%; height:600px; border:1px solid #ccc;"></iframe>';
+          '<iframe title="Embedded Chrome login" class="vnc-frame" ' +
+          'src="/vnc/vnc.html?autoconnect=true&resize=scale&path=websockify"></iframe>';
         vncContainer.dataset.shown = "1";
       }
     } else if (msg.phase === "done") {
