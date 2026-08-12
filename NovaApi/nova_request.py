@@ -12,6 +12,7 @@ from bs4 import BeautifulSoup
 from Auth.aas_token_retrieval import get_aas_token
 from Auth.adm_token_retrieval import get_adm_token
 from Auth.username_provider import get_username
+from NovaApi.query_throttle import query_throttle
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,7 @@ def nova_request(api_scope, hex_payload):
 
     payload = binascii.unhexlify(hex_payload)
 
+    query_throttle.wait_turn()
     response = requests.post(url, headers=headers, data=payload)
 
     if response.status_code == 200:

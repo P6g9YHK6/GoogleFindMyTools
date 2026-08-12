@@ -24,6 +24,15 @@ import tempfile
 os.environ["GFMT_DATA_DIR"] = tempfile.mkdtemp(prefix="gfmt-test-data-")
 os.environ["GFMT_SECRETS_DIR"] = tempfile.mkdtemp(prefix="gfmt-test-secrets-")
 os.environ["GFMT_NONINTERACTIVE"] = "1"
+# NovaApi/query_throttle.py's shared singleton is a real module-level global,
+# not reset between tests - without this, two nova_request()/spot_request()
+# calls anywhere in the suite (even in unrelated test files) less than 1s of
+# real wall-clock time apart would trigger a real time.sleep() via its
+# min-spread check. Tests that actually want throttle behavior construct
+# their own QueryThrottle(settings=...) instance directly instead of relying
+# on these env-var defaults - see tests/test_query_throttle.py.
+os.environ.setdefault("QUERY_THROTTLE_MAX", "0")
+os.environ.setdefault("QUERY_MIN_SPREAD_S", "0")
 os.environ.pop("HTTP_USER", None)  # deterministic: no basic auth in tests
 os.environ.pop("HTTP_PASSWORD", None)
 os.environ.pop("HTTPS_ENABLED", None)  # deterministic: no self-signed TLS in tests

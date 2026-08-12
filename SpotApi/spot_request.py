@@ -10,6 +10,7 @@ from bs4 import BeautifulSoup
 
 from Auth.spot_token_retrieval import get_spot_token
 from Auth.username_provider import get_username
+from NovaApi.query_throttle import query_throttle
 from SpotApi.grpc_parser import GrpcParser
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,7 @@ def spot_request(api_scope: str, payload: bytes) -> bytes:
     payload = GrpcParser.construct_grpc(payload)
 
     # httpx is necessary because requests does not support the Te header
+    query_throttle.wait_turn()
     with httpx.Client(http2=True, timeout=30.0) as client:
         response = client.post(url, headers=headers, content=payload)
 
