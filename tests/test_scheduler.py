@@ -20,6 +20,26 @@ def test_next_run_returns_none_for_invalid_cron():
     assert scheduler._next_run("not-a-cron", datetime.now()) is None
 
 
+def test_cron_preview_returns_the_requested_number_of_future_runs():
+    base = datetime(2026, 8, 6, 12, 0, 0)
+    preview = scheduler.cron_preview("*/5 * * * *", count=3, base=base)
+    assert preview == {
+        "valid": True,
+        "runs_str": ["2026-08-06 12:05", "2026-08-06 12:10", "2026-08-06 12:15"],
+    }
+
+
+def test_cron_preview_reports_invalid_expressions_without_raising():
+    assert scheduler.cron_preview("not-a-cron") == {"valid": False}
+    assert scheduler.cron_preview("") == {"valid": False}
+    assert scheduler.cron_preview("   ") == {"valid": False}
+
+
+def test_cron_preview_default_count_is_three():
+    preview = scheduler.cron_preview("*/5 * * * *", base=datetime(2026, 8, 6, 12, 0, 0))
+    assert len(preview["runs_str"]) == 3
+
+
 def _traccar_endpoint(**overrides) -> dict:
     endpoint = {
         "type": "traccar", "method": "GET", "url": "http://x/",

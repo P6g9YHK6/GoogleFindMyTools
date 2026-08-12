@@ -4,7 +4,7 @@ import time
 from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
 
-from webui import config
+from webui import config, scheduler
 
 BASE_DIR = pathlib.Path(__file__).parent
 
@@ -36,3 +36,9 @@ def _build_info(request: Request) -> dict:
 
 
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"), context_processors=[_build_info])
+# Lets the schedule editor's cron preview render inline on the initial page
+# load (settings/_endpoint_fields.html calls cron_preview(cron_value)
+# directly) without threading a computed value through every route that
+# renders that partial - the live htmx update in webui/routers/settings.py
+# calls the exact same function, so the two can never disagree.
+templates.env.globals["cron_preview"] = scheduler.cron_preview

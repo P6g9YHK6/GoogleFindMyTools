@@ -23,6 +23,22 @@ _tasks: dict[str, asyncio.Task] = {}
 
 DEFAULT_CRON = "*/5 * * * *"
 
+# Friendly names for the schedule editor's preset dropdown - the common cases
+# most people actually want, so they never have to think about cron syntax
+# at all. Anything else falls back to the "Custom" advanced builder below it
+# (see webui/routers/settings.py's cron_presets/cron_preset_values, and
+# webui/templates/settings/_endpoint_fields.html).
+CRON_PRESETS = [
+    ("Every minute", "* * * * *"),
+    ("Every 5 minutes", "*/5 * * * *"),
+    ("Every 15 minutes", "*/15 * * * *"),
+    ("Every 30 minutes", "*/30 * * * *"),
+    ("Every hour", "0 * * * *"),
+    ("Every 2 hours", "0 */2 * * *"),
+    ("Every 6 hours", "0 */6 * * *"),
+    ("Once a day", "0 0 * * *"),
+]
+
 
 def _next_run(cron_expr: str, base: datetime) -> datetime | None:
     try:
@@ -30,6 +46,23 @@ def _next_run(cron_expr: str, base: datetime) -> datetime | None:
     except Exception as e:
         logger.warning("Invalid cron expression %r: %s", cron_expr, e)
         return None
+
+
+def cron_preview(cron_expr: str, count: int = 3, base: datetime | None = None) -> dict:
+    """Human-facing preview for the schedule editor: either the next `count`
+    occurrences of cron_expr, pre-formatted (same convention as
+    webui/routers/devices.py's other timestamp strings), or a validity
+    flag - used both for the initial page render (as a Jinja global, see
+    webui/templating.py) and by the live htmx preview in
+    webui/routers/settings.py, so there's exactly one place that decides
+    what "next run" means, and it can never disagree with the real poll
+    loop above (which uses the same croniter call)."""
+    cron_expr = (cron_expr or "").strip()
+    if not cron_expr or not croniter.is_valid(cron_expr):
+        return {"valid": False}
+    it = croniter(cron_expr, base or datetime.now())
+    runs = [it.get_next(datetime) for _ in range(count)]
+    return {"valid": True, "runs_str": [r.strftime("%Y-%m-%d %H:%M") for r in runs]}
 
 
 async def _poll_device(canonic_id: str):

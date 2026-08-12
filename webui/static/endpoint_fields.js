@@ -115,6 +115,22 @@
     if (controlled) controlled.hidden = !checkbox.checked;
   }
 
+  // ---- schedule preset (distinct from the HTTP-request "preset-select"
+  // above - this is the cron "How often" dropdown) --------------------------
+
+  function syncCronPreset(block) {
+    const select = block.querySelector(".cron-preset");
+    const raw = block.querySelector(".cron-raw");
+    if (!select || !raw) return;
+    const value = raw.value.trim();
+    // Reads the options already rendered by the server (webui/scheduler.py's
+    // CRON_PRESETS, via _endpoint_fields.html) rather than keeping a second
+    // copy of the preset list in JS - "Custom…" (value="") wins if nothing
+    // matches.
+    const match = Array.from(select.options).find((o) => o.value === value);
+    select.value = match ? match.value : "";
+  }
+
   // ---- request preview (client-only, sample data) -----------------------
 
   function renderTemplate(str, vars) {
@@ -184,12 +200,22 @@
 
   let newBlockCounter = 0;
 
+  // Every one of these can carry a literal "__NEW__" that needs swapping to
+  // the block's real id: field names (form submission), and the cron
+  // preview's id/hx-target/hx-params trio (see _endpoint_fields.html) -
+  // without this, the live preview would keep posting to (and asking for)
+  // an id that no longer matches anything once relabeled.
+  const RELABELED_ATTRS = ["name", "id", "hx-target", "hx-params"];
+
   function relabelNewEndpointBlocks(scope) {
     scope.querySelectorAll('.endpoint-block[data-ep-idx="__NEW__"]').forEach((block) => {
       const idx = "new" + (++newBlockCounter);
       block.dataset.epIdx = idx;
-      block.querySelectorAll("[name]").forEach((el) => {
-        if (el.name.includes("__NEW__")) el.name = el.name.replace("__NEW__", idx);
+      RELABELED_ATTRS.forEach((attr) => {
+        block.querySelectorAll(`[${attr}]`).forEach((el) => {
+          const value = el.getAttribute(attr);
+          if (value.includes("__NEW__")) el.setAttribute(attr, value.replace("__NEW__", idx));
+        });
       });
       updatePreview(block);
     });
@@ -202,6 +228,19 @@
     if (block) {
       if (event.target.matches(".preset-select")) {
         applyPreset(block, event.target.value);
+      } else if (event.target.classList.contains("cron-preset")) {
+        const value = event.target.value;
+        if (value) {
+          // "Custom…" (empty value) means "leave whatever's there alone" -
+          // only a real preset overwrites the raw field. Dispatching a real
+          // input event (rather than setting .value and stopping) reuses
+          // the existing cron-raw input handler below to sync the 5-box
+          // builder and clear any stale invalid state, and triggers the
+          // live preview's own hx-trigger="input" the same way typing would.
+          const raw = block.querySelector(".cron-raw");
+          raw.value = value;
+          raw.dispatchEvent(new Event("input", { bubbles: true }));
+        }
       } else if (event.target.classList.contains("skip-toggle")) {
         const hidden = event.target.closest("label")?.querySelector("input[type='hidden']");
         if (hidden) hidden.value = event.target.checked ? "1" : "0";
@@ -228,6 +267,7 @@
         const fields = block.querySelectorAll(".cron-field");
         raw.value = Array.from(fields).map((f) => f.value.trim() || "*").join(" ");
         raw.classList.remove("cron-invalid");
+        syncCronPreset(block);
       } else if (event.target.classList.contains("cron-raw")) {
         const parts = event.target.value.trim().split(/\s+/);
         if (parts.length === 5) {
@@ -236,6 +276,7 @@
         } else {
           event.target.classList.add("cron-invalid");
         }
+        syncCronPreset(block);
       }
       if (event.target.matches("input, textarea")) updatePreview(block);
     }

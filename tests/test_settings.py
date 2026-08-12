@@ -370,6 +370,75 @@ def test_save_device_yaml_rejects_a_non_mapping_document(client):
     assert "Invalid YAML" in resp.text
 
 
+def test_save_device_yaml_rejects_an_invalid_cron_without_persisting(client):
+    from webui.forwarders import config_store
+
+    good_yaml = (
+        "endpoints:\n"
+        "  - type: traccar\n"
+        "    method: GET\n"
+        "    url: http://yaml.example\n"
+        "    params: {}\n"
+        "    headers: {}\n"
+        "    body_type: none\n"
+        "    body: ''\n"
+        "    variables: {}\n"
+        "    cron: '*/10 * * * *'\n"
+    )
+    good = client.post(f"/settings/devices/{FAKE_CANONIC_ID}/yaml", data={"yaml_text": good_yaml})
+    assert good.status_code == 200
+    before = config_store.get_device_config(FAKE_CANONIC_ID)
+
+    bad_yaml = good_yaml.replace("*/10 * * * *", "not-a-cron")
+    bad = client.post(f"/settings/devices/{FAKE_CANONIC_ID}/yaml", data={"yaml_text": bad_yaml})
+    assert bad.status_code == 200
+    assert "not a valid cron expression" in bad.text
+    assert "Edit as form" in bad.text  # still in the YAML view, not switched away
+
+    # the earlier good save must not have been overwritten by the rejected one
+    assert config_store.get_device_config(FAKE_CANONIC_ID) == before
+
+
+def test_cron_presets_render_with_the_matching_one_preselected(client):
+    resp = _post_form(
+        client,
+        f"/settings/devices/{FAKE_CANONIC_ID}",
+        display_name="My Tracker",
+        ep_order=["0"],
+        **{"ep-0-endpoint_type": "traccar", "ep-0-url": "http://x/", "ep-0-cron": "0 * * * *"},
+    )
+    assert resp.status_code == 200
+    assert '<option value="0 * * * *" selected>Every hour</option>' in resp.text
+    # the advanced/custom builder stays collapsed when a preset matches
+    assert 'cron-advanced" open' not in resp.text
+
+
+def test_cron_presets_fall_back_to_custom_and_expand_for_a_non_preset_value(client):
+    resp = _post_form(
+        client,
+        f"/settings/devices/{FAKE_CANONIC_ID}",
+        display_name="My Tracker",
+        ep_order=["0"],
+        **{"ep-0-endpoint_type": "traccar", "ep-0-url": "http://x/", "ep-0-cron": "17 3 * * 2"},
+    )
+    assert resp.status_code == 200
+    assert '<option value="" selected>Custom…</option>' in resp.text
+    assert '<details class="cron-advanced" open>' in resp.text
+
+
+def test_cron_preview_route_returns_next_runs_for_a_valid_expression(client):
+    resp = client.post("/settings/cron-preview", data={"cron": "*/5 * * * *"})
+    assert resp.status_code == 200
+    assert "Next runs:" in resp.text
+    assert "·" in resp.text  # three separate timestamps joined
+
+
+def test_cron_preview_route_reports_an_invalid_expression(client):
+    resp = client.post("/settings/cron-preview", data={"cron": "not-a-cron"})
+    assert resp.status_code == 200
+    assert "Not a valid cron expression" in resp.text
+
+
 def test_invalid_cron_is_rejected_without_persisting(client):
     good = _post_form(
         client,

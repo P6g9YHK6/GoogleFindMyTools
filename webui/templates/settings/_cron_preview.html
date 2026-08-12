@@ -1,0 +1,5 @@
+{% if preview.valid %}
+  <p class="cron-preview field-hint">Next runs: {{ preview.runs_str | join(' · ') }}</p>
+{% else %}
+  <p class="cron-preview form-error">Not a valid cron expression - needs 5 space-separated fields (minute hour day month weekday), e.g. "*/5 * * * *" for every 5 minutes.</p>
+{% endif %}

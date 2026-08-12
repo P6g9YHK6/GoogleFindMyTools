@@ -27,6 +27,7 @@ _PRESETS_JSON = json.dumps(PRESETS).replace("</", "<\\/")
 
 _TEMPLATE_CONTEXT = {
     "presets": PRESETS, "builtin_variables": BUILTIN_VARIABLES, "presets_json": _PRESETS_JSON,
+    "cron_presets": scheduler.CRON_PRESETS, "cron_preset_values": {value for _, value in scheduler.CRON_PRESETS},
 }
 
 
@@ -135,6 +136,21 @@ async def save_device_yaml_route(request: Request, canonic_id: str, yaml_text: s
             "error": f"Invalid YAML: {e}",
         })
 
+    # The form path (update_device_settings below) has always rejected an
+    # invalid cron rather than saving it - this path let one through
+    # unchecked, silently breaking that endpoint's polling (or the whole
+    # device's, if every endpoint's cron was bad) with no error shown.
+    cron_errors = [
+        f"endpoints[{i}]: \"{ep.get('cron', '')}\" is not a valid cron expression"
+        for i, ep in enumerate(parsed["endpoints"])
+        if not croniter.is_valid(str(ep.get("cron", "")))
+    ]
+    if cron_errors:
+        return templates.TemplateResponse(request, "settings/_device_yaml.html", {
+            "canonic_id": canonic_id, "name": row["name"], "yaml_text": yaml_text,
+            "error": "; ".join(cron_errors),
+        })
+
     parsed.setdefault("display_name", row["name"])
     config_store.set_device_config(canonic_id, parsed)
     scheduler.restart_device(canonic_id)
@@ -143,6 +159,22 @@ async def save_device_yaml_route(request: Request, canonic_id: str, yaml_text: s
     return templates.TemplateResponse(request, "settings/_device_form.html", {
         "row": fresh_row, **_TEMPLATE_CONTEXT,
     })
+
+
+@router.post("/settings/cron-preview")
+async def cron_preview_route(request: Request):
+    """Backs the schedule editor's live "next run" feedback (see
+    _endpoint_fields.html's .cron-raw input, which posts here via
+    hx-include="this"). Reads whatever single field got posted rather than
+    expecting one named "cron" - the real field is namespaced
+    "ep-{idx}-cron" per endpoint (see update_device_settings below), and
+    this route has no reason to care which one. Stateless and device-
+    agnostic, so it works the same whether the endpoint being edited is
+    already saved or a not-yet-submitted "+ Add endpoint" block."""
+    form = await request.form()
+    cron = next(iter(form.values()), "")
+    preview = scheduler.cron_preview(str(cron))
+    return templates.TemplateResponse(request, "settings/_cron_preview.html", {"preview": preview})
 
 
 @router.get("/settings/devices/{canonic_id}/endpoints/blank")

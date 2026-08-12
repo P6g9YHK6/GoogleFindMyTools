@@ -168,26 +168,51 @@
   {% set cron_parts = (cron_value.split() + ['*', '*', '*', '*', '*'])[:5] %}
   <fieldset>
     <legend>Schedule</legend>
-    <div class="cron-builder">
-      <label class="cron-field-label">Minute
-        <input type="text" class="cron-field" value="{{ cron_parts[0] }}">
-      </label>
-      <label class="cron-field-label">Hour
-        <input type="text" class="cron-field" value="{{ cron_parts[1] }}">
-      </label>
-      <label class="cron-field-label">Day of month
-        <input type="text" class="cron-field" value="{{ cron_parts[2] }}">
-      </label>
-      <label class="cron-field-label">Month
-        <input type="text" class="cron-field" value="{{ cron_parts[3] }}">
-      </label>
-      <label class="cron-field-label">Day of week
-        <input type="text" class="cron-field" value="{{ cron_parts[4] }}">
-      </label>
-    </div>
-    <label>Cron expression
-      <input type="text" name="ep-{{ idx }}-cron" class="cron-raw" value="{{ cron_value }}">
+    <label>How often
+      <select class="cron-preset">
+        {% for label, value in cron_presets %}
+          <option value="{{ value }}" {% if cron_value == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+        <option value="" {% if cron_value not in cron_preset_values %}selected{% endif %}>Custom…</option>
+      </select>
     </label>
+
+    <details class="cron-advanced" {% if cron_value not in cron_preset_values %}open{% endif %}>
+      <summary>Advanced: custom cron schedule</summary>
+      <div class="cron-builder">
+        <label class="cron-field-label">Minute
+          <input type="text" class="cron-field" value="{{ cron_parts[0] }}">
+        </label>
+        <label class="cron-field-label">Hour
+          <input type="text" class="cron-field" value="{{ cron_parts[1] }}">
+        </label>
+        <label class="cron-field-label">Day of month
+          <input type="text" class="cron-field" value="{{ cron_parts[2] }}">
+        </label>
+        <label class="cron-field-label">Month
+          <input type="text" class="cron-field" value="{{ cron_parts[3] }}">
+        </label>
+        <label class="cron-field-label">Day of week
+          <input type="text" class="cron-field" value="{{ cron_parts[4] }}">
+        </label>
+      </div>
+      <label>Cron expression
+        <input type="text" name="ep-{{ idx }}-cron" class="cron-raw" value="{{ cron_value }}"
+               hx-post="/settings/cron-preview" hx-trigger="input changed delay:400ms"
+               hx-params="ep-{{ idx }}-cron" hx-target="#cron-preview-{{ idx }}" hx-swap="innerHTML">
+      </label>
+      {# id-based, not "next .cron-preview-slot" - the raw input's only
+         sibling within its own <label> is the label text, so a "next"
+         search starting from the input never reaches this div at all.
+         idx keeps it unique per block; relabelNewEndpointBlocks (see
+         endpoint_fields.js) renames this id (and the hx-target above)
+         together with the field names when a "+ Add endpoint" block gets
+         its real id. #}
+      <div class="cron-preview-slot" id="cron-preview-{{ idx }}">
+        {% set preview = cron_preview(cron_value) %}
+        {% include "settings/_cron_preview.html" %}
+      </div>
+    </details>
   </fieldset>
 
   {% if endpoint.last_forward_status %}
