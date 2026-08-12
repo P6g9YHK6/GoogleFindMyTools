@@ -111,6 +111,66 @@ def test_waiting_counter_reflects_a_queued_request():
     assert throttle.waiting == 0
 
 
+def test_wait_turn_lets_concurrent_callers_sleep_in_parallel_not_serially():
+    """Regression test for a real production incident: wait_turn() used to
+    hold its lock across the whole sleep, not just the state check - so a
+    second caller couldn't even compute (let alone start waiting out) its
+    own delay until the first caller's entire sleep finished. With enough
+    concurrent callers (the common case: several devices' polls landing on
+    the same schedule tick, since anything without a custom cron shares the
+    same */5 * * * * default - see webui/scheduler.py), each one queued up
+    fully behind the last, tying up whatever thread pool dispatched them
+    (webui/deps.py's run_blocking) for a multiple of the intended wait
+    instead of each spending only its own share of it - starving the pool
+    of any worker thread to run unrelated requests on, which is what
+    actually surfaced this ("everything timesout now").
+
+    Uses real threads and a real (short) sleep rather than the fake-clock
+    helpers above, specifically to exercise real lock contention across
+    threads - a single-threaded fake-clock test can't distinguish "held the
+    lock during sleep" from "released it", since nothing else is running
+    concurrently to be blocked by it.
+    """
+    import time
+
+    throttle = QueryThrottle(settings=_settings(max_per_window=0, min_spread_s=0.3))
+
+    # Keyed by thread id, not appended to a list - a thread can legitimately
+    # need a second, short wait if another thread grabs "its" slot in the
+    # gap between it computing a delay and that delay actually elapsing
+    # (real contention, not the bug under test). What the bug broke was
+    # *reaching that first wait at all* without queueing behind every
+    # earlier caller's full sleep first.
+    first_entry_at = {}
+    record_lock = threading.Lock()
+
+    def recording_sleep(seconds):
+        tid = threading.get_ident()
+        with record_lock:
+            first_entry_at.setdefault(tid, time.monotonic())
+        time.sleep(seconds)
+
+    throttle.configure(sleep=recording_sleep)
+
+    threads = [threading.Thread(target=throttle.wait_turn) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=5)
+        assert not t.is_alive()
+
+    # Exactly one of the four wins the race for an immediate (delay <= 0)
+    # slot and never calls sleep at all - the other three must each wait
+    # out their own min_spread-driven delay, which is what's under test
+    # here. Held-lock-during-sleep would space those three callers' first
+    # sleep calls ~0.3s (min_spread) apart, cumulatively (~0.6s total
+    # spread); fixed, all three should reach their own first sleep call
+    # within a few milliseconds of each other, each then waiting out its
+    # own delay in parallel with the others.
+    assert len(first_entry_at) == 3
+    assert max(first_entry_at.values()) - min(first_entry_at.values()) < 0.15
+
+
 def test_configure_swaps_the_settings_source_on_the_same_instance():
     """webui/deps.py relies on this: it needs to redirect the *shared*
     singleton NovaApi/nova_request.py already imported to config.yaml,

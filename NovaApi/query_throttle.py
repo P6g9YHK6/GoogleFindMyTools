@@ -83,33 +83,50 @@ class QueryThrottle:
         if settings is not None:
             self._settings = settings
 
+    def _consume_slot_or_get_delay(self) -> float:
+        """Checks whether a request may go out right now, reserving the slot
+        (recording it as sent) if so - otherwise returns how long to wait
+        before trying again, without sleeping. The lock only ever guards
+        this quick bookkeeping step, never the actual wait: holding it
+        across a sleep of up to query_throttle_window_s (60s by default)
+        meant every other caller - including ones with their own, already-
+        expired wait - queued up behind that one sleep instead of computing
+        and waiting out their own delay independently. With enough devices
+        polling around the same tick (the common case: anything without a
+        custom schedule shares the same */5 * * * * default), that serial
+        pileup was enough to tie up every worker thread run_blocking()
+        dispatches onto (see webui/deps.py) for a full window each,
+        starving every other request - manual clicks, page loads,
+        everything - of a thread to run on at all."""
+        with self._lock:
+            now = self._clock()
+            settings = self._settings()
+            window = settings["query_throttle_window_s"]
+            max_per_window = settings["query_throttle_max"]
+            min_spread = settings["query_min_spread_s"]
+
+            while self._sent_at and now - self._sent_at[0] >= window:
+                self._sent_at.popleft()
+
+            delay = 0.0
+            if max_per_window > 0 and len(self._sent_at) >= max_per_window:
+                delay = max(delay, window - (now - self._sent_at[0]))
+            if min_spread > 0 and self._last_sent_at is not None:
+                delay = max(delay, min_spread - (now - self._last_sent_at))
+
+            if delay <= 0:
+                self._sent_at.append(now)
+                self._last_sent_at = now
+            return delay
+
     def wait_turn(self):
         self.waiting += 1
         try:
-            with self._lock:
-                while True:
-                    now = self._clock()
-                    settings = self._settings()
-                    window = settings["query_throttle_window_s"]
-                    max_per_window = settings["query_throttle_max"]
-                    min_spread = settings["query_min_spread_s"]
-
-                    while self._sent_at and now - self._sent_at[0] >= window:
-                        self._sent_at.popleft()
-
-                    delay = 0.0
-                    if max_per_window > 0 and len(self._sent_at) >= max_per_window:
-                        delay = max(delay, window - (now - self._sent_at[0]))
-                    if min_spread > 0 and self._last_sent_at is not None:
-                        delay = max(delay, min_spread - (now - self._last_sent_at))
-
-                    if delay <= 0:
-                        break
-                    self._sleep(delay)
-
-                now = self._clock()
-                self._sent_at.append(now)
-                self._last_sent_at = now
+            while True:
+                delay = self._consume_slot_or_get_delay()
+                if delay <= 0:
+                    return
+                self._sleep(delay)
         finally:
             self.waiting -= 1
 
