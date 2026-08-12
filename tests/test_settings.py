@@ -6,8 +6,8 @@ from tests.conftest import FAKE_CANONIC_ID, FAKE_DEVICE_NAME
 def _post_form(client, path, **fields):
     """Each field can be a scalar (sent once) or a list (sent once per item,
     same field name repeated) - the latter is how one endpoint's variable-
-    length params/headers/variables rows are posted. A dict collapses
-    duplicate keys, so the raw urlencoded body is built by hand instead."""
+    length headers rows are posted. A dict collapses duplicate keys, so the
+    raw urlencoded body is built by hand instead."""
     pairs = []
     for key, value in fields.items():
         if isinstance(value, (list, tuple)):
@@ -37,15 +37,15 @@ def test_save_mixed_endpoints_and_drop_blank_block(client):
         display_name="My Tracker",
         ep_order=["0", "1", "2"],
         **{
-            "ep-0-endpoint_type": "traccar", "ep-0-url": "http://traccar.local:5055/",
+            # Query params go straight in the URL now - no separate params
+            # table posted alongside it.
+            "ep-0-url": "http://traccar.local:5055/?id={{device_id}}",
             "ep-0-cron": "*/5 * * * *",
-            "ep-0-param_key": ["id"], "ep-0-param_value": ["{{device_id}}"],
-            "ep-0-var_key": ["device_id"], "ep-0-var_value": ["dev1"],
 
-            "ep-1-endpoint_type": "phonetrack", "ep-1-url": "https://nc.local/x/{{device_name}}",
+            "ep-1-url": "https://nc.local/x/{{device_name}}",
             "ep-1-cron": "0 */2 * * *",
 
-            "ep-2-endpoint_type": "custom", "ep-2-url": "",  # left blank -> dropped
+            "ep-2-url": "",  # left blank -> dropped
             "ep-2-cron": "*/10 * * * *",
         },
     )
@@ -56,13 +56,12 @@ def test_save_mixed_endpoints_and_drop_blank_block(client):
 
     saved = config_store.get_device_config(FAKE_CANONIC_ID)
     assert len(saved["endpoints"]) == 2
-    assert saved["endpoints"][0]["type"] == "traccar"
-    assert saved["endpoints"][0]["url"] == "http://traccar.local:5055/"
-    assert saved["endpoints"][0]["params"] == {"id": "{{device_id}}"}
-    assert saved["endpoints"][0]["variables"] == {"device_id": "dev1"}
+    assert saved["endpoints"][0]["type"] == "custom"  # a preset is never saved - see presets.py
+    assert saved["endpoints"][0]["url"] == "http://traccar.local:5055/?id={{device_id}}"
+    assert "params" not in saved["endpoints"][0]
     assert saved["endpoints"][0]["cron"] == "*/5 * * * *"
 
-    assert saved["endpoints"][1]["type"] == "phonetrack"
+    assert saved["endpoints"][1]["type"] == "custom"
     assert saved["endpoints"][1]["url"] == "https://nc.local/x/{{device_name}}"
     assert "device_name" not in saved["endpoints"][1]
     assert saved["endpoints"][1]["cron"] == "0 */2 * * *"
@@ -310,7 +309,7 @@ def test_device_yaml_view_shows_current_config(client):
 
     resp = client.get(f"/settings/devices/{FAKE_CANONIC_ID}/yaml")
     assert resp.status_code == 200
-    assert "type: traccar" in resp.text
+    assert "type: custom" in resp.text  # a preset is never saved - see presets.py
     assert "url: http://x/" in resp.text
     assert "Edit as form" in resp.text
 
@@ -337,7 +336,7 @@ def test_save_device_yaml_persists_and_reflects_in_the_form(client):
     )
     resp = client.post(f"/settings/devices/{FAKE_CANONIC_ID}/yaml", data={"yaml_text": yaml_text})
     assert resp.status_code == 200
-    assert 'value="http://yaml.example"' in resp.text  # switched back to the form view
+    assert ">http://yaml.example</textarea>" in resp.text  # switched back to the form view
     assert "Edit as YAML" in resp.text
     assert "save-toast" in resp.text
 
@@ -458,7 +457,7 @@ def test_invalid_cron_is_rejected_without_persisting(client):
     )
     assert bad.status_code == 200
     assert "not a valid cron expression" in bad.text
-    assert 'value="http://x/"' in bad.text  # typed value preserved in the error re-render
+    assert ">http://x/</textarea>" in bad.text  # typed value preserved in the error re-render
 
     from webui.forwarders import config_store
 
@@ -517,3 +516,152 @@ def test_last_forward_status_resets_when_url_changes(client):
 
     saved = config_store.get_device_config(FAKE_CANONIC_ID)["endpoints"][0]
     assert "last_forward_status" not in saved
+
+
+def test_preset_control_only_appears_on_a_brand_new_endpoint(client):
+    """A preset is a one-time template for starting a new endpoint, not a
+    saved property of one - see webui/forwarders/presets.py."""
+    _post_form(
+        client,
+        f"/settings/devices/{FAKE_CANONIC_ID}",
+        display_name="My Tracker",
+        ep_order=["0"],
+        **{"ep-0-url": "http://x/", "ep-0-cron": "*/5 * * * *"},
+    )
+
+    blank = client.get(f"/settings/devices/{FAKE_CANONIC_ID}/endpoints/blank")
+    assert 'name="ep-__NEW__-endpoint_type"' in blank.text
+
+    existing = client.get(f"/settings/devices/{FAKE_CANONIC_ID}")
+    assert 'name="ep-0-endpoint_type"' not in existing.text
+
+
+def test_posted_preset_type_is_never_saved(client):
+    """Whatever gets posted for the (only ever shown on a new block) preset
+    dropdown - even from a stale or hand-crafted request against an
+    existing endpoint - is ignored; the saved type is always "custom"."""
+    resp = _post_form(
+        client,
+        f"/settings/devices/{FAKE_CANONIC_ID}",
+        display_name="My Tracker",
+        ep_order=["0"],
+        **{"ep-0-endpoint_type": "traccar", "ep-0-url": "http://x/", "ep-0-cron": "*/5 * * * *"},
+    )
+    assert resp.status_code == 200
+
+    from webui.forwarders import config_store
+
+    assert config_store.get_device_config(FAKE_CANONIC_ID)["endpoints"][0]["type"] == "custom"
+
+
+def test_variables_carry_forward_when_url_is_unchanged(client):
+    """No form field posts "variables" anymore (the "Custom variables" table
+    is gone), but an endpoint saved before that change may still have one -
+    a save of its other fields must not silently erase it."""
+    from webui.forwarders import config_store
+
+    config_store.set_device_config(FAKE_CANONIC_ID, {
+        "display_name": "My Tracker",
+        "endpoints": [{
+            "type": "custom", "method": "GET", "url": "http://x/?id={{device_id}}",
+            "headers": {}, "body_type": "none", "body": "",
+            "variables": {"device_id": "104"}, "cron": "*/5 * * * *",
+        }],
+    })
+
+    resp = _post_form(
+        client,
+        f"/settings/devices/{FAKE_CANONIC_ID}",
+        display_name="My Tracker",
+        ep_order=["0"],
+        # same URL, just a different cron - variables should carry forward
+        **{"ep-0-url": "http://x/?id={{device_id}}", "ep-0-cron": "*/10 * * * *"},
+    )
+    assert resp.status_code == 200
+
+    saved = config_store.get_device_config(FAKE_CANONIC_ID)["endpoints"][0]
+    assert saved["variables"] == {"device_id": "104"}
+
+
+def test_variables_do_not_carry_forward_when_url_changes(client):
+    from webui.forwarders import config_store
+
+    config_store.set_device_config(FAKE_CANONIC_ID, {
+        "display_name": "My Tracker",
+        "endpoints": [{
+            "type": "custom", "method": "GET", "url": "http://x/?id={{device_id}}",
+            "headers": {}, "body_type": "none", "body": "",
+            "variables": {"device_id": "104"}, "cron": "*/5 * * * *",
+        }],
+    })
+
+    resp = _post_form(
+        client,
+        f"/settings/devices/{FAKE_CANONIC_ID}",
+        display_name="My Tracker",
+        ep_order=["0"],
+        **{"ep-0-url": "http://different/", "ep-0-cron": "*/5 * * * *"},
+    )
+    assert resp.status_code == 200
+
+    saved = config_store.get_device_config(FAKE_CANONIC_ID)["endpoints"][0]
+    assert "variables" not in saved
+
+
+def test_save_failure_shows_an_error_instead_of_crashing(client, monkeypatch):
+    """A genuine persistence failure (not a validation error) must still
+    come back as a visible, server-rendered error - not an uncaught 500
+    that leaves the browser with no confirmation either way."""
+    from webui.forwarders import config_store
+
+    def boom(canonic_id, device_config):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(config_store, "set_device_config", boom)
+
+    resp = _post_form(
+        client,
+        f"/settings/devices/{FAKE_CANONIC_ID}",
+        display_name="My Tracker",
+        ep_order=["0"],
+        **{"ep-0-url": "http://x/", "ep-0-cron": "*/5 * * * *"},
+    )
+    assert resp.status_code == 200
+    assert "Failed to save" in resp.text
+    assert "save-toast" not in resp.text
+
+
+def test_save_device_yaml_failure_shows_an_error_instead_of_crashing(client, monkeypatch):
+    from webui.forwarders import config_store
+
+    def boom(canonic_id, device_config):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(config_store, "set_device_config", boom)
+
+    resp = client.post(f"/settings/devices/{FAKE_CANONIC_ID}/yaml", data={"yaml_text": "endpoints: []\n"})
+    assert resp.status_code == 200
+    assert "Failed to save" in resp.text
+    assert "save-toast" not in resp.text
+
+
+def test_send_now_failure_shows_an_error_instead_of_crashing(client, monkeypatch):
+    from webui import scheduler
+    from webui.forwarders import config_store
+
+    config_store.set_device_config(FAKE_CANONIC_ID, {
+        "display_name": "My Tracker",
+        "endpoints": [{
+            "type": "custom", "method": "GET", "url": "http://x/",
+            "headers": {}, "body_type": "none", "body": "", "cron": "*/5 * * * *",
+        }],
+    })
+
+    async def boom(canonic_id, index):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(scheduler, "forward_now", boom)
+
+    resp = client.post(f"/settings/devices/{FAKE_CANONIC_ID}/endpoints/0/send-now")
+    assert resp.status_code == 200
+    assert "Send failed" in resp.text

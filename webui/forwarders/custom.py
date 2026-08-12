@@ -29,8 +29,9 @@ def _render(template: str, ctx: dict) -> str:
 
 def build_context(endpoint_cfg: dict, location: dict, device_display_name: str) -> dict:
     """Every {{variable}} available to this endpoint's templates - the
-    location fix, this endpoint's own alias, and its own custom variables
-    (Traccar's device_id, a bearer token, ...).
+    location fix, this endpoint's own alias, and (for endpoints saved before
+    the settings UI dropped the "Custom variables" table) its own leftover
+    custom variables, e.g. a Traccar endpoint's device_id.
 
     device_name and device_alias are both just the device's own alias/name -
     two names for the same value (not overridable per endpoint), kept as
@@ -45,6 +46,10 @@ def build_context(endpoint_cfg: dict, location: dict, device_display_name: str) 
         "device_alias": device_display_name or "",
         "endpoint_alias": endpoint_cfg.get("alias") or "",
     }
+    # No UI writes "variables" anymore (see webui/forwarders/presets.py's
+    # module docstring) - this merge only still matters for an endpoint
+    # saved before that change, so its {{device_id}}-style tokens keep
+    # resolving exactly as before with nothing left to edit them.
     ctx.update(endpoint_cfg.get("variables") or {})
     return ctx
 
@@ -58,14 +63,21 @@ def forward_to_custom(endpoint_cfg: dict, location: dict, device_display_name: s
         return False
 
     ctx = build_context(endpoint_cfg, location, device_display_name)
+    # Query params live in the URL itself now (a literal "?key=value"), not
+    # a separate table - _render() already substitutes {{var}} tokens
+    # anywhere in this string, querystring included, so passing the
+    # rendered URL straight to httpx and letting it parse its own query
+    # string is all that's needed. (This used to also pass a `params=`
+    # kwarg, which httpx treats as a full replacement of the URL's query
+    # string rather than a merge - even an empty dict wiped it - so a
+    # literal "?..." typed into the URL used to be silently discarded.)
     url = _render(url_template, ctx)
-    params = {k: _render(v, ctx) for k, v in (endpoint_cfg.get("params") or {}).items()}
     headers = {k: _render(v, ctx) for k, v in (endpoint_cfg.get("headers") or {}).items()}
     method = (endpoint_cfg.get("method") or "GET").strip().upper() or "GET"
 
     body_type = endpoint_cfg.get("body_type") or "none"
     body_raw = endpoint_cfg.get("body") or ""
-    request_kwargs = {"params": params, "headers": headers, "timeout": TIMEOUT_S}
+    request_kwargs = {"headers": headers, "timeout": TIMEOUT_S}
 
     if body_type == "json" and body_raw.strip():
         request_kwargs["content"] = _render(body_raw, ctx)
@@ -74,9 +86,9 @@ def forward_to_custom(endpoint_cfg: dict, location: dict, device_display_name: s
         request_kwargs["content"] = _render(body_raw, ctx)
     elif body_type == "form" and body_raw.strip():
         # One "key=value" pair per line, same {{variable}} substitution as
-        # everything else - kept as plain text rather than another key/value
-        # table, since the params table above already covers most GET/POST
-        # form-style needs.
+        # everything else - kept as plain text rather than a key/value
+        # table, since GET/POST-style key/value needs are already covered
+        # by putting them straight in the URL's own querystring.
         form_data = {}
         for line in body_raw.splitlines():
             if "=" in line:
@@ -95,13 +107,12 @@ def preview_request(endpoint_cfg: dict, location: dict, device_display_name: str
     forward_to_custom so the two can't drift apart on how templating works."""
     ctx = build_context(endpoint_cfg, location, device_display_name)
     url = _render((endpoint_cfg.get("url") or "").strip(), ctx)
-    params = {k: _render(v, ctx) for k, v in (endpoint_cfg.get("params") or {}).items()}
     headers = {k: _render(v, ctx) for k, v in (endpoint_cfg.get("headers") or {}).items()}
     body_type = endpoint_cfg.get("body_type") or "none"
     body = _render(endpoint_cfg.get("body") or "", ctx) if body_type != "none" else ""
     return {
         "method": (endpoint_cfg.get("method") or "GET").strip().upper() or "GET",
-        "url": url, "params": params, "headers": headers, "body_type": body_type, "body": body,
+        "url": url, "headers": headers, "body_type": body_type, "body": body,
     }
 
 

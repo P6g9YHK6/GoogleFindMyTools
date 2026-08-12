@@ -152,8 +152,14 @@ async def save_device_yaml_route(request: Request, canonic_id: str, yaml_text: s
         })
 
     parsed.setdefault("display_name", row["name"])
-    config_store.set_device_config(canonic_id, parsed)
-    scheduler.restart_device(canonic_id)
+    try:
+        config_store.set_device_config(canonic_id, parsed)
+        scheduler.restart_device(canonic_id)
+    except Exception as e:
+        return templates.TemplateResponse(request, "settings/_device_yaml.html", {
+            "canonic_id": canonic_id, "name": row["name"], "yaml_text": yaml_text,
+            "error": f"Failed to save: {e}",
+        })
 
     fresh_row = await _row(canonic_id, saved=True)
     return templates.TemplateResponse(request, "settings/_device_form.html", {
@@ -193,9 +199,28 @@ async def send_now_route(request: Request, canonic_id: str, index: int):
     if not is_logged_in():
         return templates.TemplateResponse(request, "_not_signed_in.html", {})
 
-    endpoint = await scheduler.forward_now(canonic_id, index)
+    send_error = None
+    try:
+        endpoint = await scheduler.forward_now(canonic_id, index)
+    except Exception as e:
+        # forward_now already turns a failed *send* into a "error: ..."
+        # last_forward_status string (see webui/forwarders/policy.py) - this
+        # only catches a genuine failure to persist that result (e.g. a disk
+        # write error), which would otherwise propagate to an uncaught 500
+        # and leave the button looking like it silently did nothing.
+        endpoint = None
+        send_error = f"Send failed: {e}"
+
     if endpoint is None:
-        raise HTTPException(status_code=404, detail="No such device or endpoint")
+        if send_error is None:
+            raise HTTPException(status_code=404, detail="No such device or endpoint")
+        # Still re-render the block (with whatever's currently saved) so the
+        # error has somewhere to show up, instead of a bare 500.
+        device_cfg = config_store.get_device_config(canonic_id) or {}
+        endpoints = device_cfg.get("endpoints", [])
+        if not (0 <= index < len(endpoints)):
+            raise HTTPException(status_code=404, detail="No such device or endpoint")
+        endpoint = endpoints[index]
 
     # Rendered outside the per-device-row loop, so the "Send now" button (which
     # needs the device id and this endpoint's position) can't rely on `row`/
@@ -203,7 +228,8 @@ async def send_now_route(request: Request, canonic_id: str, index: int):
     # - pass both explicitly instead, so the swapped-in fragment can still be
     # sent again immediately.
     return templates.TemplateResponse(request, "settings/_endpoint_fields.html", {
-        "endpoint": endpoint, "row": {"canonic_id": canonic_id}, "idx": str(index), **_TEMPLATE_CONTEXT,
+        "endpoint": endpoint, "row": {"canonic_id": canonic_id}, "idx": str(index),
+        "send_error": send_error, **_TEMPLATE_CONTEXT,
     })
 
 
@@ -225,9 +251,8 @@ async def update_device_settings(
     # idx unique per block (its saved position, or a fresh client-generated
     # id for one just added via "+ Add endpoint" - see endpoint_fields.js).
     # That, rather than one flat getlist() per field name shared across every
-    # endpoint, is what lets each block carry its own variable-length params/
-    # headers/variables tables without the rows of one block bleeding into
-    # another's.
+    # endpoint, is what lets each block carry its own variable-length headers
+    # table without the rows of one block bleeding into another's.
     ep_order = form.getlist("ep_order")
 
     existing = config_store.get_device_config(canonic_id) or {"endpoints": []}
@@ -247,14 +272,17 @@ async def update_device_settings(
             continue  # unfilled "+ Add endpoint" block, drop it silently
 
         entry = {
-            "type": field("endpoint_type", "custom").strip() or "custom",
+            # A preset (see the "Preset" dropdown, only ever shown on a
+            # brand-new "+ Add endpoint" block - webui/forwarders/presets.py)
+            # is a one-time template for starting an endpoint, never a saved
+            # property of one - whatever the dropdown said (if it was even
+            # posted at all) is ignored here.
+            "type": "custom",
             "method": (field("method", "GET").strip().upper() or "GET"),
             "url": url,
-            "params": _parse_kv_rows(field_list("param_key"), field_list("param_value")),
             "headers": _parse_kv_rows(field_list("header_key"), field_list("header_value")),
             "body_type": field("body_type", "none").strip() or "none",
             "body": field("body"),
-            "variables": _parse_kv_rows(field_list("var_key"), field_list("var_value")),
         }
 
         alias = field("alias").strip()
@@ -280,16 +308,20 @@ async def update_device_settings(
             except ValueError:
                 entry["min_update_gap_m"] = policy.DEFAULT_MIN_UPDATE_GAP_M
 
-        # Best-effort: carry forward this endpoint's last status/position if it
-        # still looks like the same logical endpoint (same position, same
-        # URL) - these just re-populate from scratch otherwise (a fresh save
-        # would otherwise forget the last-sent position and always send the
-        # next fix).
+        # Best-effort: carry forward this endpoint's last status/position (and
+        # any leftover "variables", from before the settings UI dropped the
+        # "Custom variables" table - there's no field left to re-post one, so
+        # without this a save would silently erase e.g. a Traccar endpoint's
+        # device_id) if it still looks like the same logical endpoint (same
+        # position, same URL) - these just re-populate from scratch
+        # otherwise (a fresh save would otherwise forget the last-sent
+        # position and always send the next fix).
         position = len(endpoints)
         if position < len(existing_endpoints) and existing_endpoints[position].get("url") == url:
             for key in (
                 "last_forward_status", "last_forward_time",
                 "last_sent_lat", "last_sent_lon", "last_sent_fix_time",
+                "variables",
             ):
                 if key in existing_endpoints[position]:
                     entry[key] = existing_endpoints[position][key]
@@ -304,8 +336,14 @@ async def update_device_settings(
         })
 
     device_cfg = {"display_name": display_name, "endpoints": endpoints}
-    config_store.set_device_config(canonic_id, device_cfg)
-    scheduler.restart_device(canonic_id)
+    try:
+        config_store.set_device_config(canonic_id, device_cfg)
+        scheduler.restart_device(canonic_id)
+    except Exception as e:
+        row = await _row(canonic_id, overrides={canonic_id: {"config": device_cfg, "error": f"Failed to save: {e}"}})
+        return templates.TemplateResponse(request, "settings/_device_form.html", {
+            "row": row, **_TEMPLATE_CONTEXT,
+        })
 
     row = await _row(canonic_id, saved=True)
     return templates.TemplateResponse(request, "settings/_device_form.html", {

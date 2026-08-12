@@ -1,13 +1,14 @@
 {# This partial is rendered three ways: inline in the per-device-row loop
    (where `row`, `endpoint` and `loop.index0` come from that loop and `idx`
    is passed explicitly as that same position, stringified), standalone by
-   the "send now" route (which passes `row`/`idx` for one saved endpoint),
-   and standalone by the "+ Add endpoint" route (`idx="__NEW__"`,
-   `is_new=True` - endpoint_fields.js relabels it to a real unique id right
-   after inserting it, see relabelNewEndpointBlocks). Every field below is
-   namespaced "ep-{{ idx }}-..." so one endpoint's variable-length params/
-   headers/variables rows never get mixed up with another's - see
-   routers/settings.py's update_device_settings. #}
+   the "send now" route (which passes `row`/`idx` for one saved endpoint,
+   and optionally `send_error` if the send couldn't be persisted), and
+   standalone by the "+ Add endpoint" route (`idx="__NEW__"`, `is_new=True`
+   - endpoint_fields.js relabels it to a real unique id right after
+   inserting it, see relabelNewEndpointBlocks). Every field below is
+   namespaced "ep-{{ idx }}-..." so one endpoint's variable-length headers
+   rows never get mixed up with another's - see routers/settings.py's
+   update_device_settings. #}
 {% set is_new = is_new if is_new is defined else False %}
 <fieldset class="endpoint-block{% if is_new %} endpoint-block--new{% endif %}" data-ep-idx="{{ idx }}"
           data-device-alias="{{ row.name if row is defined else '' }}">
@@ -23,22 +24,42 @@
     {% endif %}
     <button type="button" class="btn-remove">Remove</button></legend>
 
+  {% if send_error is defined and send_error %}
+    <p class="form-error">{{ send_error }}</p>
+  {% endif %}
+
   <div class="top-row">
     <label>Alias
       <input type="text" class="endpoint-alias" name="ep-{{ idx }}-alias" placeholder="e.g. Home Traccar" value="{{ endpoint.alias or '' }}">
     </label>
-    <label>Preset
-      <select name="ep-{{ idx }}-endpoint_type" class="preset-select">
-        {% for preset_key, preset in presets.items() %}
-          <option value="{{ preset_key }}" {% if endpoint.type == preset_key %}selected{% endif %}>{{ preset.label }}</option>
-        {% endfor %}
-      </select>
-    </label>
+    {% if is_new %}
+      {# Only ever offered here, on a not-yet-saved block - a preset is a
+         one-time template for starting a new endpoint, not an ongoing
+         property of one, so it's never shown (or saved) once an endpoint
+         already exists - see webui/forwarders/presets.py and
+         routers/settings.py's update_device_settings. #}
+      <label>Preset
+        <select name="ep-{{ idx }}-endpoint_type" class="preset-select">
+          {% for preset_key, preset in presets.items() %}
+            <option value="{{ preset_key }}" {% if endpoint.type == preset_key %}selected{% endif %}>{{ preset.label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    {% endif %}
   </div>
-  <p class="field-hint preset-hint">{{ (presets.get(endpoint.type) or presets.get('custom')).hint }}</p>
-  <p class="field-hint"><code>{{ '{{device_name}}' }}</code>/<code>{{ '{{device_alias}}' }}</code> below both fill in with this tracker's own name. If the target service needs to know it by something else, add a custom variable under Variables and use that instead.</p>
+  {% if is_new %}
+    <p class="field-hint preset-hint">{{ (presets.get(endpoint.type) or presets.get('custom')).hint }}</p>
+  {% endif %}
+  <p class="field-hint"><code>{{ '{{device_name}}' }}</code>/<code>{{ '{{device_alias}}' }}</code> below both fill in with this tracker's own name.</p>
 
   <div class="endpoint-sections">
+  <fieldset class="preview-fieldset">
+    <legend>Preview <span class="field-hint" style="margin:0;">- using a sample fix, so you can see what actually goes out</span></legend>
+    <pre class="preview-block"></pre>
+  </fieldset>
+
+  <div class="endpoint-columns">
+  <div class="endpoint-col-left">
   <fieldset>
     <legend>Request</legend>
 
@@ -54,26 +75,11 @@
       </div>
       <div class="url-row-field">
         <label>URL
-          <input type="text" name="ep-{{ idx }}-url" class="url-input templatable" value="{{ endpoint.url or '' }}">
+          <textarea name="ep-{{ idx }}-url" class="url-input templatable" rows="2">{{ endpoint.url or '' }}</textarea>
         </label>
       </div>
     </div>
-
-    <div class="kv-section">
-      <div class="kv-head"><h3>Query parameters</h3><button type="button" class="btn-add" data-target="param">+ Add row</button></div>
-      <table>
-        <thead><tr><th>Key</th><th>Value</th><th></th></tr></thead>
-        <tbody class="kv-body" data-kv="param">
-          {% for key, value in (endpoint.params or {}).items() %}
-            <tr>
-              <td><input type="text" class="kv-key" name="ep-{{ idx }}-param_key" value="{{ key }}"></td>
-              <td><input type="text" class="kv-value templatable" name="ep-{{ idx }}-param_value" value="{{ value }}"></td>
-              <td class="kv-remove-cell"><button type="button" class="btn-remove-row" title="Remove row">✕</button></td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+    <p class="field-hint">Query params go directly in the URL - e.g. <code>?lat={{ '{{latitude}}' }}&amp;lon={{ '{{longitude}}' }}</code>. Click a variable chip below to insert one at the cursor.</p>
 
     <div class="kv-section">
       <div class="kv-head"><h3>Headers</h3><button type="button" class="btn-add" data-target="header">+ Add row</button></div>
@@ -105,37 +111,6 @@
                 {% if (endpoint.body_type or "none") == "none" %}style="display:none"{% endif %}
                 placeholder="{{ body_placeholder }}">{{ endpoint.body or '' }}</textarea>
     </div>
-  </fieldset>
-
-  <fieldset>
-    <legend>Variables</legend>
-    <p class="field-hint">Click a chip to insert it into whichever field you were last editing (hover a chip for what it means). Location and device values come from the fix being forwarded; the table below is for your own values, like a Traccar device ID or an API token.</p>
-    <div class="chip-row">
-      {% for name, description in builtin_variables %}
-        <button type="button" class="chip" data-var="{{ name }}" title="{{ description }}">{{ '{{' }}{{ name }}{{ '}}' }}</button>
-      {% endfor %}
-    </div>
-
-    <div class="kv-section">
-      <div class="kv-head"><h3>Custom variables</h3><button type="button" class="btn-add" data-target="var">+ Add row</button></div>
-      <table>
-        <thead><tr><th>Name</th><th>Value</th><th></th></tr></thead>
-        <tbody class="kv-body" data-kv="var">
-          {% for key, value in (endpoint.variables or {}).items() %}
-            <tr>
-              <td><input type="text" class="kv-key" name="ep-{{ idx }}-var_key" value="{{ key }}"></td>
-              <td><input type="text" class="kv-value templatable" name="ep-{{ idx }}-var_value" value="{{ value }}"></td>
-              <td class="kv-remove-cell"><button type="button" class="btn-remove-row" title="Remove row">✕</button></td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </fieldset>
-
-  <fieldset>
-    <legend>Preview <span class="field-hint" style="margin:0;">- using a sample fix, so you can see what actually goes out</span></legend>
-    <pre class="preview-block"></pre>
   </fieldset>
 
   {% set cron_value = endpoint.cron or '*/5 * * * *' %}
@@ -190,34 +165,52 @@
   </fieldset>
   </div>
 
-  <div class="toggle-group">
-    <label class="checkbox-label">
-      <input type="checkbox" class="skip-toggle" data-controls="movement" {% if endpoint.skip_if_close %}checked{% endif %}>
-      <input type="hidden" name="ep-{{ idx }}-skip_if_close" value="{{ '1' if endpoint.skip_if_close else '0' }}">
-      Skip sending if it hasn't moved
-    </label>
-    <div class="toggle-controlled" {% if not endpoint.skip_if_close %}hidden{% endif %}>
-      <label>Minimum movement to send (meters)
-        <input type="number" name="ep-{{ idx }}-min_movement_m" min="1" step="1" value="{{ endpoint.min_movement_m or 50 }}">
-      </label>
+  <div class="endpoint-col-right">
+  <fieldset>
+    <legend>Variables</legend>
+    <p class="field-hint">Click a chip to insert it into whichever field you were last editing (hover a chip for what it means). Location and device values come from the fix being forwarded.</p>
+    <div class="chip-row">
+      {% for name, description in builtin_variables %}
+        <button type="button" class="chip" data-var="{{ name }}" title="{{ description }}">{{ '{{' }}{{ name }}{{ '}}' }}</button>
+      {% endfor %}
     </div>
-  </div>
+  </fieldset>
 
-  <div class="toggle-group">
-    <label class="checkbox-label">
-      <input type="checkbox" class="skip-toggle" data-controls="stale" {% if endpoint.skip_if_stale %}checked{% endif %}>
-      <input type="hidden" name="ep-{{ idx }}-skip_if_stale" value="{{ '1' if endpoint.skip_if_stale else '0' }}">
-      Skip re-sending Google's same last-known fix
-    </label>
-    <div class="toggle-controlled" {% if not endpoint.skip_if_stale %}hidden{% endif %}>
-      <label>Minimum time between re-sends of an unchanged fix (minutes)
-        <input type="number" name="ep-{{ idx }}-min_update_gap_m" min="1" step="1" value="{{ endpoint.min_update_gap_m or 30 }}">
+  <fieldset>
+    <legend>Filters</legend>
+    <div class="toggle-group">
+      <label class="checkbox-label">
+        <input type="checkbox" class="skip-toggle" data-controls="movement" {% if endpoint.skip_if_close %}checked{% endif %}>
+        <input type="hidden" name="ep-{{ idx }}-skip_if_close" value="{{ '1' if endpoint.skip_if_close else '0' }}">
+        Skip sending if it hasn't moved
       </label>
-      <p class="field-hint">This is based on the fix timestamp <strong>Google's backend</strong> reports for this tracker, not on when this endpoint last sent something. Google can keep returning the exact same cached fix for a while; this only delays re-sending that identical stale fix by the time set here. The moment Google reports an actually newer fix, it's sent immediately regardless of this timer.</p>
+      <div class="toggle-controlled" {% if not endpoint.skip_if_close %}hidden{% endif %}>
+        <label>Minimum movement to send (meters)
+          <input type="number" name="ep-{{ idx }}-min_movement_m" min="1" step="1" value="{{ endpoint.min_movement_m or 50 }}">
+        </label>
+      </div>
     </div>
+
+    <div class="toggle-group">
+      <label class="checkbox-label">
+        <input type="checkbox" class="skip-toggle" data-controls="stale" {% if endpoint.skip_if_stale %}checked{% endif %}>
+        <input type="hidden" name="ep-{{ idx }}-skip_if_stale" value="{{ '1' if endpoint.skip_if_stale else '0' }}">
+        Skip re-sending Google's same last-known fix
+      </label>
+      <div class="toggle-controlled" {% if not endpoint.skip_if_stale %}hidden{% endif %}>
+        <label>Minimum time between re-sends of an unchanged fix (minutes)
+          <input type="number" name="ep-{{ idx }}-min_update_gap_m" min="1" step="1" value="{{ endpoint.min_update_gap_m or 30 }}">
+        </label>
+        <p class="field-hint">This is based on the fix timestamp <strong>Google's backend</strong> reports for this tracker, not on when this endpoint last sent something. Google can keep returning the exact same cached fix for a while; this only delays re-sending that identical stale fix by the time set here. The moment Google reports an actually newer fix, it's sent immediately regardless of this timer.</p>
+      </div>
+    </div>
+  </fieldset>
+  </div>
+  </div>
   </div>
 
   {% if endpoint.last_forward_status %}
-    <p class="endpoint-status">Last forward: {{ endpoint.last_forward_status }}</p>
+    {% set status_kind = 'ok' if endpoint.last_forward_status == 'ok' else ('error' if endpoint.last_forward_status.startswith('error') else 'skipped') %}
+    <p class="endpoint-status endpoint-status--{{ status_kind }}">Last forward: {{ endpoint.last_forward_status }}</p>
   {% endif %}
 </fieldset>

@@ -24,59 +24,86 @@ def _seconds_to_cron(seconds) -> str:
     return f"0 */{hours} * * *"
 
 
+def _fold_params_into_url(entry: dict) -> dict:
+    """Query params used to be a separate table (see webui/forwarders/
+    custom.py's old `params=` kwarg approach); the URL's own querystring is
+    now the only source. One-time fold of any leftover "params" dict into a
+    literal querystring appended to "url", preserving {{var}} tokens as-is
+    (not percent-encoded) rather than escaping them - so an already-
+    configured endpoint keeps sending the exact same request after
+    upgrading. A no-op once "params" is gone, so safe to run unconditionally
+    on every load."""
+    params = entry.get("params")
+    if not params:
+        return entry
+    folded = dict(entry)
+    qs = "&".join(f"{k}={v}" for k, v in params.items())
+    sep = "&" if "?" in (folded.get("url") or "") else "?"
+    folded["url"] = (folded.get("url") or "") + sep + qs
+    folded.pop("params", None)
+    return folded
+
+
 def _migrate_legacy_endpoint(entry: dict) -> dict:
     """Upgrades one endpoint saved before the generic query-builder existed -
     a nested "traccar"/"phonetrack" sub-dict and no top-level "url" - into the
-    current method/url/params/headers/variables shape, using the same preset
-    templates the settings UI now offers (see presets.py). A no-op on
-    endpoints that already look like the current shape, so this is safe to
-    run unconditionally on every load."""
-    if not isinstance(entry, dict) or "url" in entry:
+    current method/url/headers shape, baking the same query params the
+    settings UI's presets now offer (see presets.py) directly into the URL.
+    Also folds any leftover "params" dict (from after the generic
+    query-builder existed, but before query params moved into the URL
+    itself) into the URL the same way - see _fold_params_into_url. Both
+    steps are no-ops on an endpoint that already looks like the current
+    shape, so this is safe to run unconditionally on every load."""
+    if not isinstance(entry, dict):
         return entry
 
-    etype = entry.get("type")
-    migrated = {k: v for k, v in entry.items() if k not in ("traccar", "phonetrack")}
+    if "url" not in entry:
+        etype = entry.get("type")
+        migrated = {k: v for k, v in entry.items() if k not in ("traccar", "phonetrack")}
 
-    if etype == "traccar":
-        sub = entry.get("traccar") or {}
-        preset = PRESETS["traccar"]
-        migrated["method"] = preset["method"]
-        migrated["url"] = (sub.get("url") or "").rstrip("/") + "/"
-        migrated["params"] = dict(preset["params"])
-        migrated["headers"] = {}
-        migrated["body_type"] = "none"
-        migrated["body"] = ""
-        migrated["variables"] = {"device_id": sub.get("device_id", "")}
-    elif etype == "phonetrack":
-        sub = entry.get("phonetrack") or {}
-        preset = PRESETS["phonetrack"]
-        migrated["method"] = preset["method"]
-        # The old per-endpoint device_name override doesn't exist anymore
-        # (see webui/forwarders/custom.py) - bake whatever it was set to
-        # directly into the URL as a literal, which sends the exact same
-        # request as before rather than silently switching to the account's
-        # device alias for anyone who had it set to something else.
-        migrated["url"] = (sub.get("base_url") or "").rstrip("/") + "/" + sub.get("device_name", "")
-        migrated["params"] = dict(preset["params"])
-        migrated["headers"] = {}
-        migrated["body_type"] = "none"
-        migrated["body"] = ""
-        migrated["variables"] = {}
-    else:
-        # Unknown/missing legacy type - fall back to Custom/blank rather than
-        # silently dropping the endpoint; the URL is just empty until the
-        # user fills it back in themselves.
-        preset = PRESETS["custom"]
-        migrated.setdefault("type", "custom")
-        migrated["method"] = preset["method"]
-        migrated["url"] = preset["url"]
-        migrated["params"] = dict(preset["params"])
-        migrated["headers"] = dict(preset["headers"])
-        migrated["body_type"] = preset["body_type"]
-        migrated["body"] = preset["body"]
-        migrated["variables"] = dict(preset["variables"])
+        if etype == "traccar":
+            sub = entry.get("traccar") or {}
+            base = (sub.get("url") or "").rstrip("/") + "/"
+            migrated["method"] = "GET"
+            migrated["url"] = (
+                base + "?id={{device_id}}&lat={{latitude}}&lon={{longitude}}"
+                "&timestamp={{fix_timestamp}}&altitude={{altitude_m}}&accuracy={{accuracy_m}}"
+            )
+            migrated["headers"] = {}
+            migrated["body_type"] = "none"
+            migrated["body"] = ""
+            migrated["variables"] = {"device_id": sub.get("device_id", "")}
+        elif etype == "phonetrack":
+            sub = entry.get("phonetrack") or {}
+            # The old per-endpoint device_name override doesn't exist anymore
+            # (see webui/forwarders/custom.py) - bake whatever it was set to
+            # directly into the URL as a literal, which sends the exact same
+            # request as before rather than silently switching to the account's
+            # device alias for anyone who had it set to something else.
+            base = (sub.get("base_url") or "").rstrip("/") + "/" + sub.get("device_name", "")
+            migrated["method"] = "GET"
+            migrated["url"] = (
+                base + "?lat={{latitude}}&lon={{longitude}}"
+                "&timestamp={{fix_timestamp}}&alt={{altitude_m}}&acc={{accuracy_m}}"
+            )
+            migrated["headers"] = {}
+            migrated["body_type"] = "none"
+            migrated["body"] = ""
+        else:
+            # Unknown/missing legacy type - fall back to Custom/blank rather than
+            # silently dropping the endpoint; the URL is just empty until the
+            # user fills it back in themselves.
+            preset = PRESETS["custom"]
+            migrated.setdefault("type", "custom")
+            migrated["method"] = preset["method"]
+            migrated["url"] = preset["url"]
+            migrated["headers"] = dict(preset["headers"])
+            migrated["body_type"] = preset["body_type"]
+            migrated["body"] = preset["body"]
 
-    return migrated
+        entry = migrated
+
+    return _fold_params_into_url(entry)
 
 
 def normalize_device_config(device_cfg: dict) -> dict:

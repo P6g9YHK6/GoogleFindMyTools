@@ -1,14 +1,15 @@
 // Interactivity for the Forwarding Settings page: the generic query-builder
 // endpoint block (webui/templates/settings/_endpoint_fields.html) - preset
-// switching, the params/headers/variables key-value tables, the body-type
-// textarea, variable-chip insertion, a client-only request preview, the
-// cron builder, the toggle-gated skip fields, relabeling a freshly-added
-// "+ Add endpoint" block's field names to a unique id, and flagging unsaved
-// changes per device. Everything is delegated off `document` so blocks
-// inserted later via htmx (a new endpoint, a device switching between its
-// form/YAML views) are covered automatically with no re-init step, and
-// nothing here hardcodes which/how many devices, endpoints or preset types
-// exist - a new preset just needs an entry in webui/forwarders/presets.py.
+// switching (only offered on a brand-new, not-yet-saved block), the headers
+// key-value table, the body-type textarea, built-in variable-chip
+// insertion, a client-only request preview, the cron builder, the
+// toggle-gated skip fields, relabeling a freshly-added "+ Add endpoint"
+// block's field names to a unique id, and flagging unsaved changes per
+// device. Everything is delegated off `document` so blocks inserted later
+// via htmx (a new endpoint, a device switching between its form/YAML views)
+// are covered automatically with no re-init step, and nothing here
+// hardcodes which/how many devices, endpoints or preset types exist - a new
+// preset just needs an entry in webui/forwarders/presets.py.
 
 (() => {
   const SAMPLE_VALUES = {
@@ -27,9 +28,7 @@
   }
 
   const KV_PLACEHOLDERS = {
-    param: ["param name", "{{latitude}}"],
     header: ["Header name", "Bearer {{token}}"],
-    var: ["variable name", "value"],
   };
 
   let activeField = null;
@@ -41,11 +40,11 @@
     return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 
-  // ---- key/value rows (params / headers / variables) --------------------
+  // ---- key/value rows (headers) ------------------------------------------
 
   function kvRow(block, kind, key, value) {
     const idx = block.dataset.epIdx;
-    const [keyName, valueName] = { param: ["param_key", "param_value"], header: ["header_key", "header_value"], var: ["var_key", "var_value"] }[kind];
+    const [keyName, valueName] = { header: ["header_key", "header_value"] }[kind];
     const [kp, vp] = KV_PLACEHOLDERS[kind];
     const tr = document.createElement("tr");
     tr.innerHTML =
@@ -88,9 +87,7 @@
     const url = block.querySelector(".url-input");
     if (url) url.value = preset.url || "";
 
-    fillKvTable(block, "param", preset.params);
     fillKvTable(block, "header", preset.headers);
-    fillKvTable(block, "var", preset.variables);
 
     const bodyType = block.querySelector(".body-type-select");
     if (bodyType) bodyType.value = preset.body_type || "none";
@@ -149,7 +146,6 @@
     vars.device_alias = block.dataset.deviceAlias || "";
     const alias = block.querySelector(".endpoint-alias");
     vars.endpoint_alias = (alias && alias.value) || "";
-    readKvTable(block, "var").forEach(([k, v]) => { vars[k] = v; });
     return vars;
   }
 
@@ -160,16 +156,13 @@
     const vars = blockVars(block);
     const method = (block.querySelector(".method-select") || {}).value || "GET";
     const url = (block.querySelector(".url-input") || {}).value || "";
-    const params = readKvTable(block, "param");
     const headers = readKvTable(block, "header");
     const bodyType = (block.querySelector(".body-type-select") || {}).value || "none";
     const bodyText = (block.querySelector(".body-textarea") || {}).value || "";
 
-    let urlHtml = renderTemplate(url || "(no url set)", vars);
-    if (params.length) {
-      const qs = params.map(([k, v]) => escapeHtml(k) + "=" + renderTemplate(v, vars)).join("&amp;");
-      urlHtml += '<span class="preview-muted">?</span>' + qs;
-    }
+    // Query params live directly in the URL's own querystring now, not a
+    // separate table - the URL field's value already is the full URL.
+    const urlHtml = renderTemplate(url || "(no url set)", vars);
 
     let out = '<span class="method-badge ' + method.toLowerCase() + '">' + method + "</span>" + urlHtml;
 
