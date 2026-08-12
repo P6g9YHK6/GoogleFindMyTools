@@ -233,6 +233,13 @@ fieldset {
   padding: 1.1rem 1.25rem 1.25rem;
   margin-bottom: 1.5rem;
   box-shadow: var(--shadow);
+  /* Browsers default a <fieldset> to min-width: min-content - it refuses to
+     shrink narrower than its legend's content (here, a device name plus an
+     "Edit as YAML" button, or "Endpoint N" plus "Send now"/"Remove"
+     buttons), overflowing the viewport on a narrow screen regardless of any
+     flex-wrap/min-width set on stuff further down. This is the one place
+     that actually needs overriding for that to stop. */
+  min-width: 0;
 }
 
 fieldset fieldset {
