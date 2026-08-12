@@ -66,6 +66,49 @@ def test_last_seen_falls_back_to_the_most_recent_persisted_location_time():
     assert _last_seen_from_persisted_locations(multiple_fixes) == 300
 
 
+def test_devices_table_shows_not_scheduled_with_no_endpoints_configured(client):
+    resp = client.get("/devices/table")
+    assert resp.status_code == 200
+    assert "Not scheduled" in resp.text
+
+
+def test_devices_table_shows_the_next_poll_time_for_a_configured_device(client, tmp_path, monkeypatch):
+    from webui import config
+    from webui.forwarders import config_store
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding.yaml")
+    monkeypatch.setattr(config, "FORWARDING_CONFIG_LEGACY_JSON_PATH", tmp_path / "forwarding_config.json")
+
+    config_store.set_device_config(FAKE_CANONIC_ID, {
+        "display_name": FAKE_DEVICE_NAME,
+        "endpoints": [{"type": "traccar", "url": "http://x/", "cron": "0 0 1 1 *"}],  # once a year
+    })
+
+    resp = client.get("/devices/table")
+    assert resp.status_code == 200
+    assert "Not scheduled" not in resp.text
+    assert '<a href="/settings#device-' + FAKE_CANONIC_ID in resp.text
+
+
+def test_next_poll_str_is_none_with_no_valid_cron(monkeypatch, tmp_path):
+    from webui import config
+    from webui.forwarders import config_store
+    from webui.routers.devices import _next_poll_str
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding.yaml")
+    monkeypatch.setattr(config, "FORWARDING_CONFIG_LEGACY_JSON_PATH", tmp_path / "forwarding_config.json")
+
+    assert _next_poll_str(FAKE_CANONIC_ID) is None  # no config at all yet
+
+    config_store.set_device_config(FAKE_CANONIC_ID, {
+        "display_name": FAKE_DEVICE_NAME,
+        "endpoints": [{"type": "traccar", "url": "http://x/", "cron": "not-a-cron"}],
+    })
+    assert _next_poll_str(FAKE_CANONIC_ID) is None
+
+
 def test_devices_table_uses_persisted_location_time_when_proto_has_no_last_seen(client, tmp_path, monkeypatch):
     from webui import config, device_location_store
     from webui.routers import devices

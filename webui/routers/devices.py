@@ -5,9 +5,10 @@ from fastapi import APIRouter, Request
 from NovaApi.ListDevices.nbe_list_devices import request_device_list
 from ProtoDecoders.decoder import get_canonic_ids, parse_device_list_protobuf
 from SpotApi.UploadPrecomputedPublicKeyIds.upload_precomputed_public_key_ids import refresh_custom_trackers
-from webui import device_location_store
+from webui import device_location_store, scheduler
 from webui.auth_state import is_logged_in
 from webui.deps import run_blocking
+from webui.forwarders import config_store
 from webui.templating import templates
 
 router = APIRouter()
@@ -28,6 +29,25 @@ def _last_seen_from_persisted_locations(last: dict | None) -> int | None:
         return None
     times = [loc["time"] for loc in last["locations"] if not loc.get("is_semantic") and loc.get("time")]
     return max(times) if times else None
+
+
+def _next_poll_str(canonic_id: str) -> str | None:
+    """Soonest upcoming poll across this device's configured endpoints, for
+    the Devices page - reuses scheduler._next_run directly (the same
+    function the real poll loop waits on, see webui/scheduler.py's
+    _poll_device) so this can never disagree with when a poll actually
+    fires. None if the device has no endpoints configured, or none of them
+    have a valid cron."""
+    device_cfg = config_store.get_device_config(canonic_id)
+    endpoints = device_cfg.get("endpoints") if device_cfg else None
+    if not endpoints:
+        return None
+    now = datetime.now()
+    next_runs = [scheduler._next_run(ep.get("cron", scheduler.DEFAULT_CRON), now) for ep in endpoints]
+    valid_next_runs = [t for t in next_runs if t is not None]
+    if not valid_next_runs:
+        return None
+    return min(valid_next_runs).strftime("%Y-%m-%d %H:%M:%S")
 
 
 async def get_devices() -> list[dict]:
@@ -51,6 +71,7 @@ async def get_devices() -> list[dict]:
                 datetime.fromtimestamp(last["fetched_at"]).strftime("%Y-%m-%d %H:%M:%S") if last else None
             ),
             "last_seen_str": datetime.fromtimestamp(last_seen).strftime("%Y-%m-%d %H:%M:%S") if last_seen else None,
+            "next_poll_str": _next_poll_str(canonic_id),
         })
     return devices
 

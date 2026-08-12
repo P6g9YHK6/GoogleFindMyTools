@@ -1,7 +1,7 @@
 <table>
   <thead>
     <tr>
-      <th>Name</th><th>Actions</th><th>Last locate result</th><th>Last seen</th>
+      <th>Name</th><th>Actions</th><th>Last locate result</th><th>Last seen</th><th>Next poll</th>
     </tr>
   </thead>
   <tbody>
@@ -22,9 +22,13 @@
       {# Phone-only (Spot/BLE tags never have this) - see
          ProtoDecoders/decoder.py:get_last_seen. #}
       <td>{{ device.last_seen_str or "-" }}</td>
+      <td>
+        {{ device.next_poll_str or "Not scheduled" }}
+        · <a href="/settings#device-{{ device.canonic_id }}">Edit</a>
+      </td>
     </tr>
   {% else %}
-    <tr><td colspan="4">No devices found.</td></tr>
+    <tr><td colspan="5">No devices found.</td></tr>
   {% endfor %}
   </tbody>
 </table>
