@@ -38,6 +38,7 @@
   <p class="field-hint preset-hint">{{ (presets.get(endpoint.type) or presets.get('custom')).hint }}</p>
   <p class="field-hint"><code>{{ '{{device_name}}' }}</code>/<code>{{ '{{device_alias}}' }}</code> below both fill in with this tracker's own name. If the target service needs to know it by something else, add a custom variable under Variables and use that instead.</p>
 
+  <div class="endpoint-sections">
   <fieldset>
     <legend>Request</legend>
 
@@ -137,33 +138,6 @@
     <pre class="preview-block"></pre>
   </fieldset>
 
-  <div class="toggle-group">
-    <label class="checkbox-label">
-      <input type="checkbox" class="skip-toggle" data-controls="movement" {% if endpoint.skip_if_close %}checked{% endif %}>
-      <input type="hidden" name="ep-{{ idx }}-skip_if_close" value="{{ '1' if endpoint.skip_if_close else '0' }}">
-      Skip sending if it hasn't moved
-    </label>
-    <div class="toggle-controlled" {% if not endpoint.skip_if_close %}hidden{% endif %}>
-      <label>Minimum movement to send (meters)
-        <input type="number" name="ep-{{ idx }}-min_movement_m" min="1" step="1" value="{{ endpoint.min_movement_m or 50 }}">
-      </label>
-    </div>
-  </div>
-
-  <div class="toggle-group">
-    <label class="checkbox-label">
-      <input type="checkbox" class="skip-toggle" data-controls="stale" {% if endpoint.skip_if_stale %}checked{% endif %}>
-      <input type="hidden" name="ep-{{ idx }}-skip_if_stale" value="{{ '1' if endpoint.skip_if_stale else '0' }}">
-      Skip re-sending Google's same last-known fix
-    </label>
-    <div class="toggle-controlled" {% if not endpoint.skip_if_stale %}hidden{% endif %}>
-      <label>Minimum time between re-sends of an unchanged fix (minutes)
-        <input type="number" name="ep-{{ idx }}-min_update_gap_m" min="1" step="1" value="{{ endpoint.min_update_gap_m or 30 }}">
-      </label>
-      <p class="field-hint">This is based on the fix timestamp <strong>Google's backend</strong> reports for this tracker, not on when this endpoint last sent something. Google can keep returning the exact same cached fix for a while; this only delays re-sending that identical stale fix by the time set here. The moment Google reports an actually newer fix, it's sent immediately regardless of this timer.</p>
-    </div>
-  </div>
-
   {% set cron_value = endpoint.cron or '*/5 * * * *' %}
   {% set cron_parts = (cron_value.split() + ['*', '*', '*', '*', '*'])[:5] %}
   <fieldset>
@@ -214,6 +188,34 @@
       </div>
     </details>
   </fieldset>
+  </div>
+
+  <div class="toggle-group">
+    <label class="checkbox-label">
+      <input type="checkbox" class="skip-toggle" data-controls="movement" {% if endpoint.skip_if_close %}checked{% endif %}>
+      <input type="hidden" name="ep-{{ idx }}-skip_if_close" value="{{ '1' if endpoint.skip_if_close else '0' }}">
+      Skip sending if it hasn't moved
+    </label>
+    <div class="toggle-controlled" {% if not endpoint.skip_if_close %}hidden{% endif %}>
+      <label>Minimum movement to send (meters)
+        <input type="number" name="ep-{{ idx }}-min_movement_m" min="1" step="1" value="{{ endpoint.min_movement_m or 50 }}">
+      </label>
+    </div>
+  </div>
+
+  <div class="toggle-group">
+    <label class="checkbox-label">
+      <input type="checkbox" class="skip-toggle" data-controls="stale" {% if endpoint.skip_if_stale %}checked{% endif %}>
+      <input type="hidden" name="ep-{{ idx }}-skip_if_stale" value="{{ '1' if endpoint.skip_if_stale else '0' }}">
+      Skip re-sending Google's same last-known fix
+    </label>
+    <div class="toggle-controlled" {% if not endpoint.skip_if_stale %}hidden{% endif %}>
+      <label>Minimum time between re-sends of an unchanged fix (minutes)
+        <input type="number" name="ep-{{ idx }}-min_update_gap_m" min="1" step="1" value="{{ endpoint.min_update_gap_m or 30 }}">
+      </label>
+      <p class="field-hint">This is based on the fix timestamp <strong>Google's backend</strong> reports for this tracker, not on when this endpoint last sent something. Google can keep returning the exact same cached fix for a while; this only delays re-sending that identical stale fix by the time set here. The moment Google reports an actually newer fix, it's sent immediately regardless of this timer.</p>
+    </div>
+  </div>
 
   {% if endpoint.last_forward_status %}
     <p class="endpoint-status">Last forward: {{ endpoint.last_forward_status }}</p>
