@@ -12,6 +12,24 @@ import undetected_chromedriver as uc
 
 logger = logging.getLogger(__name__)
 
+_VERSION_MISMATCH_SIGNATURES = ("only supports Chrome version", "session not created")
+
+
+def _version_mismatch_hint(e: Exception) -> str:
+    """undetected_chromedriver (version_main=None below) auto-fetches
+    whatever chromedriver build is newest, which can be ahead of a host's
+    actual installed Chrome - Chrome's staged rollout vs. chromedriver's
+    own release cadence. Selenium surfaces that as a "session not created:
+    This version of ChromeDriver only supports Chrome version N" error,
+    which otherwise reads like any other opaque failure in this chain.
+    Detected here so it points at the two actual ways out instead of
+    leaving the raw Selenium message to speak for itself."""
+    if any(sig in str(e) for sig in _VERSION_MISMATCH_SIGNATURES):
+        return (" This looks like a Chrome/chromedriver version mismatch - set "
+                "GFMT_CHROME_BINARY to a specific Chrome executable, or use the "
+                "Docker app instead (it downloads a matched Chrome build automatically).")
+    return ""
+
 
 def find_chrome():
     """Find Chrome executable using known paths and system commands."""
@@ -71,7 +89,7 @@ def create_driver():
         logger.info("Installed and browser started.")
         return driver
     except Exception as e:
-        logger.warning("Default ChromeDriver creation failed: %s", e)
+        logger.warning("Default ChromeDriver creation failed: %s%s", e, _version_mismatch_hint(e))
         logger.info("Trying alternative paths...")
         chrome_path = find_chrome()
         if chrome_path:
@@ -82,7 +100,7 @@ def create_driver():
                 logger.info("ChromeDriver started using %s", chrome_path)
                 return driver
             except Exception as e:
-                logger.warning("ChromeDriver failed using path %s: %s", chrome_path, e)
+                logger.warning("ChromeDriver failed using path %s: %s%s", chrome_path, e, _version_mismatch_hint(e))
         else:
             logger.warning("No Chrome executable found in known paths.")
 
@@ -95,12 +113,13 @@ def create_driver():
             logger.info("Started in headless mode successfully.")
             return driver
         except Exception as e:
-            logger.error("Headless mode also failed: %s", e)
-        
+            logger.error("Headless mode also failed: %s%s", e, _version_mismatch_hint(e))
+
         raise Exception(
             "[ChromeDriver] Failed to install ChromeDriver. A current version of Chrome was not detected on your system.\n"
             "If you know that Chrome is installed, update Chrome to the latest version. If the script is still not working, "
-            "set the path to your Chrome executable manually inside the script."
+            "set the path to your Chrome executable manually inside the script, or set GFMT_CHROME_BINARY to point at it "
+            "directly, or use the Docker app instead (it downloads a matched Chrome build automatically)."
         )
 
 if __name__ == '__main__':
