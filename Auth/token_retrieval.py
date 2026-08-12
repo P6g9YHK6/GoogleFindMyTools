@@ -20,6 +20,14 @@ def request_token(username, scope, play_services = False):
         service='oauth2:https://www.googleapis.com/auth/' + scope,
         app=request_app,
         client_sig='38918a453d07199354f8b19af05ec6562ced5788')
-    token = auth_response['Auth']
 
-    return token
+    if 'Auth' not in auth_response:
+        # Google rejected the exchange outright (e.g. {'Error': 'BadAuthentication'})
+        # instead of returning a token - surfaced this as a bare KeyError before,
+        # which gave no indication anything had actually gone wrong with the
+        # sign-in itself rather than a bug in this code.
+        raise RuntimeError(
+            f"Google rejected the sign-in for scope '{scope}': {auth_response}"
+        )
+
+    return auth_response['Auth']
