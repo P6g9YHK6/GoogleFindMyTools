@@ -50,6 +50,98 @@ PRESETS: dict[str, dict] = {
         "body_type": "none",
         "body": "",
     },
+    # The six presets below match PhoneTrack's other protocol-specific log
+    # endpoints (see its LogController.php), each meant for a particular
+    # tracking app but happy to take a GET/POST from anything that speaks
+    # the same param names. Same battery/speed/bearing caveat as "phonetrack"
+    # above: those fields aren't in BUILTIN_VARIABLES, so they're left out.
+    "phonetrack_osmand": {
+        "label": "Nextcloud PhoneTrack (OsmAnd endpoint)",
+        "hint": "PhoneTrack's OsmAnd-compatible log endpoint: a GET with the fix as query params.",
+        "method": "GET",
+        "url": (
+            "https://nc.local/apps/phonetrack/log/osmand/<token>/{{device_name}}"
+            "?lat={{latitude}}&lon={{longitude}}&timestamp={{fix_timestamp}}&alt={{altitude_m}}&acc={{accuracy_m}}"
+        ),
+        "headers": {},
+        "body_type": "none",
+        "body": "",
+    },
+    "phonetrack_gpslogger": {
+        "label": "Nextcloud PhoneTrack (GpsLogger endpoint)",
+        "hint": "PhoneTrack's GpsLogger-compatible log endpoint: a GET with the fix as query params.",
+        "method": "GET",
+        "url": (
+            "https://nc.local/apps/phonetrack/log/gpslogger/<token>/{{device_name}}"
+            "?lat={{latitude}}&lon={{longitude}}&timestamp={{fix_timestamp}}&alt={{altitude_m}}&acc={{accuracy_m}}"
+        ),
+        "headers": {},
+        "body_type": "none",
+        "body": "",
+    },
+    "phonetrack_locusmap": {
+        "label": "Nextcloud PhoneTrack (Locus Map endpoint)",
+        "hint": (
+            "PhoneTrack's Locus Map-compatible log endpoint: a GET with the fix as query params. "
+            "Note it's ?time=, not ?timestamp= like the other endpoints."
+        ),
+        "method": "GET",
+        "url": (
+            "https://nc.local/apps/phonetrack/log/locusmap/<token>/{{device_name}}"
+            "?lat={{latitude}}&lon={{longitude}}&time={{fix_timestamp}}&alt={{altitude_m}}&acc={{accuracy_m}}"
+        ),
+        "headers": {},
+        "body_type": "none",
+        "body": "",
+    },
+    "phonetrack_ulogger": {
+        "label": "Nextcloud PhoneTrack (uLogger endpoint)",
+        "hint": (
+            "PhoneTrack's uLogger-compatible log endpoint: a GET with the fix as query params. "
+            "Needs the literal action=addpos, and spells out accuracy/altitude instead of acc/alt."
+        ),
+        "method": "GET",
+        "url": (
+            "https://nc.local/apps/phonetrack/log/ulogger/<token>/{{device_name}}"
+            "?action=addpos&lat={{latitude}}&lon={{longitude}}&time={{fix_timestamp}}"
+            "&altitude={{altitude_m}}&accuracy={{accuracy_m}}"
+        ),
+        "headers": {},
+        "body_type": "none",
+        "body": "",
+    },
+    "phonetrack_owntracks": {
+        "label": "Nextcloud PhoneTrack (OwnTracks endpoint)",
+        "hint": (
+            "PhoneTrack's OwnTracks-compatible log endpoint. OwnTracks' own HTTP mode sends a JSON "
+            "body instead of query params, so this one's a POST with a JSON body rather than a GET."
+        ),
+        "method": "POST",
+        "url": "https://nc.local/apps/phonetrack/log/owntracks/<token>/{{device_name}}",
+        "headers": {},
+        "body_type": "json",
+        "body": (
+            '{"_type": "location", "lat": {{latitude}}, "lon": {{longitude}}, '
+            '"tst": {{fix_timestamp}}, "acc": {{accuracy_m}}, "alt": {{altitude_m}}}'
+        ),
+    },
+    "phonetrack_overland": {
+        "label": "Nextcloud PhoneTrack (Overland endpoint)",
+        "hint": (
+            "PhoneTrack's Overland-compatible log endpoint: a POST with a GeoJSON-shaped body. "
+            "The timestamp uses PHP's \"@<unix-seconds>\" DateTime shorthand, since that's what "
+            "PhoneTrack parses it with."
+        ),
+        "method": "POST",
+        "url": "https://nc.local/apps/phonetrack/log/overland/<token>/{{device_name}}",
+        "headers": {},
+        "body_type": "json",
+        "body": (
+            '{"locations": [{"type": "Feature", "geometry": {"type": "Point", '
+            '"coordinates": [{{longitude}}, {{latitude}}]}, "properties": {"device_id": "{{device_name}}", '
+            '"timestamp": "@{{fix_timestamp}}", "horizontal_accuracy": {{accuracy_m}}, "altitude": {{altitude_m}}}}]}'
+        ),
+    },
 }
 
 DEFAULT_PRESET_KEY = "custom"
