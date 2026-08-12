@@ -14,7 +14,10 @@
 (() => {
   const SAMPLE_VALUES = {
     latitude: "48.8566", longitude: "2.3522", altitude_m: "35", accuracy_m: "12",
-    fix_timestamp: "1723137600", tracker_id: "a1b2c3d4e5",
+    // current_timestamp isn't a fixed sample like the rest of these - it's
+    // "right now" by definition, so the preview computes it fresh below
+    // instead of hardcoding a value that would just go stale.
+    google_timestamp: "1723137600", tracker_id: "a1b2c3d4e5",
   };
 
   let PRESETS = {};
@@ -161,6 +164,7 @@
 
   function blockVars(block) {
     const vars = Object.assign({}, SAMPLE_VALUES);
+    vars.current_timestamp = String(Math.floor(Date.now() / 1000));
     // device_name (the fixed Google account name) and device_alias (the
     // local nickname) are genuinely different values now - see
     // webui/forwarders/custom.py's build_context - rendered into these two

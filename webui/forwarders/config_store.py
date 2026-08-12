@@ -67,7 +67,7 @@ def _migrate_legacy_endpoint(entry: dict) -> dict:
             migrated["method"] = "GET"
             migrated["url"] = (
                 base + "?id={{device_id}}&lat={{latitude}}&lon={{longitude}}"
-                "&timestamp={{fix_timestamp}}&altitude={{altitude_m}}&accuracy={{accuracy_m}}"
+                "&timestamp={{google_timestamp}}&altitude={{altitude_m}}&accuracy={{accuracy_m}}"
             )
             migrated["headers"] = {}
             migrated["body_type"] = "none"
@@ -84,7 +84,7 @@ def _migrate_legacy_endpoint(entry: dict) -> dict:
             migrated["method"] = "GET"
             migrated["url"] = (
                 base + "?lat={{latitude}}&lon={{longitude}}"
-                "&timestamp={{fix_timestamp}}&alt={{altitude_m}}&acc={{accuracy_m}}"
+                "&timestamp={{google_timestamp}}&alt={{altitude_m}}&acc={{accuracy_m}}"
             )
             migrated["headers"] = {}
             migrated["body_type"] = "none"

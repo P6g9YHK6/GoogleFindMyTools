@@ -37,9 +37,9 @@ def test_phonetrack_preset_bakes_device_alias_and_query_params_into_the_url():
 def test_phonetrack_locusmap_and_ulogger_presets_use_time_not_timestamp():
     # Unlike PhoneTrack's other GET endpoints, these two use ?time= - worth
     # pinning since it looks like a typo next to the others.
-    assert "time={{fix_timestamp}}" in PRESETS["phonetrack_locusmap"]["url"]
+    assert "time={{google_timestamp}}" in PRESETS["phonetrack_locusmap"]["url"]
     assert "timestamp=" not in PRESETS["phonetrack_locusmap"]["url"]
-    assert "time={{fix_timestamp}}" in PRESETS["phonetrack_ulogger"]["url"]
+    assert "time={{google_timestamp}}" in PRESETS["phonetrack_ulogger"]["url"]
     assert "action=addpos" in PRESETS["phonetrack_ulogger"]["url"]
 
 
@@ -232,6 +232,20 @@ def test_forward_to_custom_device_name_uses_device_display_name(monkeypatch):
     location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
     custom.forward_to_custom(endpoint_cfg, location, "My Phone")
     assert captured["url"] == "https://nc.local/x/My Phone"
+
+
+def test_build_context_splits_google_and_current_timestamp(monkeypatch):
+    """google_timestamp is Google's own fix time; current_timestamp is
+    computed fresh at render time - they must not collapse to the same
+    value just because the fix happens to be old."""
+    from webui.forwarders import custom
+
+    monkeypatch.setattr(custom.time, "time", lambda: 1800000000.0)
+    location = {"latitude": 1.0, "longitude": 2.0, "time": 1700000000}
+    ctx = custom.build_context({}, location, "My Phone")
+    assert ctx["google_timestamp"] == 1700000000
+    assert ctx["current_timestamp"] == 1800000000
+    assert ctx["google_timestamp"] != ctx["current_timestamp"]
 
 
 def test_forward_to_custom_skips_semantic_and_missing_coordinates():

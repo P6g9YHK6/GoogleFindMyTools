@@ -3,6 +3,7 @@
 that pre-fill this (see presets.py), not separate code paths."""
 
 import re
+import time
 
 import httpx
 
@@ -48,7 +49,12 @@ def build_context(
         "longitude": location.get("longitude"),
         "altitude_m": location.get("altitude"),
         "accuracy_m": location.get("accuracy"),
-        "fix_timestamp": location.get("time"),
+        # google_timestamp: when Google recorded this fix. current_timestamp:
+        # right now, at send time - always fresh even when Google keeps
+        # re-serving the same cached fix (see skip_if_stale in policy.py,
+        # which is exactly the case that makes the two worth telling apart).
+        "google_timestamp": location.get("time"),
+        "current_timestamp": int(time.time()),
         "device_name": device_name or "",
         "device_alias": (device_alias if device_alias is not None else device_name) or "",
         "endpoint_alias": endpoint_cfg.get("alias") or "",
