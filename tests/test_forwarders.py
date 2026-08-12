@@ -248,6 +248,29 @@ def test_build_context_splits_google_and_current_timestamp(monkeypatch):
     assert ctx["google_timestamp"] != ctx["current_timestamp"]
 
 
+def test_render_warns_on_a_variable_that_resolves_empty(caplog):
+    """A token that resolves - just to "" - sends silently short of what was
+    intended (e.g. {{device_alias}} on a device with no alias set). Unlike a
+    typo'd token (left unresolved and visibly {{broken}} in the request),
+    nothing here looks wrong without a log line."""
+    from webui.forwarders.custom import _render
+
+    with caplog.at_level("WARNING", logger="webui.forwarders.custom"):
+        result = _render("id={{device_alias}}&name={{device_name}}", {"device_alias": "", "device_name": "Pixel"})
+    assert result == "id=&name=Pixel"
+    assert len(caplog.records) == 1
+    assert "device_alias" in caplog.records[0].message
+
+
+def test_render_does_not_warn_on_unresolved_or_nonempty_tokens(caplog):
+    from webui.forwarders.custom import _render
+
+    with caplog.at_level("WARNING", logger="webui.forwarders.custom"):
+        result = _render("a={{typo}}&b={{ok}}", {"ok": "value"})
+    assert result == "a={{typo}}&b=value"
+    assert caplog.records == []
+
+
 def test_forward_to_custom_skips_semantic_and_missing_coordinates():
     from webui.forwarders import custom
 
