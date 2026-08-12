@@ -415,9 +415,17 @@ details ul {
   border: 1px solid #ccc;
 }
 
-/* Forwarding settings: endpoints */
+/* Forwarding settings: endpoints - also reused by the Apprise URL list and
+   both YAML editors (see webui/templates/auth/_app_settings*.html and
+   settings/_device_yaml.html), which is why this is a <textarea> everywhere
+   it's used, not an <input>. overflow-wrap only kicks in where wrapping is
+   allowed in the first place, so it's a no-op on .yaml-editor's own
+   `white-space: pre` (intentional there - YAML is indentation-sensitive)
+   and only actually wraps a long unbroken URL/token instead of overflowing. */
 .url-input {
   width: 100%;
+  overflow-wrap: anywhere;
+  resize: vertical;
 }
 
 .endpoints-container {
@@ -491,6 +499,19 @@ details ul {
   font-size: 0.85rem;
 }
 
+.endpoint-status--ok {
+  color: var(--success);
+}
+
+.endpoint-status--error {
+  color: var(--danger);
+  font-weight: 500;
+}
+
+.endpoint-status--skipped {
+  color: var(--text-muted);
+}
+
 .field-hint {
   font-size: 0.8rem;
   color: var(--text-muted);
@@ -536,30 +557,32 @@ details ul {
   margin: 0.75rem 0 0;
 }
 
-/* Request/Variables/Preview/Schedule fieldsets inside an endpoint block -
-   stacked by default (mobile-first); once there's room for at least two
-   ~320px columns side by side, let them flow into a row instead of each
-   eating the block's full width down the page. auto-fit + minmax means
-   the column count itself isn't hardcoded - it settles at whatever fits
-   the viewport (1 on a phone, 2-4 on a wide desktop). */
-.endpoint-sections {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 0;
-  align-items: start;
+/* Preview/Request/Schedule/Variables/Filters fieldsets inside an endpoint
+   block - Preview always sits alone on top (it's a summary of everything
+   below it, so it reads oddly sandwiched between two same-width columns).
+   Request+Schedule and Variables+Filters stack as two single-column
+   sections by default (mobile-first); once there's room for two ~320px
+   columns side by side, they flow into a left/right pair instead of each
+   eating the block's full width down the page. */
+.endpoint-columns {
+  display: block;
+}
+
+.endpoint-col-left,
+.endpoint-col-right {
+  min-width: 0;
 }
 
 @media (min-width: 700px) {
-  .endpoint-sections {
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  .endpoint-columns {
+    display: flex;
     gap: 1rem;
+    align-items: start;
   }
 
-  .endpoint-sections > fieldset {
-    /* Grid `gap` already spaces these out - the generic "fieldset fieldset"
-       margin would just stack on top of it, widening the gap unevenly
-       between rows vs. within a row. */
-    margin: 0;
+  .endpoint-col-left,
+  .endpoint-col-right {
+    flex: 1 1 0;
   }
 }
 
