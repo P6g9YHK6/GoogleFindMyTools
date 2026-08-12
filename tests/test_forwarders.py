@@ -4,7 +4,11 @@ from webui.forwarders import PRESETS, blank_endpoint
 
 
 def test_presets_cover_traccar_and_phonetrack_and_custom():
-    assert set(PRESETS) == {"custom", "traccar", "phonetrack"}
+    assert set(PRESETS) == {
+        "custom", "traccar", "phonetrack",
+        "phonetrack_osmand", "phonetrack_gpslogger", "phonetrack_locusmap",
+        "phonetrack_ulogger", "phonetrack_owntracks", "phonetrack_overland",
+    }
     for preset in PRESETS.values():
         assert preset["method"] in ("GET", "POST", "PUT", "PATCH", "DELETE")
         assert isinstance(preset["headers"], dict)
@@ -25,6 +29,30 @@ def test_phonetrack_preset_bakes_device_name_and_query_params_into_the_url():
     preset = PRESETS["phonetrack"]
     assert "{{device_name}}" in preset["url"]
     assert "lat={{latitude}}" in preset["url"]
+
+
+def test_phonetrack_locusmap_and_ulogger_presets_use_time_not_timestamp():
+    # Unlike PhoneTrack's other GET endpoints, these two use ?time= - worth
+    # pinning since it looks like a typo next to the others.
+    assert "time={{fix_timestamp}}" in PRESETS["phonetrack_locusmap"]["url"]
+    assert "timestamp=" not in PRESETS["phonetrack_locusmap"]["url"]
+    assert "time={{fix_timestamp}}" in PRESETS["phonetrack_ulogger"]["url"]
+    assert "action=addpos" in PRESETS["phonetrack_ulogger"]["url"]
+
+
+def test_phonetrack_owntracks_and_overland_presets_render_to_valid_json():
+    import json
+
+    from webui.forwarders.custom import _render, build_context
+
+    location = {"latitude": 47.1, "longitude": 8.5, "altitude": 400.0, "accuracy": 10.0, "time": 1700000000}
+    ctx = build_context({}, location, "MyPhone")
+
+    for key in ("phonetrack_owntracks", "phonetrack_overland"):
+        preset = PRESETS[key]
+        assert preset["body_type"] == "json"
+        rendered = json.loads(_render(preset["body"], ctx))
+        assert rendered  # parses and isn't empty
 
 
 def test_blank_endpoint_starts_from_the_custom_preset():
