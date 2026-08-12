@@ -11,7 +11,8 @@
    update_device_settings. #}
 {% set is_new = is_new if is_new is defined else False %}
 <fieldset class="endpoint-block{% if is_new %} endpoint-block--new{% endif %}" data-ep-idx="{{ idx }}"
-          data-device-alias="{{ row.name if row is defined else '' }}">
+          data-device-alias="{{ row.name if row is defined else '' }}"
+          data-device-name="{{ (row.google_name or row.name) if row is defined else '' }}">
   <input type="hidden" name="ep_order" value="{{ idx }}">
   {# The "Endpoint N" numbering itself comes from .endpoint-block > legend::before
      (see app.css) - this span only ever holds the optional alias next to it. #}
@@ -50,7 +51,7 @@
   {% if is_new %}
     <p class="field-hint preset-hint">{{ (presets.get(endpoint.type) or presets.get('custom')).hint }}</p>
   {% endif %}
-  <p class="field-hint"><code>{{ '{{device_name}}' }}</code>/<code>{{ '{{device_alias}}' }}</code> below both fill in with this tracker's own name.</p>
+  <p class="field-hint"><code>{{ '{{device_name}}' }}</code> is this tracker's real name from your Google account; <code>{{ '{{device_alias}}' }}</code> is the local nickname you set above.</p>
 
   <div class="endpoint-sections">
   <fieldset class="preview-fieldset">

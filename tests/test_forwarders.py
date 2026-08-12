@@ -25,9 +25,12 @@ def test_traccar_preset_templates_the_fix_as_query_params_baked_into_the_url():
     assert "id=REPLACE_WITH_YOUR_DEVICE_ID" in preset["url"]
 
 
-def test_phonetrack_preset_bakes_device_name_and_query_params_into_the_url():
+def test_phonetrack_preset_bakes_device_alias_and_query_params_into_the_url():
+    # {{device_alias}}, not {{device_name}} - PhoneTrack's session id wants
+    # the local nickname you control, not the Google account's fixed name
+    # (which may be cryptic and isn't yours to edit here).
     preset = PRESETS["phonetrack"]
-    assert "{{device_name}}" in preset["url"]
+    assert "{{device_alias}}" in preset["url"]
     assert "lat={{latitude}}" in preset["url"]
 
 
@@ -153,8 +156,10 @@ def test_forward_to_custom_still_resolves_a_legacy_variables_dict(monkeypatch):
 def test_forward_to_custom_device_name_is_not_overridable(monkeypatch):
     """A stray "device_name" key on an endpoint (e.g. left over from an old
     config) must not change what {{device_name}}/{{device_alias}} resolve
-    to - both are always the device's own real alias, never overridable
-    per endpoint - see webui/forwarders/custom.py's build_context()."""
+    to - neither is overridable per endpoint - see webui/forwarders/
+    custom.py's build_context(). They're allowed to resolve to two
+    different values now (the Google account's real name vs. the local
+    nickname - see webui/scheduler.py), just not ones an endpoint can set."""
     from webui.forwarders import custom
 
     captured = {}
@@ -172,6 +177,33 @@ def test_forward_to_custom_device_name_is_not_overridable(monkeypatch):
     endpoint_cfg = {
         "method": "GET", "url": "https://nc.local/x/{{device_name}}/{{device_alias}}",
         "headers": {}, "body_type": "none", "body": "", "device_name": "phone1",
+    }
+    location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
+    custom.forward_to_custom(endpoint_cfg, location, "Pixel 8", "My Phone")
+    assert captured["url"] == "https://nc.local/x/Pixel 8/My Phone"
+
+
+def test_forward_to_custom_device_alias_falls_back_to_device_name(monkeypatch):
+    """Callers that only ever have one name to give (older code, most of the
+    tests below) still get that same value for both tokens - only callers
+    that explicitly pass a second, different device_alias see a split."""
+    from webui.forwarders import custom
+
+    captured = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            pass
+
+    def fake_request(method, url, **kwargs):
+        captured["url"] = url
+        return FakeResponse()
+
+    monkeypatch.setattr(custom.httpx, "request", fake_request)
+
+    endpoint_cfg = {
+        "method": "GET", "url": "https://nc.local/x/{{device_name}}/{{device_alias}}",
+        "headers": {}, "body_type": "none", "body": "",
     }
     location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
     custom.forward_to_custom(endpoint_cfg, location, "My Phone")

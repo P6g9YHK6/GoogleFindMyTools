@@ -84,7 +84,21 @@ async def _poll_device(canonic_id: str):
 
         due_indices = [i for i, t in enumerate(next_runs) if t is not None and t <= wake_at]
 
+        # name is the local, editable alias (see webui/routers/settings.py's
+        # _rows) - falls back to canonic_id if this device was never
+        # actually saved through the settings UI. Used everywhere below that
+        # just needs one human-friendly label (locate logging, the
+        # forwarding log, the websocket broadcast) exactly as before
+        # device_alias existed as its own template token. google_name is the
+        # real, fixed name from the Google account itself, kept in sync
+        # locally by that same _rows() on every settings-page load so it's
+        # available here without a live device-list fetch on every poll -
+        # falls back to the alias (then canonic_id) for a device saved
+        # before google_name started being persisted. {{device_name}} and
+        # {{device_alias}} in a template resolve to google_name and name
+        # respectively - see webui/forwarders/custom.py's build_context.
         name = device_cfg.get("display_name", canonic_id)
+        google_name = device_cfg.get("google_name") or name
 
         if not is_logged_in():
             # Don't trigger the Google login flow from the background poller -
@@ -113,7 +127,7 @@ async def _poll_device(canonic_id: str):
         for location in locations:
             for i in due_indices:
                 endpoint_location = location
-                status = await asyncio.to_thread(_forward_one, endpoints[i], endpoint_location, name)
+                status = await asyncio.to_thread(_forward_one, endpoints[i], endpoint_location, google_name, name)
                 results[i] = {"status": status, "location": location}
                 log_store.append(
                     canonic_id=canonic_id,
@@ -156,7 +170,10 @@ async def forward_now(canonic_id: str, index: int) -> dict | None:
     if not device_cfg or not (0 <= index < len(endpoints)):
         return None
 
+    # See the matching comment in _poll_device above - name is the local
+    # alias, google_name the account's real (fixed) name.
     name = device_cfg.get("display_name", canonic_id)
+    google_name = device_cfg.get("google_name") or name
     endpoint_cfg = endpoints[index]
 
     try:
@@ -168,7 +185,7 @@ async def forward_now(canonic_id: str, index: int) -> dict | None:
     status = "no location"
     for location in locations:
         endpoint_location = location
-        status = await asyncio.to_thread(_dispatch_forward, endpoint_cfg, endpoint_location, name)
+        status = await asyncio.to_thread(_dispatch_forward, endpoint_cfg, endpoint_location, google_name, name)
         log_store.append(
             canonic_id=canonic_id,
             device_name=name,

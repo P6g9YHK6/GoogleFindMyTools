@@ -27,23 +27,30 @@ def _render(template: str, ctx: dict) -> str:
     return _TOKEN_RE.sub(repl, template)
 
 
-def build_context(endpoint_cfg: dict, location: dict, device_display_name: str) -> dict:
+def build_context(
+    endpoint_cfg: dict, location: dict, device_name: str, device_alias: str | None = None,
+) -> dict:
     """Every {{variable}} available to this endpoint's templates - the
     location fix, this endpoint's own alias, and (for endpoints saved before
     the settings UI dropped the "Custom variables" table) its own leftover
     custom variables, e.g. a Traccar endpoint's device_id.
 
-    device_name and device_alias are both just the device's own alias/name -
-    two names for the same value (not overridable per endpoint), kept as
-    two tokens so existing templates written against either name work."""
+    device_name is this tracker's real name straight from the Google
+    account; device_alias is the (optional) local nickname set on the
+    Settings page, falling back to device_name when no caller passes one
+    explicitly - callers that only ever had one name to give (older code,
+    tests) still get sensible identical values for both, same as before
+    device_alias existed as its own concept. Neither is overridable per
+    endpoint - see webui/scheduler.py for where the two are actually told
+    apart (device_cfg's "google_name" vs "display_name")."""
     ctx = {
         "latitude": location.get("latitude"),
         "longitude": location.get("longitude"),
         "altitude_m": location.get("altitude"),
         "accuracy_m": location.get("accuracy"),
         "fix_timestamp": location.get("time"),
-        "device_name": device_display_name or "",
-        "device_alias": device_display_name or "",
+        "device_name": device_name or "",
+        "device_alias": (device_alias if device_alias is not None else device_name) or "",
         "endpoint_alias": endpoint_cfg.get("alias") or "",
     }
     # No UI writes "variables" anymore (see webui/forwarders/presets.py's
@@ -54,7 +61,9 @@ def build_context(endpoint_cfg: dict, location: dict, device_display_name: str) 
     return ctx
 
 
-def forward_to_custom(endpoint_cfg: dict, location: dict, device_display_name: str = "") -> bool:
+def forward_to_custom(
+    endpoint_cfg: dict, location: dict, device_name: str = "", device_alias: str | None = None,
+) -> bool:
     if location.get("is_semantic") or location.get("latitude") is None:
         return False
 
@@ -62,7 +71,7 @@ def forward_to_custom(endpoint_cfg: dict, location: dict, device_display_name: s
     if not url_template:
         return False
 
-    ctx = build_context(endpoint_cfg, location, device_display_name)
+    ctx = build_context(endpoint_cfg, location, device_name, device_alias)
     # Query params live in the URL itself now (a literal "?key=value"), not
     # a separate table - _render() already substitutes {{var}} tokens
     # anywhere in this string, querystring included, so passing the
@@ -101,11 +110,13 @@ def forward_to_custom(endpoint_cfg: dict, location: dict, device_display_name: s
     return True
 
 
-def preview_request(endpoint_cfg: dict, location: dict, device_display_name: str = "") -> dict:
+def preview_request(
+    endpoint_cfg: dict, location: dict, device_name: str = "", device_alias: str | None = None,
+) -> dict:
     """Non-sending dry-run of the above, for the "Send now" confirmation /
     debugging - not currently wired into a route, kept alongside
     forward_to_custom so the two can't drift apart on how templating works."""
-    ctx = build_context(endpoint_cfg, location, device_display_name)
+    ctx = build_context(endpoint_cfg, location, device_name, device_alias)
     url = _render((endpoint_cfg.get("url") or "").strip(), ctx)
     headers = {k: _render(v, ctx) for k, v in (endpoint_cfg.get("headers") or {}).items()}
     body_type = endpoint_cfg.get("body_type") or "none"

@@ -177,7 +177,7 @@ def test_stale_duplicate_requires_the_toggle_and_a_prior_send():
 
 def test_forward_one_reports_stale_duplicate_skip_without_dispatching(monkeypatch):
     dispatched = []
-    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="": dispatched.append(loc) or "ok")
+    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None: dispatched.append(loc) or "ok")
 
     now = 1_000_000.0
     stale_time = now - policy.FRESH_FIX_AGE_S - 1
@@ -194,7 +194,7 @@ def test_forward_one_reports_stale_duplicate_skip_without_dispatching(monkeypatc
 
 def test_forward_one_reports_distance_skip_without_dispatching(monkeypatch):
     dispatched = []
-    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="": dispatched.append(loc) or "ok")
+    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None: dispatched.append(loc) or "ok")
 
     endpoint_cfg = _traccar_endpoint(skip_if_close=True, min_movement_m=100, last_sent_lat=45.0, last_sent_lon=9.0)
 

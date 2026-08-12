@@ -126,7 +126,7 @@ async def test_poll_device_records_last_sent_position_on_success(monkeypatch, tm
     # _poll_device calls policy._forward_one, which resolves _dispatch_forward
     # in policy's own module globals - patching scheduler's re-exported name
     # wouldn't reach it (see tests/conftest.py's "patch where it's looked up").
-    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="": "ok")
+    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None: "ok")
 
     tick_done = asyncio.Event()
 
@@ -179,7 +179,7 @@ async def test_poll_device_persists_last_location_for_the_devices_page(monkeypat
     monkeypatch.setattr(config, "FORWARD_LOG_PATH", tmp_path / "forward.log")
     monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
     monkeypatch.setattr(scheduler, "is_logged_in", lambda: True)
-    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="": "ok")
+    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None: "ok")
 
     tick_done = asyncio.Event()
     fix = {"is_semantic": False, "latitude": 12.5, "longitude": 34.5, "time": 1}

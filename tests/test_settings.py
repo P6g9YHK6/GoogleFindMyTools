@@ -277,7 +277,7 @@ def test_send_now_forwards_immediately_bypassing_schedule_and_skip(client, monke
         return [{"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}]
 
     monkeypatch.setattr(scheduler, "locate_device", fake_locate_device)
-    monkeypatch.setattr(scheduler, "_dispatch_forward", lambda cfg, loc, name="": "ok")
+    monkeypatch.setattr(scheduler, "_dispatch_forward", lambda cfg, loc, name="", alias=None: "ok")
 
     resp = client.post(f"/settings/devices/{FAKE_CANONIC_ID}/endpoints/0/send-now")
     assert resp.status_code == 200

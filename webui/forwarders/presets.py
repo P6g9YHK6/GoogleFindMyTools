@@ -43,7 +43,7 @@ PRESETS: dict[str, dict] = {
         "hint": "Nextcloud PhoneTrack's log endpoint: the device name is part of the URL, the fix is sent as query params.",
         "method": "GET",
         "url": (
-            "https://nc.local/apps/phonetrack/logGet/<token>/{{device_name}}"
+            "https://nc.local/apps/phonetrack/logGet/<token>/{{device_alias}}"
             "?lat={{latitude}}&lon={{longitude}}&timestamp={{fix_timestamp}}&alt={{altitude_m}}&acc={{accuracy_m}}"
         ),
         "headers": {},
@@ -60,7 +60,7 @@ PRESETS: dict[str, dict] = {
         "hint": "PhoneTrack's OsmAnd-compatible log endpoint: a GET with the fix as query params.",
         "method": "GET",
         "url": (
-            "https://nc.local/apps/phonetrack/log/osmand/<token>/{{device_name}}"
+            "https://nc.local/apps/phonetrack/log/osmand/<token>/{{device_alias}}"
             "?lat={{latitude}}&lon={{longitude}}&timestamp={{fix_timestamp}}&alt={{altitude_m}}&acc={{accuracy_m}}"
         ),
         "headers": {},
@@ -72,7 +72,7 @@ PRESETS: dict[str, dict] = {
         "hint": "PhoneTrack's GpsLogger-compatible log endpoint: a GET with the fix as query params.",
         "method": "GET",
         "url": (
-            "https://nc.local/apps/phonetrack/log/gpslogger/<token>/{{device_name}}"
+            "https://nc.local/apps/phonetrack/log/gpslogger/<token>/{{device_alias}}"
             "?lat={{latitude}}&lon={{longitude}}&timestamp={{fix_timestamp}}&alt={{altitude_m}}&acc={{accuracy_m}}"
         ),
         "headers": {},
@@ -87,7 +87,7 @@ PRESETS: dict[str, dict] = {
         ),
         "method": "GET",
         "url": (
-            "https://nc.local/apps/phonetrack/log/locusmap/<token>/{{device_name}}"
+            "https://nc.local/apps/phonetrack/log/locusmap/<token>/{{device_alias}}"
             "?lat={{latitude}}&lon={{longitude}}&time={{fix_timestamp}}&alt={{altitude_m}}&acc={{accuracy_m}}"
         ),
         "headers": {},
@@ -102,7 +102,7 @@ PRESETS: dict[str, dict] = {
         ),
         "method": "GET",
         "url": (
-            "https://nc.local/apps/phonetrack/log/ulogger/<token>/{{device_name}}"
+            "https://nc.local/apps/phonetrack/log/ulogger/<token>/{{device_alias}}"
             "?action=addpos&lat={{latitude}}&lon={{longitude}}&time={{fix_timestamp}}"
             "&altitude={{altitude_m}}&accuracy={{accuracy_m}}"
         ),
@@ -117,7 +117,7 @@ PRESETS: dict[str, dict] = {
             "body instead of query params, so this one's a POST with a JSON body rather than a GET."
         ),
         "method": "POST",
-        "url": "https://nc.local/apps/phonetrack/log/owntracks/<token>/{{device_name}}",
+        "url": "https://nc.local/apps/phonetrack/log/owntracks/<token>/{{device_alias}}",
         "headers": {},
         "body_type": "json",
         "body": (
@@ -133,12 +133,12 @@ PRESETS: dict[str, dict] = {
             "PhoneTrack parses it with."
         ),
         "method": "POST",
-        "url": "https://nc.local/apps/phonetrack/log/overland/<token>/{{device_name}}",
+        "url": "https://nc.local/apps/phonetrack/log/overland/<token>/{{device_alias}}",
         "headers": {},
         "body_type": "json",
         "body": (
             '{"locations": [{"type": "Feature", "geometry": {"type": "Point", '
-            '"coordinates": [{{longitude}}, {{latitude}}]}, "properties": {"device_id": "{{device_name}}", '
+            '"coordinates": [{{longitude}}, {{latitude}}]}, "properties": {"device_id": "{{device_alias}}", '
             '"timestamp": "@{{fix_timestamp}}", "horizontal_accuracy": {{accuracy_m}}, "altitude": {{altitude_m}}}}]}'
         ),
     },
@@ -159,8 +159,8 @@ BUILTIN_VARIABLES: list[tuple[str, str]] = [
     ("altitude_m", "Altitude in meters, if Google reported one"),
     ("accuracy_m", "Google's radius of uncertainty for the fix, in meters"),
     ("fix_timestamp", "Unix timestamp (seconds) of when Google recorded this fix - not when it was sent"),
-    ("device_name", "This device's own alias/name (same value as device_alias below)"),
-    ("device_alias", "This device's own alias/name (same value as device_name above)"),
+    ("device_name", "This tracker's real name from your Google account (fixed, not editable here)"),
+    ("device_alias", "This tracker's local nickname, set on the Settings page (falls back to device_name until you set one)"),
     ("endpoint_alias", "This endpoint's own alias, as set above"),
     ("tracker_id", "This app's own internal id for the tracker (not a target service's device id)"),
 ]
