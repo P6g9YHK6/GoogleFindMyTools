@@ -207,8 +207,16 @@ class FcmPushClient:  # pylint:disable=too-many-instance-attributes
         self.run_state: FcmPushClientRunState = FcmPushClientRunState.CREATED
         self.tasks: list[asyncio.Task] = []
 
-        self.reset_lock: asyncio.Lock | None = None
-        self.stopping_lock: asyncio.Lock | None = None
+        # Created eagerly (not in start()) so stop()/_reset() are safe to
+        # call before start() has ever run - e.g. FcmReceiver._register_for_fcm
+        # calls stop() from its except-handler when the initial checkin fails,
+        # which used to hit `async with None` here and raise "'NoneType'
+        # object does not support the asynchronous context manager protocol"
+        # (surfaced up through webui.scheduler as a mysterious "Locate failed"
+        # warning). Safe on 3.10+: asyncio.Lock() no longer binds to a
+        # running loop at construction time.
+        self.reset_lock: asyncio.Lock = asyncio.Lock()
+        self.stopping_lock: asyncio.Lock = asyncio.Lock()
 
     def _msg_str(self, msg: Message) -> str:
         if self.config.log_debug_verbose:
@@ -238,14 +246,10 @@ class FcmPushClient:  # pylint:disable=too-many-instance-attributes
                 await writer.wait_closed()
 
     async def _reset(self) -> None:
-        if (
-            (self.reset_lock and self.reset_lock.locked())
-            or (self.stopping_lock and self.stopping_lock.locked())
-            or not self.do_listen
-        ):
+        if self.reset_lock.locked() or self.stopping_lock.locked() or not self.do_listen:
             return
 
-        async with self.reset_lock:  # type: ignore[union-attr]
+        async with self.reset_lock:
             _logger.debug("Resetting connection")
 
             self.run_state = FcmPushClientRunState.RESETTING
@@ -722,6 +726,12 @@ class FcmPushClient:  # pylint:disable=too-many-instance-attributes
             await self._login()
 
             while self.do_listen:
+                # Captured before the read so that if a reset (triggered by
+                # the monitor task, concurrently) swaps self.reader out from
+                # under this still-in-flight read, we can tell the resulting
+                # error apart from a genuine new problem on the connection
+                # that's actually current now.
+                active_reader = self.reader
                 try:
                     if self.run_state == FcmPushClientRunState.RESETTING:
                         await asyncio.sleep(1)
@@ -729,7 +739,26 @@ class FcmPushClient:  # pylint:disable=too-many-instance-attributes
                         await self._handle_message(msg)
 
                 except (OSError, EOFError) as osex:
-                    if (
+                    if self.reader is not active_reader:
+                        # The connection this read was waiting on has
+                        # already been superseded by a reset that completed
+                        # while we were suspended (e.g. the old socket
+                        # finally raising "SSL shutdown timed out" seconds
+                        # after being closed). run_state has usually already
+                        # moved on past RESETTING by now, so this used to be
+                        # misclassified as a fresh, unexpected error and
+                        # trigger a second reset that tore down the
+                        # perfectly good connection the first reset just
+                        # established - the cause of the repeated
+                        # "Unexpected exception during read" / "readexactly()
+                        # called while another coroutine is already waiting"
+                        # cascades. Nothing to do here; the loop's next
+                        # iteration already picks up the current reader.
+                        self._log_verbose(
+                            "Discarding error from superseded connection: %s",
+                            type(osex).__name__,
+                        )
+                    elif (
                         isinstance(
                             osex,
                             (
@@ -782,9 +811,16 @@ class FcmPushClient:  # pylint:disable=too-many-instance-attributes
             self.credentials_updated_callback,
             http_client_session=self._http_client_session,
         )
-        self.credentials = await self.register.checkin_or_register()
-        # await self.register.fcm_refresh_install()
-        await self.register.close()
+        try:
+            self.credentials = await self.register.checkin_or_register()
+            # await self.register.fcm_refresh_install()
+        finally:
+            # Close even when checkin_or_register() raises (e.g. a checkin
+            # attempt exhausts its retries) - otherwise FcmRegister's own
+            # aiohttp ClientSession/TCPConnector never gets closed and
+            # aiohttp logs "Unclosed client session"/"Unclosed connector
+            # connections" once it's garbage collected.
+            await self.register.close()
         return self.credentials["fcm"]["registration"]["token"]
 
     async def start(self) -> None:
@@ -802,18 +838,13 @@ class FcmPushClient:  # pylint:disable=too-many-instance-attributes
             _logger.error("Unexpected error running FcmPushClient: %s", ex)
 
     async def stop(self) -> None:
-        if (
-            self.stopping_lock
-            and self.stopping_lock.locked()
-            or self.run_state
-            in (
-                FcmPushClientRunState.STOPPING,
-                FcmPushClientRunState.STOPPED,
-            )
+        if self.stopping_lock.locked() or self.run_state in (
+            FcmPushClientRunState.STOPPING,
+            FcmPushClientRunState.STOPPED,
         ):
             return
 
-        async with self.stopping_lock:  # type: ignore[union-attr]
+        async with self.stopping_lock:
             try:
                 self.run_state = FcmPushClientRunState.STOPPING
 
