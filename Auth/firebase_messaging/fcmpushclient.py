@@ -207,8 +207,16 @@ class FcmPushClient:  # pylint:disable=too-many-instance-attributes
         self.run_state: FcmPushClientRunState = FcmPushClientRunState.CREATED
         self.tasks: list[asyncio.Task] = []
 
-        self.reset_lock: asyncio.Lock | None = None
-        self.stopping_lock: asyncio.Lock | None = None
+        # Created eagerly (not in start()) so stop()/_reset() are safe to
+        # call before start() has ever run - e.g. FcmReceiver._register_for_fcm
+        # calls stop() from its except-handler when the initial checkin fails,
+        # which used to hit `async with None` here and raise "'NoneType'
+        # object does not support the asynchronous context manager protocol"
+        # (surfaced up through webui.scheduler as a mysterious "Locate failed"
+        # warning). Safe on 3.10+: asyncio.Lock() no longer binds to a
+        # running loop at construction time.
+        self.reset_lock: asyncio.Lock = asyncio.Lock()
+        self.stopping_lock: asyncio.Lock = asyncio.Lock()
 
     def _msg_str(self, msg: Message) -> str:
         if self.config.log_debug_verbose:
@@ -238,14 +246,10 @@ class FcmPushClient:  # pylint:disable=too-many-instance-attributes
                 await writer.wait_closed()
 
     async def _reset(self) -> None:
-        if (
-            (self.reset_lock and self.reset_lock.locked())
-            or (self.stopping_lock and self.stopping_lock.locked())
-            or not self.do_listen
-        ):
+        if self.reset_lock.locked() or self.stopping_lock.locked() or not self.do_listen:
             return
 
-        async with self.reset_lock:  # type: ignore[union-attr]
+        async with self.reset_lock:
             _logger.debug("Resetting connection")
 
             self.run_state = FcmPushClientRunState.RESETTING
@@ -802,18 +806,13 @@ class FcmPushClient:  # pylint:disable=too-many-instance-attributes
             _logger.error("Unexpected error running FcmPushClient: %s", ex)
 
     async def stop(self) -> None:
-        if (
-            self.stopping_lock
-            and self.stopping_lock.locked()
-            or self.run_state
-            in (
-                FcmPushClientRunState.STOPPING,
-                FcmPushClientRunState.STOPPED,
-            )
+        if self.stopping_lock.locked() or self.run_state in (
+            FcmPushClientRunState.STOPPING,
+            FcmPushClientRunState.STOPPED,
         ):
             return
 
-        async with self.stopping_lock:  # type: ignore[union-attr]
+        async with self.stopping_lock:
             try:
                 self.run_state = FcmPushClientRunState.STOPPING
 
