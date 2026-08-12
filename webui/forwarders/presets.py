@@ -32,7 +32,7 @@ PRESETS: dict[str, dict] = {
         "method": "GET",
         "url": (
             "http://traccar.local:5055/?id=REPLACE_WITH_YOUR_DEVICE_ID&lat={{latitude}}&lon={{longitude}}"
-            "&timestamp={{fix_timestamp}}&altitude={{altitude_m}}&accuracy={{accuracy_m}}"
+            "&timestamp={{google_timestamp}}&altitude={{altitude_m}}&accuracy={{accuracy_m}}"
         ),
         "headers": {},
         "body_type": "none",
@@ -44,7 +44,7 @@ PRESETS: dict[str, dict] = {
         "method": "GET",
         "url": (
             "https://nc.local/apps/phonetrack/logGet/<token>/{{device_alias}}"
-            "?lat={{latitude}}&lon={{longitude}}&timestamp={{fix_timestamp}}&alt={{altitude_m}}&acc={{accuracy_m}}"
+            "?lat={{latitude}}&lon={{longitude}}&timestamp={{google_timestamp}}&alt={{altitude_m}}&acc={{accuracy_m}}"
         ),
         "headers": {},
         "body_type": "none",
@@ -61,7 +61,7 @@ PRESETS: dict[str, dict] = {
         "method": "GET",
         "url": (
             "https://nc.local/apps/phonetrack/log/osmand/<token>/{{device_alias}}"
-            "?lat={{latitude}}&lon={{longitude}}&timestamp={{fix_timestamp}}&alt={{altitude_m}}&acc={{accuracy_m}}"
+            "?lat={{latitude}}&lon={{longitude}}&timestamp={{google_timestamp}}&alt={{altitude_m}}&acc={{accuracy_m}}"
         ),
         "headers": {},
         "body_type": "none",
@@ -73,7 +73,7 @@ PRESETS: dict[str, dict] = {
         "method": "GET",
         "url": (
             "https://nc.local/apps/phonetrack/log/gpslogger/<token>/{{device_alias}}"
-            "?lat={{latitude}}&lon={{longitude}}&timestamp={{fix_timestamp}}&alt={{altitude_m}}&acc={{accuracy_m}}"
+            "?lat={{latitude}}&lon={{longitude}}&timestamp={{google_timestamp}}&alt={{altitude_m}}&acc={{accuracy_m}}"
         ),
         "headers": {},
         "body_type": "none",
@@ -88,7 +88,7 @@ PRESETS: dict[str, dict] = {
         "method": "GET",
         "url": (
             "https://nc.local/apps/phonetrack/log/locusmap/<token>/{{device_alias}}"
-            "?lat={{latitude}}&lon={{longitude}}&time={{fix_timestamp}}&alt={{altitude_m}}&acc={{accuracy_m}}"
+            "?lat={{latitude}}&lon={{longitude}}&time={{google_timestamp}}&alt={{altitude_m}}&acc={{accuracy_m}}"
         ),
         "headers": {},
         "body_type": "none",
@@ -103,7 +103,7 @@ PRESETS: dict[str, dict] = {
         "method": "GET",
         "url": (
             "https://nc.local/apps/phonetrack/log/ulogger/<token>/{{device_alias}}"
-            "?action=addpos&lat={{latitude}}&lon={{longitude}}&time={{fix_timestamp}}"
+            "?action=addpos&lat={{latitude}}&lon={{longitude}}&time={{google_timestamp}}"
             "&altitude={{altitude_m}}&accuracy={{accuracy_m}}"
         ),
         "headers": {},
@@ -122,7 +122,7 @@ PRESETS: dict[str, dict] = {
         "body_type": "json",
         "body": (
             '{"_type": "location", "lat": {{latitude}}, "lon": {{longitude}}, '
-            '"tst": {{fix_timestamp}}, "acc": {{accuracy_m}}, "alt": {{altitude_m}}}'
+            '"tst": {{google_timestamp}}, "acc": {{accuracy_m}}, "alt": {{altitude_m}}}'
         ),
     },
     "phonetrack_overland": {
@@ -139,7 +139,7 @@ PRESETS: dict[str, dict] = {
         "body": (
             '{"locations": [{"type": "Feature", "geometry": {"type": "Point", '
             '"coordinates": [{{longitude}}, {{latitude}}]}, "properties": {"device_id": "{{device_alias}}", '
-            '"timestamp": "@{{fix_timestamp}}", "horizontal_accuracy": {{accuracy_m}}, "altitude": {{altitude_m}}}}]}'
+            '"timestamp": "@{{google_timestamp}}", "horizontal_accuracy": {{accuracy_m}}, "altitude": {{altitude_m}}}}]}'
         ),
     },
 }
@@ -158,7 +158,8 @@ BUILTIN_VARIABLES: list[tuple[str, str]] = [
     ("longitude", "Longitude of the fix, decimal degrees"),
     ("altitude_m", "Altitude in meters, if Google reported one"),
     ("accuracy_m", "Google's radius of uncertainty for the fix, in meters"),
-    ("fix_timestamp", "Unix timestamp (seconds) of when Google recorded this fix - not when it was sent"),
+    ("google_timestamp", "Unix timestamp (seconds) of when Google recorded this fix - not when it was sent"),
+    ("current_timestamp", "Unix timestamp (seconds) right now, at send time - not when Google recorded the fix"),
     ("device_name", "This tracker's real name from your Google account (fixed, not editable here)"),
     ("device_alias", "This tracker's local nickname, set on the Settings page (falls back to device_name until you set one)"),
     ("endpoint_alias", "This endpoint's own alias, as set above"),
