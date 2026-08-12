@@ -2,10 +2,13 @@
 {{variable}} templating - Traccar and Nextcloud PhoneTrack are just presets
 that pre-fill this (see presets.py), not separate code paths."""
 
+import logging
 import re
 import time
 
 import httpx
+
+logger = logging.getLogger("webui.forwarders.custom")
 
 TIMEOUT_S = 10
 _TOKEN_RE = re.compile(r"\{\{(\w+)\}\}")
@@ -16,14 +19,26 @@ def _render(template: str, ctx: dict) -> str:
     (e.g. a typo) is left in place rather than silently dropped, so a bad
     template is obvious in the actual request/response instead of quietly
     sending garbage - see the "Preview" panel in the settings UI, which
-    flags the same unresolved tokens before you ever save."""
+    flags the same unresolved tokens before you ever save.
+
+    A token that *does* resolve, but to an empty string (e.g. {{device_alias}}
+    on a device with no alias set) is a different, quieter kind of mistake -
+    nothing looks broken in the request, it just silently sends less than
+    intended. That's easy to miss without a log line, so it gets a warning
+    even though (unlike an unresolved token) it's left substituted rather
+    than blocked."""
     if not template:
         return ""
 
     def repl(m: re.Match) -> str:
         key = m.group(1)
         value = ctx.get(key)
-        return str(value) if value is not None else m.group(0)
+        if value is None:
+            return m.group(0)
+        rendered = str(value)
+        if rendered == "":
+            logger.warning("Template variable {{%s}} resolved to an empty value", key)
+        return rendered
 
     return _TOKEN_RE.sub(repl, template)
 
