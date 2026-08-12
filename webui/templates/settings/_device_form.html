@@ -5,13 +5,11 @@
               hx-get="/settings/devices/{{ row.canonic_id }}/yaml"
               hx-target="closest .device-editor" hx-swap="innerHTML">Edit as YAML</button>
     </legend>
-    <label>Alias
+    <label>Device alias
       <input type="text" name="display_name" value="{{ row.name }}"
              {% if row.google_name %}placeholder="{{ row.google_name }}"{% endif %}>
     </label>
-    {% if row.google_name and row.google_name != row.name %}
-      <p class="field-hint">Google Find My device: {{ row.google_name }}</p>
-    {% endif %}
+    <p class="field-hint">Available as <code>{{ '{{device_alias}}' }}</code> in this device's endpoint templates below. <code>{{ '{{device_name}}' }}</code> is separately available there too, always this device's real Google account name{% if row.google_name %} (currently <strong>{{ row.google_name }}</strong>){% endif %}.</p>
 
     {% if row.save_error %}
       <p class="form-error">{{ row.save_error }}</p>
