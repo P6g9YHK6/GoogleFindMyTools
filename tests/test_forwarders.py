@@ -248,6 +248,17 @@ def test_build_context_splits_google_and_current_timestamp(monkeypatch):
     assert ctx["google_timestamp"] != ctx["current_timestamp"]
 
 
+def test_build_context_keeps_fix_timestamp_resolving_to_the_google_value():
+    """fix_timestamp is google_timestamp's old name - an endpoint saved
+    before the rename must keep resolving it (to the same value as
+    google_timestamp), not go quietly broken."""
+    from webui.forwarders import custom
+
+    location = {"latitude": 1.0, "longitude": 2.0, "time": 1700000000}
+    ctx = custom.build_context({}, location, "My Phone")
+    assert ctx["fix_timestamp"] == ctx["google_timestamp"] == 1700000000
+
+
 def test_render_warns_on_a_variable_that_resolves_empty(caplog):
     """A token that resolves - just to "" - sends silently short of what was
     intended (e.g. {{device_alias}} on a device with no alias set). Unlike a
