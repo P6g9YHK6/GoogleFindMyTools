@@ -40,6 +40,22 @@
     return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 
+  // ---- URL field autosize --------------------------------------------------
+  // Height, not just scroll content, tracks .url-autosize's actual text -
+  // resetting to "auto" first before reading scrollHeight is what makes it
+  // shrink back down too, not just grow (scrollHeight of a still-tall
+  // textarea never reports a smaller number).
+
+  function autosizeUrlField(field) {
+    if (!field) return;
+    field.style.height = "auto";
+    field.style.height = field.scrollHeight + "px";
+  }
+
+  function autosizeAll(scope) {
+    (scope || document).querySelectorAll(".url-autosize").forEach(autosizeUrlField);
+  }
+
   // ---- key/value rows (headers) ------------------------------------------
 
   function kvRow(block, kind, key, value) {
@@ -85,7 +101,10 @@
     if (method) method.value = preset.method || "GET";
 
     const url = block.querySelector(".url-input");
-    if (url) url.value = preset.url || "";
+    if (url) {
+      url.value = preset.url || "";
+      autosizeUrlField(url);
+    }
 
     fillKvTable(block, "header", preset.headers);
 
@@ -211,6 +230,7 @@
         });
       });
       updatePreview(block);
+      autosizeAll(block);
     });
   }
 
@@ -251,6 +271,7 @@
   });
 
   document.addEventListener("input", (event) => {
+    if (event.target.classList.contains("url-autosize")) autosizeUrlField(event.target);
     const block = event.target.closest(".endpoint-block");
     if (block) {
       if (event.target.classList.contains("endpoint-alias")) {
@@ -318,6 +339,7 @@
       field.focus();
       const caret = start + token.length;
       field.setSelectionRange(caret, caret);
+      if (field.classList.contains("url-autosize")) autosizeUrlField(field);
       updatePreview(block);
       const row = chip.closest(".device-row");
       if (row) setDirty(row, true);
@@ -337,7 +359,10 @@
     // old or the new element depending on htmx version.
     if (triggerElt && triggerElt.matches(".btn-send-now")) {
       const block = target.matches(".endpoint-block") ? target : target.querySelector(".endpoint-block");
-      if (block) updatePreview(block);
+      if (block) {
+        updatePreview(block);
+        autosizeAll(block);
+      }
       return;
     }
 
@@ -359,6 +384,16 @@
       block.querySelectorAll(".skip-toggle").forEach(applyToggleVisibility);
       updateBodyVisibility(block);
     });
+    autosizeAll(target);
+  });
+
+  // Recompute on resize too, debounced - the field's width (and so how many
+  // lines a given URL wraps to) changes with it, e.g. .endpoint-columns
+  // going from stacked to side-by-side at wider viewports (see app.css).
+  let resizeTimer = null;
+  window.addEventListener("resize", () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => autosizeAll(document), 100);
   });
 
   document.querySelectorAll(".endpoint-block").forEach((block) => {
@@ -366,4 +401,5 @@
     block.querySelectorAll(".skip-toggle").forEach(applyToggleVisibility);
     updateBodyVisibility(block);
   });
+  autosizeAll(document);
 })();

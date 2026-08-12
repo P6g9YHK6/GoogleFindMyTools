@@ -428,6 +428,19 @@ details ul {
   resize: vertical;
 }
 
+/* The endpoint editor's own URL field (not the Apprise/YAML reuses above,
+   which stay manually resizable) grows and shrinks with its content instead
+   - endpoint_fields.js sets its height from scrollHeight on load, on input,
+   and on window resize (wrapping changes with field width). resize:none
+   because a manual drag-handle would just get overwritten by the next
+   autosize pass; overflow:hidden keeps a momentary pre-resize scrollbar
+   from flashing before JS catches up. */
+.url-autosize {
+  resize: none;
+  overflow: hidden;
+  min-height: 2.3rem;
+}
+
 .endpoints-container {
   counter-reset: endpoint;
 }
