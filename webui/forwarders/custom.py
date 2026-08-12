@@ -70,6 +70,13 @@ def build_context(
         # which is exactly the case that makes the two worth telling apart).
         "google_timestamp": location.get("time"),
         "current_timestamp": int(time.time()),
+        # fix_timestamp was google_timestamp's old name - not offered as a
+        # chip anymore (see BUILTIN_VARIABLES in presets.py) and no preset
+        # writes it, but silently kept resolving here so an endpoint saved
+        # before the rename doesn't go quietly broken (see _render()'s
+        # empty-value warning above for why "quietly broken" specifically
+        # is worth avoiding).
+        "fix_timestamp": location.get("time"),
         "device_name": device_name or "",
         "device_alias": (device_alias if device_alias is not None else device_name) or "",
         "endpoint_alias": endpoint_cfg.get("alias") or "",
