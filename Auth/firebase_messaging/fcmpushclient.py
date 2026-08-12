@@ -726,6 +726,12 @@ class FcmPushClient:  # pylint:disable=too-many-instance-attributes
             await self._login()
 
             while self.do_listen:
+                # Captured before the read so that if a reset (triggered by
+                # the monitor task, concurrently) swaps self.reader out from
+                # under this still-in-flight read, we can tell the resulting
+                # error apart from a genuine new problem on the connection
+                # that's actually current now.
+                active_reader = self.reader
                 try:
                     if self.run_state == FcmPushClientRunState.RESETTING:
                         await asyncio.sleep(1)
@@ -733,7 +739,26 @@ class FcmPushClient:  # pylint:disable=too-many-instance-attributes
                         await self._handle_message(msg)
 
                 except (OSError, EOFError) as osex:
-                    if (
+                    if self.reader is not active_reader:
+                        # The connection this read was waiting on has
+                        # already been superseded by a reset that completed
+                        # while we were suspended (e.g. the old socket
+                        # finally raising "SSL shutdown timed out" seconds
+                        # after being closed). run_state has usually already
+                        # moved on past RESETTING by now, so this used to be
+                        # misclassified as a fresh, unexpected error and
+                        # trigger a second reset that tore down the
+                        # perfectly good connection the first reset just
+                        # established - the cause of the repeated
+                        # "Unexpected exception during read" / "readexactly()
+                        # called while another coroutine is already waiting"
+                        # cascades. Nothing to do here; the loop's next
+                        # iteration already picks up the current reader.
+                        self._log_verbose(
+                            "Discarding error from superseded connection: %s",
+                            type(osex).__name__,
+                        )
+                    elif (
                         isinstance(
                             osex,
                             (
