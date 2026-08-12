@@ -63,7 +63,7 @@ class BasicAuthMiddleware:
             "type": "http.response.start",
             "status": 401,
             "headers": [
-                (b"www-authenticate", b'Basic realm="GoogleFindMyTools Web UI"'),
+                (b"www-authenticate", b'Basic realm="GoogleFindMyToolsWebUi"'),
                 (b"content-type", b"text/plain"),
             ],
         })

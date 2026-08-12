@@ -105,4 +105,4 @@ def test_emit_sends_the_formatted_record_through_apprise_in_the_background():
     for t in set(threading.enumerate()) - threads_before:
         t.join(timeout=2)
 
-    assert fake.notifications == [("GoogleFindMyTools: WARNING", "Locate failed for My Tracker: boom")]
+    assert fake.notifications == [("GoogleFindMyToolsWebUi: WARNING", "Locate failed for My Tracker: boom")]

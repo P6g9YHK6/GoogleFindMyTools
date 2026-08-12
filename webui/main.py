@@ -32,7 +32,7 @@ async def lifespan(app: FastAPI):
     await browser_provisioning.on_shutdown()
 
 
-app = FastAPI(title="GoogleFindMyTools Web UI", lifespan=lifespan)
+app = FastAPI(title="GoogleFindMyToolsWebUi", lifespan=lifespan)
 app.add_middleware(BasicAuthMiddleware)
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 

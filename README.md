@@ -1,10 +1,10 @@
 <p align="center">
-  <img src="webui/static/logo.png" alt="GoogleFindMyTools logo" width="160">
+  <img src="webui/static/logo.png" alt="GoogleFindMyToolsWebUi logo" width="160">
 </p>
 
-# GoogleFindMyTools
+# GoogleFindMyToolsWebUi
 
-[![Lint and test](https://github.com/P6g9YHK6/GoogleFindMyTools/actions/workflows/test.yml/badge.svg)](https://github.com/P6g9YHK6/GoogleFindMyTools/actions/workflows/test.yml)
+[![Lint and test](https://github.com/P6g9YHK6/GoogleFindMyToolsWebUi/actions/workflows/test.yml/badge.svg)](https://github.com/P6g9YHK6/GoogleFindMyToolsWebUi/actions/workflows/test.yml)
 
 A self-hosted app that logs into your Google account, keeps polling your Find My Device trackers and Android phones, and forwards each new location to your own Traccar or Nextcloud PhoneTrack server, so you keep your location history on your own infrastructure instead of nowhere. One Docker container, a web UI, nothing else to run.
 
@@ -79,7 +79,7 @@ The original scripts this project is built on still work standalone, without Doc
 > Before starting, ensure Chrome and Python are up to date - if Chrome isn't current, this will not work.
 
 - Clone this repository: `git clone` or download the ZIP file
-- `cd GoogleFindMyTools`
+- `cd GoogleFindMyToolsWebUi`
 - Optional: create/activate a venv (`python -m venv venv`, then `venv\Scripts\activate` on Windows or `source venv/bin/activate` on Linux/macOS)
 - `pip install -r requirements.txt`
 - Install the latest [Google Chrome](https://www.google.com/chrome/)

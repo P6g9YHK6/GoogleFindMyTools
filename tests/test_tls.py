@@ -30,7 +30,7 @@ def test_ensure_cert_generates_a_valid_self_signed_cert(monkeypatch, tmp_path):
         cert = x509.load_pem_x509_certificate(f.read())
 
     cn = cert.subject.get_attributes_for_oid(NameOID.COMMON_NAME)[0].value
-    assert cn == "GoogleFindMyTools"
+    assert cn == "GoogleFindMyToolsWebUi"
 
     san = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
     assert "localhost" in san.get_values_for_type(x509.DNSName)
@@ -77,7 +77,7 @@ def test_ensure_cert_regenerates_an_expired_cert(monkeypatch, tmp_path):
     # (always-future) validity window.
     key = ec.generate_private_key(ec.SECP256R1())
     now = datetime.datetime.now(datetime.UTC)
-    subject = issuer = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "GoogleFindMyTools")])
+    subject = issuer = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "GoogleFindMyToolsWebUi")])
     expired_cert = (
         x509.CertificateBuilder()
         .subject_name(subject).issuer_name(issuer).public_key(key.public_key())

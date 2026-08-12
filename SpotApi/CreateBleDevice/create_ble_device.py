@@ -91,7 +91,7 @@ def register_esp32():
     spot_request("CreateBleDevice", bytes_data)
 
     logger.info("Registered device successfully. Advertisement key: %s. Go to "
-                "'GoogleFindMyTools/ESP32Firmware' or 'GoogleFindMyTools/ZephyrFirmware' and "
+                "'GoogleFindMyToolsWebUi/ESP32Firmware' or 'GoogleFindMyToolsWebUi/ZephyrFirmware' and "
                 "follow the instructions in the README.md file.", eid.hex())
 
     return {

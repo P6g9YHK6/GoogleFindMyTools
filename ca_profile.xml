@@ -3,6 +3,6 @@
   <Profile>
     Self-hosted Google Find My Device / Find Hub location forwarder to Traccar or Nextcloud PhoneTrack.
   </Profile>
-  <Icon>https://raw.githubusercontent.com/P6g9YHK6/GoogleFindMyTools/main/webui/static/logo-512.png</Icon>
-  <WebPage>https://github.com/P6g9YHK6/GoogleFindMyTools</WebPage>
+  <Icon>https://raw.githubusercontent.com/P6g9YHK6/GoogleFindMyToolsWebUi/main/webui/static/logo-512.png</Icon>
+  <WebPage>https://github.com/P6g9YHK6/GoogleFindMyToolsWebUi</WebPage>
 </CommunityApplications>

@@ -1,19 +1,19 @@
 <?xml version="1.0"?>
 <Container version="2">
-  <Name>GoogleFindMyTools</Name>
+  <Name>GoogleFindMyToolsWebUi</Name>
   <Repository>ghcr.io/p6g9yhk6/googlefindmytools:latest</Repository>
-  <Registry>https://github.com/P6g9YHK6/GoogleFindMyTools/pkgs/container/googlefindmytools</Registry>
+  <Registry>https://github.com/P6g9YHK6/GoogleFindMyToolsWebUi/pkgs/container/googlefindmytools</Registry>
   <Network>bridge</Network>
   <Shell>sh</Shell>
   <Privileged>false</Privileged>
-  <Support>https://github.com/P6g9YHK6/GoogleFindMyTools/issues</Support>
-  <Project>https://github.com/P6g9YHK6/GoogleFindMyTools</Project>
-  <Overview>A self-hosted app that logs into your Google account, polls your Find My Device trackers and Android phones, and forwards each new location to your own Traccar or Nextcloud PhoneTrack server - so you keep your location history on your own infrastructure instead of nowhere. One container, a web UI, nothing else to run.&#13;&#10;&#13;&#10;CAUTION: this holds long-lived Google account tokens and live device location data. It defaults to plain HTTP with no auth, meant for a trusted LAN - set HTTP_USER/HTTP_PASSWORD and/or HTTPS_ENABLED below before exposing it any further.&#13;&#10;&#13;&#10;First-time Google sign-in installs Chrome/Xvfb/noVNC on demand inside the container (needs outbound internet to Debian's mirrors and storage.googleapis.com the first time only), then walks you through the actual login right in the web UI - no separate VNC client needed.&#13;&#10;&#13;&#10;GitHub: https://github.com/P6g9YHK6/GoogleFindMyTools</Overview>
+  <Support>https://github.com/P6g9YHK6/GoogleFindMyToolsWebUi/issues</Support>
+  <Project>https://github.com/P6g9YHK6/GoogleFindMyToolsWebUi</Project>
+  <Overview>A self-hosted app that logs into your Google account, polls your Find My Device trackers and Android phones, and forwards each new location to your own Traccar or Nextcloud PhoneTrack server - so you keep your location history on your own infrastructure instead of nowhere. One container, a web UI, nothing else to run.&#13;&#10;&#13;&#10;CAUTION: this holds long-lived Google account tokens and live device location data. It defaults to plain HTTP with no auth, meant for a trusted LAN - set HTTP_USER/HTTP_PASSWORD and/or HTTPS_ENABLED below before exposing it any further.&#13;&#10;&#13;&#10;First-time Google sign-in installs Chrome/Xvfb/noVNC on demand inside the container (needs outbound internet to Debian's mirrors and storage.googleapis.com the first time only), then walks you through the actual login right in the web UI - no separate VNC client needed.&#13;&#10;&#13;&#10;GitHub: https://github.com/P6g9YHK6/GoogleFindMyToolsWebUi</Overview>
   <Category>Tools:Utilities</Category>
   <WebUI>http://[IP]:[PORT:4321]</WebUI>
-  <TemplateURL>https://raw.githubusercontent.com/P6g9YHK6/GoogleFindMyTools/main/templates/googlefindmytools.xml</TemplateURL>
-  <Icon>https://raw.githubusercontent.com/P6g9YHK6/GoogleFindMyTools/main/webui/static/logo-512.png</Icon>
-  <ReadMe>https://raw.githubusercontent.com/P6g9YHK6/GoogleFindMyTools/main/README.md</ReadMe>
+  <TemplateURL>https://raw.githubusercontent.com/P6g9YHK6/GoogleFindMyToolsWebUi/main/templates/googlefindmytools.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/P6g9YHK6/GoogleFindMyToolsWebUi/main/webui/static/logo-512.png</Icon>
+  <ReadMe>https://raw.githubusercontent.com/P6g9YHK6/GoogleFindMyToolsWebUi/main/README.md</ReadMe>
   <License>GPLv3</License>
   <ExtraParams>--shm-size=1g --tmpfs /run/gfmt-browser:rw,exec,nosuid,size=1g</ExtraParams>
   <Requires>Outbound internet access to Debian's package mirrors and storage.googleapis.com on first Google sign-in, to fetch Chrome/Xvfb/noVNC on demand.</Requires>

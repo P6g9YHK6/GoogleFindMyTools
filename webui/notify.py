@@ -41,7 +41,7 @@ class _AppriseLogHandler(logging.Handler):
 
     def emit(self, record: logging.LogRecord):
         try:
-            title = f"GoogleFindMyTools: {record.levelname}"
+            title = f"GoogleFindMyToolsWebUi: {record.levelname}"
             body = self.format(record)
         except Exception:
             self.handleError(record)

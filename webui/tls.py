@@ -49,7 +49,7 @@ def _san_entries(hostnames_and_ips: list[str]) -> list[x509.GeneralName]:
 def _generate(cert_path: str, key_path: str) -> None:
     key = ec.generate_private_key(ec.SECP256R1())
 
-    subject = issuer = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "GoogleFindMyTools")])
+    subject = issuer = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "GoogleFindMyToolsWebUi")])
     now = datetime.datetime.now(datetime.UTC)
     builder = (
         x509.CertificateBuilder()

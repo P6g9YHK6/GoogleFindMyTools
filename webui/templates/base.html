@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}GoogleFindMyTools{% endblock %}</title>
+  <title>{% block title %}GoogleFindMyToolsWebUi{% endblock %}</title>
   <link rel="icon" href="/static/favicon.ico" sizes="any">
   <link rel="icon" type="image/png" href="/static/logo.png">
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
@@ -14,7 +14,7 @@
 </head>
 <body>
   <nav>
-    <a href="/" class="brand"><img src="/static/logo.png" alt="GoogleFindMyTools" height="28"></a>
+    <a href="/" class="brand"><img src="/static/logo.png" alt="GoogleFindMyToolsWebUi" height="28"></a>
     <a href="/">Devices</a>
     <a href="/register">Register Tracker</a>
     <a href="/settings">Forwarding Settings</a>
@@ -26,13 +26,13 @@
   </main>
   <footer>
     {% if build_sha != "dev" %}
-      Build <a href="https://github.com/P6g9YHK6/GoogleFindMyTools/commit/{{ build_sha }}" target="_blank" rel="noopener">{{ build_sha_short }}</a>
+      Build <a href="https://github.com/P6g9YHK6/GoogleFindMyToolsWebUi/commit/{{ build_sha }}" target="_blank" rel="noopener">{{ build_sha_short }}</a>
     {% else %}
       Build {{ build_sha_short }}
     {% endif %}
     {% if build_date %}&middot; {{ build_date }}{% endif %}
     &middot; up {{ uptime_str }}
-    &middot; <a href="https://github.com/P6g9YHK6/GoogleFindMyTools" target="_blank" rel="noopener">Source</a>
+    &middot; <a href="https://github.com/P6g9YHK6/GoogleFindMyToolsWebUi" target="_blank" rel="noopener">Source</a>
   </footer>
   <script src="/static/app.js"></script>
 </body>
