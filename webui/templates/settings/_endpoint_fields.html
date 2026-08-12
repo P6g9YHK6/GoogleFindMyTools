@@ -75,11 +75,11 @@
       </div>
       <div class="url-row-field">
         <label>URL
-          <textarea name="ep-{{ idx }}-url" class="url-input templatable" rows="2">{{ endpoint.url or '' }}</textarea>
+          <textarea name="ep-{{ idx }}-url" class="url-input url-autosize templatable" rows="1">{{ endpoint.url or '' }}</textarea>
         </label>
       </div>
     </div>
-    <p class="field-hint">Query params go directly in the URL - e.g. <code>?lat={{ '{{latitude}}' }}&amp;lon={{ '{{longitude}}' }}</code>. Click a variable chip below to insert one at the cursor.</p>
+    <p class="field-hint">Query params go directly in the URL - e.g. <code>?lat={{ '{{latitude}}' }}&amp;lon={{ '{{longitude}}' }}</code></p>
 
     <div class="kv-section">
       <div class="kv-head"><h3>Headers</h3><button type="button" class="btn-add" data-target="header">+ Add row</button></div>
