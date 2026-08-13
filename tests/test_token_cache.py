@@ -7,7 +7,7 @@ from Auth import token_cache
 
 @pytest.fixture
 def secrets_dir(tmp_path, monkeypatch):
-    # _get_secrets_file() reads the env fresh on every call, so no reload needed.
+    # _auth_store_path() reads the env fresh on every call, so no reload needed.
     monkeypatch.setenv("GFMT_SECRETS_DIR", str(tmp_path))
     monkeypatch.delenv("GFMT_DATA_DIR", raising=False)
     return tmp_path

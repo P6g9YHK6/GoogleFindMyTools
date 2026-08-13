@@ -50,7 +50,7 @@ def _warn_if_unencrypted():
         "SECRETS_ENCRYPTION_KEY is not set - credentials in %s (OAuth tokens, FCM "
         "credentials, vault keys, ...) are stored in plain text on disk. Set "
         "SECRETS_ENCRYPTION_KEY to encrypt them at rest.",
-        _get_secrets_file(),
+        _auth_store_path(),
     )
 
 
@@ -79,7 +79,7 @@ def _decrypt(value):
     except (InvalidTag, ValueError):
         # Wrong/rotated SECRETS_ENCRYPTION_KEY, or corrupt data - treat as
         # missing rather than crashing every caller of get_cached_value.
-        logger.error("Could not decrypt a value from %s - wrong SECRETS_ENCRYPTION_KEY?", _get_secrets_file())
+        logger.error("Could not decrypt a value from %s - wrong SECRETS_ENCRYPTION_KEY?", _auth_store_path())
         return None
 
 
@@ -125,7 +125,7 @@ def set_cached_value(name: str, value):
 
 
 def _load(strict: bool = False) -> dict:
-    secrets_file = _get_secrets_file()
+    secrets_file = _auth_store_path()
     if os.path.exists(secrets_file):
         with open(secrets_file) as file:
             try:
@@ -147,7 +147,7 @@ def _migrate_from_legacy_json() -> dict | None:
     old file in place untouched (as a backup, and so a downgrade isn't a
     hard break). Every load after that first migration hits the YAML file
     directly and never looks at the JSON file again."""
-    legacy_file = os.path.join(os.path.dirname(_get_secrets_file()), LEGACY_SECRETS_FILE)
+    legacy_file = os.path.join(os.path.dirname(_auth_store_path()), LEGACY_SECRETS_FILE)
     if not os.path.exists(legacy_file):
         return None
     with open(legacy_file) as file:
@@ -163,11 +163,11 @@ def _migrate_from_legacy_json() -> dict | None:
 
 
 def _save(data: dict):
-    with open(_get_secrets_file(), 'w') as file:
+    with open(_auth_store_path(), 'w') as file:
         yaml.safe_dump(data, file, sort_keys=False, allow_unicode=True)
 
 
-def _get_secrets_file():
+def _auth_store_path():
     # Lets the secrets file live in a mounted directory (e.g. in Docker)
     # instead of always sitting next to this script. GFMT_SECRETS_DIR is kept
     # for backward compatibility with existing deployments that set it
