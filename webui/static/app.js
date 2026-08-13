@@ -13,31 +13,19 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("map-loading")?.remove();
   };
 
-  // canonicId -> { [locationIndex]: L.Marker } - a single device can report
+  // canonicId -> Map(locationIndex -> L.Marker) - a single device can report
   // more than one location at once (its own report plus a crowd-sourced
   // network estimate, older entries, etc, see decrypt_locations.py), so
-  // markers are tracked per location slot rather than one-per-device.
-  const markersByDevice = {};
-
-  // Guards the handful of dynamic-key writes below (keyed by canonicId or a
-  // locations-array index) against ever touching __proto__/constructor/
-  // prototype, so a plain object literal can't have its prototype chain
-  // polluted no matter where the key ends up coming from.
-  const UNSAFE_OBJECT_KEYS = new Set(["__proto__", "constructor", "prototype"]);
-  function safeAssign(obj, key, value) {
-    if (UNSAFE_OBJECT_KEYS.has(String(key))) return;
-    obj[key] = value;
-  }
-  function safeDelete(obj, key) {
-    if (UNSAFE_OBJECT_KEYS.has(String(key))) return;
-    delete obj[key];
-  }
+  // markers are tracked per location slot rather than one-per-device. Map,
+  // not a plain object, so a dynamic canonicId/index can never be read as a
+  // prototype-chain key like __proto__.
+  const markersByDevice = new Map();
 
   function markerForKey(key) {
     const sep = key.lastIndexOf(":");
     const canonicId = key.slice(0, sep);
-    const index = key.slice(sep + 1);
-    return (markersByDevice[canonicId] || {})[index];
+    const index = Number(key.slice(sep + 1));
+    return markersByDevice.get(canonicId)?.get(index);
   }
 
   // Each device gets one base hue, hashed from its canonic_id alone (stable
@@ -118,7 +106,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // color and identity across updates. Returns the latlngs it plotted, for
   // callers that need to fit/pan the map to them.
   function upsertDeviceMarkers(canonicId, name, locations, source) {
-    const slots = markersByDevice[canonicId] || {};
+    const slots = markersByDevice.get(canonicId) || new Map();
     const seenIndexes = new Set();
     const latlngs = [];
 
@@ -131,13 +119,13 @@ document.addEventListener("DOMContentLoaded", () => {
       const color = colorForDeviceLocation(canonicId, index);
       const label = popupLabel(name, loc, source);
 
-      if (slots[index]) {
-        slots[index].setLatLng(latlng).setPopupContent(label);
+      if (slots.has(index)) {
+        slots.get(index).setLatLng(latlng).setPopupContent(label);
       } else {
         const marker = L.marker(latlng, { icon: pinIcon(color) }).addTo(map).bindPopup(label);
         marker.on("mouseover", () => glowRows(key, true));
         marker.on("mouseout", () => glowRows(key, false));
-        safeAssign(slots, index, marker);
+        slots.set(index, marker);
       }
       latlngs.push(latlng);
     });
@@ -145,14 +133,14 @@ document.addEventListener("DOMContentLoaded", () => {
     // A later update can report fewer locations than before (e.g. the
     // crowd-sourced estimate drops out) - clear any slot that's no longer
     // present instead of leaving a stale dot on the map.
-    for (const indexStr of Object.keys(slots)) {
-      if (!seenIndexes.has(Number(indexStr))) {
-        map.removeLayer(slots[indexStr]);
-        safeDelete(slots, indexStr);
+    for (const idx of slots.keys()) {
+      if (!seenIndexes.has(idx)) {
+        map.removeLayer(slots.get(idx));
+        slots.delete(idx);
       }
     }
 
-    safeAssign(markersByDevice, canonicId, slots);
+    markersByDevice.set(canonicId, slots);
     return latlngs;
   }
 
