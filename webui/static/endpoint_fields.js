@@ -206,7 +206,7 @@
     // separate table - the URL field's value already is the full URL.
     const urlHtml = renderTemplate(url || "(no url set)", vars);
 
-    let out = '<span class="method-badge ' + method.toLowerCase() + '">' + method + "</span>" + urlHtml;
+    let out = '<span class="method-badge ' + escapeHtml(method.toLowerCase()) + '">' + escapeHtml(method) + "</span>" + urlHtml;
 
     if (headers.length) {
       out += "\n\n" + '<span class="preview-muted">Headers</span>\n';
@@ -214,7 +214,7 @@
     }
 
     if (bodyType !== "none" && bodyText.trim()) {
-      out += "\n\n" + '<span class="preview-muted">Body (' + bodyType.toUpperCase() + ")</span>\n";
+      out += "\n\n" + '<span class="preview-muted">Body (' + escapeHtml(bodyType.toUpperCase()) + ")</span>\n";
       out += renderTemplate(bodyText, vars);
     }
 
