@@ -207,9 +207,8 @@ def decrypt_location_response_locations(device_update_protobuf):
             longitude = proto_loc.longitude / 1e7
             altitude = proto_loc.altitude
 
-            logger.info("Location %s, %s (altitude=%s) at %s (status=%s, own_report=%s) - %s",
-                        latitude, longitude, altitude, loc_time_str, loc.status, loc.is_own_report,
-                        create_map_links(latitude, longitude).get("OSM"))
+            logger.info("Location report at %s (status=%s, own_report=%s)",
+                        loc_time_str, loc.status, loc.is_own_report)
 
         results.append({
             "latitude": latitude,
