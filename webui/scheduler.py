@@ -111,12 +111,20 @@ async def _poll_device(canonic_id: str):
                 locations = []
                 logger.warning("Locate failed for %s: %s", name, e)
 
+        already_seen_by_index: list[bool] = []
         if locations:
             # The Devices page's "last locate result" should reflect cron
             # polls too, not just manual clicks - a timeout/failure above
             # already left `locations` empty, so this never clobbers the
-            # last real fix with nothing.
-            device_location_store.set_last_location(canonic_id, locations, int(time.time()))
+            # last real fix with nothing. Reassigned to the stamped list
+            # set_last_location returns, whose transient "_new_this_fetch"
+            # is how the forwarding loop below tells a genuinely new reading
+            # apart from Google re-serving one it already returned before -
+            # captured into a plain parallel list and popped off each dict
+            # right away, so it never leaks into the websocket broadcast or
+            # the forwarding payload below.
+            locations = device_location_store.set_last_location(canonic_id, locations, int(time.time()))
+            already_seen_by_index = [not loc.pop("_new_this_fetch") for loc in locations]
 
         # Keyed by endpoint index, overwritten on every matching location the
         # same way the old flat status-only version did (last location in the
@@ -129,11 +137,11 @@ async def _poll_device(canonic_id: str):
         # settings save could otherwise change what's at that position
         # mid-poll.
         results: dict[int, dict] = {}
-        for location in locations:
+        for location, already_seen in zip(locations, already_seen_by_index):
             for i in due_indices:
                 url = endpoints[i].get("url", "")
                 merged = {**endpoints[i], **latest_values_store.get_endpoint_state(canonic_id, url)}
-                status = await asyncio.to_thread(_forward_one, merged, location, google_name, name)
+                status = await asyncio.to_thread(_forward_one, merged, location, google_name, name, already_seen)
                 results[i] = {"status": status, "location": location, "url": url, "merged": merged}
                 log_store.append(
                     canonic_id=canonic_id,

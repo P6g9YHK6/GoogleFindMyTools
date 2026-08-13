@@ -86,7 +86,15 @@ def _dispatch_forward(
 
 def _forward_one(
     endpoint_cfg: dict, location: dict, device_name: str = "", device_alias: str | None = None,
+    already_seen: bool = False,
 ) -> str:
+    """already_seen is True when this exact reading (see
+    device_location_store._location_key) was already present in an earlier
+    fetch - Google re-serving something we've already handled, not a new
+    observation - checked first since it needs no per-endpoint state at
+    all, unlike the two gates below."""
+    if already_seen:
+        return "skipped: already reported by Google (not a new reading)"
     if _too_close_to_bother(endpoint_cfg, location):
         threshold = endpoint_cfg.get("min_movement_m") or DEFAULT_MIN_MOVEMENT_M
         return f"skipped: moved less than {threshold:g}m"

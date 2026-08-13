@@ -192,6 +192,22 @@ def test_forward_one_reports_stale_duplicate_skip_without_dispatching(monkeypatc
     assert policy._forward_one(endpoint_cfg, fresh_location) == "ok"
 
 
+def test_forward_one_reports_already_seen_skip_without_dispatching(monkeypatch):
+    dispatched = []
+    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None: dispatched.append(loc) or "ok")
+
+    endpoint_cfg = _traccar_endpoint()
+    location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
+
+    status = policy._forward_one(endpoint_cfg, location, already_seen=True)
+    assert status == "skipped: already reported by Google (not a new reading)"
+    assert dispatched == []  # the network dispatch was never reached
+
+    status = policy._forward_one(endpoint_cfg, location, already_seen=False)
+    assert status == "ok"
+    assert dispatched == [location]
+
+
 def test_forward_one_reports_distance_skip_without_dispatching(monkeypatch):
     dispatched = []
     monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None: dispatched.append(loc) or "ok")
