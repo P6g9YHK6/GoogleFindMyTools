@@ -452,7 +452,10 @@ class FcmRegister:
         }
         url = FCM_REGISTRATION + f"projects/{self.config.project_id}/registrations"
         if self._log_debug_verbose:
-            _logger.debug("FCM registration data: %s", payload)
+            safe_payload = {
+                "web": {**payload["web"], "auth": "<redacted>", "endpoint": FCM_SEND_URL + "<redacted>"}
+            }
+            _logger.debug("FCM registration data: %s", safe_payload)
 
         for try_num in range(retries):
             try:
