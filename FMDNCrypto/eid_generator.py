@@ -45,8 +45,8 @@ def calculate_r(identity_key: bytes, timestamp: int):
     # blocks producing identical ciphertext blocks) doesn't apply: there's
     # only ever one block, and switching modes would break interop with real
     # trackers and Google's backend.
-    # codeql[py/weak-cryptographic-algorithm]
     cipher = AES.new(identity_key_bytes, AES.MODE_ECB)
+    # codeql[py/weak-cryptographic-algorithm]
     r_dash = cipher.encrypt(bytes(data))
 
     # Convert r' to an integer
