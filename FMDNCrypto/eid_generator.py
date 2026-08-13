@@ -37,7 +37,15 @@ def calculate_r(identity_key: bytes, timestamp: int):
     data[27] = K
     data[28:32] = ts_bytes
 
-    # AES-ECB-256 encryption
+    # AES-ECB-256 encryption. ECB is used here as a single-block PRF over one
+    # fixed, non-secret, spec-defined 32-byte structure (built above) to
+    # derive the EID rotation scalar - this is what the Find My Device
+    # Network's EID-rotation algorithm specifies, not general data
+    # encryption, so ECB's block-repetition weakness (identical plaintext
+    # blocks producing identical ciphertext blocks) doesn't apply: there's
+    # only ever one block, and switching modes would break interop with real
+    # trackers and Google's backend.
+    # codeql[py/weak-cryptographic-algorithm]
     cipher = AES.new(identity_key_bytes, AES.MODE_ECB)
     r_dash = cipher.encrypt(bytes(data))
 
