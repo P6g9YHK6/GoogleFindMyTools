@@ -209,10 +209,24 @@
 
   // ---- dirty-state / unsaved-changes flag --------------------------------
 
-  function setDirty(row, dirty) {
-    row.dataset.dirty = dirty ? "1" : "";
+  // Reflects row.dataset.dirty onto the banner/revert-button - split out
+  // from setDirty() below because the banner and revert button both live
+  // inside .device-editor, which htmx re-renders from scratch (defaulting
+  // the button back to its template's static `hidden`) on every swap that
+  // touches it, including ones that don't change the dirty flag itself
+  // (e.g. a validation error re-render leaves this device still dirty, but
+  // still needs its freshly-inserted revert button un-hidden to match).
+  function syncDirtyUi(row) {
+    const dirty = row.dataset.dirty === "1";
     const banner = row.querySelector(":scope > .unsaved-banner");
     if (banner) banner.hidden = !dirty;
+    const revertBtn = row.querySelector(".btn-revert");
+    if (revertBtn) revertBtn.hidden = !dirty;
+  }
+
+  function setDirty(row, dirty) {
+    row.dataset.dirty = dirty ? "1" : "";
+    syncDirtyUi(row);
     const anyDirty = document.querySelector('.device-row[data-dirty="1"]');
     window.onbeforeunload = anyDirty ? () => "" : null;
   }
@@ -381,11 +395,14 @@
       return;
     }
 
-    // Whole-form save, or the YAML view's save/switch: only a render that
-    // actually carries a "saved" toast represents data now matching the
-    // server, anything else (a validation error re-render, just switching
-    // to the YAML view) leaves the unsaved flag as it was.
-    if (target.querySelector(".save-toast")) {
+    // Whole-form save, revert, or the YAML view's save/switch: only a
+    // render that actually carries a "saved" toast, or a revert (which
+    // deliberately throws the in-progress edits away and reloads the
+    // last-saved config), means the browser's copy now matches the
+    // server - anything else (a validation error re-render, just
+    // switching to the YAML view) leaves the unsaved flag as it was.
+    const isRevert = triggerElt && triggerElt.matches(".btn-revert");
+    if (target.querySelector(".save-toast") || isRevert) {
       setDirty(row, false);
     }
     target.querySelectorAll(".endpoint-block").forEach((block) => {
