@@ -19,6 +19,20 @@ document.addEventListener("DOMContentLoaded", () => {
   // markers are tracked per location slot rather than one-per-device.
   const markersByDevice = {};
 
+  // Guards the handful of dynamic-key writes below (keyed by canonicId or a
+  // locations-array index) against ever touching __proto__/constructor/
+  // prototype, so a plain object literal can't have its prototype chain
+  // polluted no matter where the key ends up coming from.
+  const UNSAFE_OBJECT_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+  function safeAssign(obj, key, value) {
+    if (UNSAFE_OBJECT_KEYS.has(String(key))) return;
+    obj[key] = value;
+  }
+  function safeDelete(obj, key) {
+    if (UNSAFE_OBJECT_KEYS.has(String(key))) return;
+    delete obj[key];
+  }
+
   function markerForKey(key) {
     const sep = key.lastIndexOf(":");
     const canonicId = key.slice(0, sep);
@@ -116,7 +130,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const marker = L.marker(latlng, { icon: pinIcon(color) }).addTo(map).bindPopup(label);
         marker.on("mouseover", () => glowRows(key, true));
         marker.on("mouseout", () => glowRows(key, false));
-        slots[index] = marker;
+        safeAssign(slots, index, marker);
       }
       latlngs.push(latlng);
     });
@@ -127,11 +141,11 @@ document.addEventListener("DOMContentLoaded", () => {
     for (const indexStr of Object.keys(slots)) {
       if (!seenIndexes.has(Number(indexStr))) {
         map.removeLayer(slots[indexStr]);
-        delete slots[indexStr];
+        safeDelete(slots, indexStr);
       }
     }
 
-    markersByDevice[canonicId] = slots;
+    safeAssign(markersByDevice, canonicId, slots);
     return latlngs;
   }
 
