@@ -19,6 +19,12 @@ GFMT_BROWSER_IDLE_TIMEOUT_S = int(os.environ.get("GFMT_BROWSER_IDLE_TIMEOUT_S", 
 # timeout of its own.
 GFMT_BROWSER_DOWNLOAD_TIMEOUT_S = int(os.environ.get("GFMT_BROWSER_DOWNLOAD_TIMEOUT_S", "300"))
 DEFAULT_POLL_INTERVAL_S = int(os.environ.get("DEFAULT_POLL_INTERVAL_S", "300"))
+# How long a device-list fetch (Nova's slow device-list call, see
+# NovaApi/ListDevices/nbe_list_devices.py's request_device_list()) is reused
+# for repeated page loads before re-fetching - see webui/device_list_cache.py.
+# Short enough that "did I just register a tracker" or "did something
+# actually change" still feels live.
+DEVICE_LIST_CACHE_TTL_S = float(os.environ.get("DEVICE_LIST_CACHE_TTL_S", "8"))
 LOCATE_CONCURRENCY = int(os.environ.get("LOCATE_CONCURRENCY", "5"))
 LOCATE_TIMEOUT_S = int(os.environ.get("LOCATE_TIMEOUT_S", "60"))
 

@@ -55,7 +55,15 @@ def stub_backend(monkeypatch):
     """Sane defaults for every router's external-service boundary, so most
     tests get a working "happy path" for free and only override what they
     specifically care about."""
+    from webui.device_list_cache import device_list_cache
     from webui.routers import auth, devices, locate, logs, register, settings, sound
+
+    # webui/device_list_cache.py's singleton is a real module-level global
+    # like query_throttle above - without this, a value cached by one test
+    # (well within its default 8s TTL; tests run in milliseconds) would
+    # leak into the next test instead of that test's own monkeypatched
+    # get_canonic_ids/request_device_list ever actually running.
+    device_list_cache.invalidate()
 
     def fake_get_canonic_ids(device_list):
         return [(FAKE_DEVICE_NAME, FAKE_CANONIC_ID, FAKE_LAST_SEEN)]

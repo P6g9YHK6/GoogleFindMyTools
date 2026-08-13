@@ -9,6 +9,7 @@ from SpotApi.UploadPrecomputedPublicKeyIds.upload_precomputed_public_key_ids imp
 from webui import device_location_store, scheduler
 from webui.auth_state import is_logged_in
 from webui.deps import run_blocking
+from webui.device_list_cache import device_list_cache
 from webui.forwarders import config_store
 from webui.templating import templates
 
@@ -63,7 +64,7 @@ async def get_devices() -> list[dict]:
         refresh_custom_trackers(device_list)
         return get_canonic_ids(device_list)
 
-    canonic_ids = await run_blocking(_fetch)
+    canonic_ids = await run_blocking(device_list_cache.get_or_fetch, _fetch)
 
     devices = []
     for name, canonic_id, last_seen in canonic_ids:

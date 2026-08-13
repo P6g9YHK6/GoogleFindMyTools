@@ -6,6 +6,7 @@ from NovaApi.ExecuteAction.PlaySound.sound_action import play_sound
 from NovaApi.query_throttle import query_throttle
 from SpotApi.CreateBleDevice.create_ble_device import register_esp32
 from webui import config, settings_store
+from webui.device_list_cache import device_list_cache
 
 _locate_semaphore = asyncio.Semaphore(config.LOCATE_CONCURRENCY)
 
@@ -56,4 +57,11 @@ async def set_sound(canonic_id: str, should_start: bool):
 
 
 async def register_tracker():
-    return await run_blocking(register_esp32)
+    result = await run_blocking(register_esp32)
+    # register_esp32() raises on failure rather than returning a sentinel,
+    # so getting here already means success - invalidate the device-list
+    # cache (see webui/device_list_cache.py) so the newly-registered
+    # tracker shows up on the very next /devices/table load instead of
+    # waiting out its TTL.
+    device_list_cache.invalidate()
+    return result
