@@ -449,7 +449,17 @@ details ul {
    transparent (only the tint shows) so it never has to render pixel-
    perfect glyphs, just line up the same wrapping as the real textarea on
    top of it - which is why every box-model property below (border,
-   padding, font) is copied from .url-input/textarea rather than derived. */
+   padding, font) is copied from .url-input/textarea rather than derived.
+
+   Both this and .url-highlight .url-input below are pinned to the same
+   monospace stack the YAML editor already uses (see .yaml-editor), not the
+   page's regular proportional font - a *textarea* and a *div* are
+   different kinds of rendered elements, and proportional fonts are shaped
+   with enough browser-level hinting/kerning variance between the two that
+   even matching font-family/size/weight exactly still isn't reliably
+   pixel-identical (this is why every "highlighted textarea" implementation
+   uses a monospace font - fixed-width glyphs sidestep that whole class of
+   drift instead of chasing it property by property). */
 .url-highlight {
   position: relative;
 }
@@ -461,15 +471,8 @@ details ul {
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   padding: 0.5rem 0.65rem;
-  /* Explicit, not "font: inherit" - the shorthand pulled font-weight from
-     this element's actual DOM parent (the surrounding <label>, which sets
-     500), not from the textarea it needs to line up with (the global
-     input/textarea rule below sets 400) - that weight mismatch alone was
-     enough to throw off character widths and desync the highlight boxes
-     from the real text, worse the longer the URL got. font-family and
-     line-height are left to inherit normally since neither the label nor
-     this wrapper override them, so both elements already agree on those. */
-  font-size: 0.92rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
   font-weight: 400;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -495,6 +498,8 @@ details ul {
 .url-highlight .url-input {
   position: relative;
   background: transparent;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
 }
 
 .endpoints-container {
