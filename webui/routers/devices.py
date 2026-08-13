@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 
 from fastapi import APIRouter, Request
@@ -81,9 +82,24 @@ async def index(request: Request):
     return templates.TemplateResponse(request, "devices/list.html", {})
 
 
+def _map_devices_json(devices: list[dict]) -> str:
+    """Feeds devices/_table.html's inline script, which seeds the map with
+    each device's last known locations on page load (see static/app.js's
+    seedMapMarkers) - trimmed to just what the map needs instead of reusing
+    the full `devices` context (next-poll times, etc. would just be dead
+    weight in the page's HTML)."""
+    payload = [
+        {"canonic_id": d["canonic_id"], "name": d["name"], "locations": d["last_locations"] or []}
+        for d in devices
+    ]
+    return json.dumps(payload, default=str).replace("</", "<\\/")
+
+
 @router.get("/devices/table")
 async def devices_table(request: Request):
     if not is_logged_in():
         return templates.TemplateResponse(request, "_not_signed_in.html", {})
     devices = await get_devices()
-    return templates.TemplateResponse(request, "devices/_table.html", {"devices": devices})
+    return templates.TemplateResponse(
+        request, "devices/_table.html", {"devices": devices, "map_devices_json": _map_devices_json(devices)}
+    )
