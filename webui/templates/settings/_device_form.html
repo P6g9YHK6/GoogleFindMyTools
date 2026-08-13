@@ -1,8 +1,11 @@
 <form hx-post="/settings/devices/{{ row.canonic_id }}" hx-target="closest .device-editor" hx-swap="innerHTML">
   <fieldset>
     <legend>{{ row.name }}
+      {# Posts (not gets) so it carries this form's current field values -
+         including anything typed but not yet saved - into the YAML view;
+         see device_yaml_preview_route in routers/settings.py. #}
       <button type="button" class="btn-secondary"
-              hx-get="/settings/devices/{{ row.canonic_id }}/yaml"
+              hx-post="/settings/devices/{{ row.canonic_id }}/yaml/preview"
               hx-target="closest .device-editor" hx-swap="innerHTML">Edit as YAML</button>
     </legend>
     <label>Device alias

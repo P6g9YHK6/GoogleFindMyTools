@@ -363,8 +363,11 @@ def test_config_store_migrates_legacy_single_destination_shape(tmp_path, monkeyp
     assert "params" not in ep
     assert ep["variables"] == {"device_id": "1"}
     assert ep["cron"] == "*/2 * * * *"
-    assert ep["last_forward_status"] == "ok"
-    assert ep["last_forward_time"] == 123
+    # Runtime state doesn't live on a saved endpoint anymore either - see
+    # webui/forwarders/latest_values_store.py - dropped on migration same as
+    # the old nested "traccar" sub-dict below.
+    assert "last_forward_status" not in ep
+    assert "last_forward_time" not in ep
     assert "traccar" not in ep  # the old nested sub-dict is gone, not just unused
 
     none_dest = config_store.normalize_device_config({"display_name": "x", "destination": "none"})

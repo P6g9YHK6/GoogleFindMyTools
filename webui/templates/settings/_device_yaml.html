@@ -1,8 +1,11 @@
 <form hx-post="/settings/devices/{{ canonic_id }}/yaml" hx-target="closest .device-editor" hx-swap="innerHTML">
   <fieldset>
     <legend>{{ name }}
+      {# Posts (not gets) so it carries whatever's currently typed in the
+         textarea below - including edits not yet saved - back into the
+         form view; see device_form_preview_route in routers/settings.py. #}
       <button type="button" class="btn-secondary"
-              hx-get="/settings/devices/{{ canonic_id }}"
+              hx-post="/settings/devices/{{ canonic_id }}/form/preview"
               hx-target="closest .device-editor" hx-swap="innerHTML">Edit as form</button>
     </legend>
 

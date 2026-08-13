@@ -76,7 +76,15 @@
       </div>
       <div class="url-row-field">
         <label>URL
-          <textarea name="ep-{{ idx }}-url" class="url-input url-autosize templatable" rows="1">{{ endpoint.url or '' }}</textarea>
+          {# The backdrop mirrors the textarea's own text behind it, live -
+             endpoint_fields.js's updateUrlHighlight() renders it through
+             the same renderTemplate() the Preview block below uses, so a
+             {{var}} token gets the identical green/amber resolved/
+             unresolved tint here, right where you're typing it. #}
+          <div class="url-highlight">
+            <div class="url-highlight-backdrop" aria-hidden="true"></div>
+            <textarea name="ep-{{ idx }}-url" class="url-input url-autosize templatable" rows="1">{{ endpoint.url or '' }}</textarea>
+          </div>
         </label>
       </div>
     </div>
@@ -115,7 +123,6 @@
   </fieldset>
 
   {% set cron_value = endpoint.cron or '*/5 * * * *' %}
-  {% set cron_parts = (cron_value.split() + ['*', '*', '*', '*', '*'])[:5] %}
   <fieldset>
     <legend>Schedule</legend>
     <label>How often
@@ -129,28 +136,18 @@
 
     <details class="cron-advanced" {% if cron_value not in cron_preset_values %}open{% endif %}>
       <summary>Advanced: custom cron schedule</summary>
-      <div class="cron-builder">
-        <label class="cron-field-label">Minute
-          <input type="text" class="cron-field" value="{{ cron_parts[0] }}">
-        </label>
-        <label class="cron-field-label">Hour
-          <input type="text" class="cron-field" value="{{ cron_parts[1] }}">
-        </label>
-        <label class="cron-field-label">Day of month
-          <input type="text" class="cron-field" value="{{ cron_parts[2] }}">
-        </label>
-        <label class="cron-field-label">Month
-          <input type="text" class="cron-field" value="{{ cron_parts[3] }}">
-        </label>
-        <label class="cron-field-label">Day of week
-          <input type="text" class="cron-field" value="{{ cron_parts[4] }}">
-        </label>
-      </div>
       <label>Cron expression
         <input type="text" name="ep-{{ idx }}-cron" class="cron-raw" value="{{ cron_value }}"
                hx-post="/settings/cron-preview" hx-trigger="input changed delay:400ms"
                hx-params="ep-{{ idx }}-cron" hx-target="#cron-preview-{{ idx }}" hx-swap="innerHTML">
       </label>
+      <p class="field-hint">Standard 5-field cron syntax: minute hour day-of-month month day-of-week - each is <code>*</code>, a number, or a comma/dash/slash combination. A few examples beyond what "How often" covers above:</p>
+      <ul class="cron-examples">
+        <li><code>*/15 9-17 * * 1-5</code> - every 15 minutes, 9am-5pm, weekdays only</li>
+        <li><code>0 8,20 * * *</code> - twice a day, at 8am and 8pm</li>
+        <li><code>0 0 1 * *</code> - once a month, on the 1st at midnight</li>
+        <li><code>0 */6 * * *</code> - every 6 hours, on the hour</li>
+      </ul>
       {# id-based, not "next .cron-preview-slot" - the raw input's only
          sibling within its own <label> is the label text, so a "next"
          search starting from the input never reaches this div at all.

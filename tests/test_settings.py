@@ -56,12 +56,12 @@ def test_save_mixed_endpoints_and_drop_blank_block(client):
 
     saved = config_store.get_device_config(FAKE_CANONIC_ID)
     assert len(saved["endpoints"]) == 2
-    assert saved["endpoints"][0]["type"] == "custom"  # a preset is never saved - see presets.py
+    assert "type" not in saved["endpoints"][0]  # a preset is never saved - see presets.py
     assert saved["endpoints"][0]["url"] == "http://traccar.local:5055/?id={{device_id}}"
     assert "params" not in saved["endpoints"][0]
     assert saved["endpoints"][0]["cron"] == "*/5 * * * *"
 
-    assert saved["endpoints"][1]["type"] == "custom"
+    assert "type" not in saved["endpoints"][1]
     assert saved["endpoints"][1]["url"] == "https://nc.local/x/{{device_name}}"
     assert "device_name" not in saved["endpoints"][1]
     assert saved["endpoints"][1]["cron"] == "0 */2 * * *"
@@ -261,17 +261,19 @@ def test_skip_if_stale_defaults_off_when_not_submitted(client):
 
 def test_send_now_forwards_immediately_bypassing_schedule_and_skip(client, monkeypatch):
     from webui import scheduler
-    from webui.forwarders import config_store
+    from webui.forwarders import config_store, latest_values_store
 
     config_store.set_device_config(FAKE_CANONIC_ID, {
         "display_name": "My Tracker",
         "endpoints": [{
-            "type": "traccar", "method": "GET", "url": "http://x/",
-            "params": {}, "headers": {}, "body_type": "none", "body": "", "variables": {},
+            "method": "GET", "url": "http://x/",
+            "headers": {}, "body_type": "none", "body": "", "variables": {},
             "cron": "0 0 1 1 *",  # once a year - would never be due on its own
-            "skip_if_close": True, "last_sent_lat": 1.0, "last_sent_lon": 2.0,  # would normally skip this fix
+            "skip_if_close": True,
         }],
     })
+    # would normally skip this fix - see latest_values_store, not config_store
+    latest_values_store.set_endpoint_state(FAKE_CANONIC_ID, "http://x/", {"last_sent_lat": 1.0, "last_sent_lon": 2.0})
 
     async def fake_locate_device(canonic_id, name, timeout=None):
         return [{"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}]
@@ -284,10 +286,12 @@ def test_send_now_forwards_immediately_bypassing_schedule_and_skip(client, monke
     assert "Last forward: ok" in resp.text
     assert "Send now" in resp.text  # the button survives its own swapped-in response
 
-    saved = config_store.get_device_config(FAKE_CANONIC_ID)["endpoints"][0]
-    assert saved["last_forward_status"] == "ok"
-    assert saved["last_sent_lat"] == 1.0
-    assert saved["last_sent_lon"] == 2.0
+    assert "last_forward_status" not in config_store.get_device_config(FAKE_CANONIC_ID)["endpoints"][0]
+
+    state = latest_values_store.get_endpoint_state(FAKE_CANONIC_ID, "http://x/")
+    assert state["last_forward_status"] == "ok"
+    assert state["last_sent_lat"] == 1.0
+    assert state["last_sent_lon"] == 2.0
 
 
 def test_send_now_404s_for_unknown_endpoint_index(client):
@@ -309,7 +313,9 @@ def test_device_yaml_view_shows_current_config(client):
 
     resp = client.get(f"/settings/devices/{FAKE_CANONIC_ID}/yaml")
     assert resp.status_code == 200
-    assert "type: custom" in resp.text  # a preset is never saved - see presets.py
+    assert "type: custom" not in resp.text  # a preset is never saved - see presets.py
+    assert "google_name" not in resp.text  # read-only, fed from Google's own device list
+    assert "display_name" not in resp.text  # that's the "Device alias" field's job, not the YAML's
     assert "url: http://x/" in resp.text
     assert "Edit as form" in resp.text
 
@@ -321,10 +327,78 @@ def test_device_form_route_switches_back_from_yaml_view(client):
     assert 'name="display_name"' in resp.text
 
 
+def test_edit_as_yaml_button_reflects_unsaved_form_edits_without_persisting(client):
+    """The "Edit as YAML" button posts the form's current values (see
+    device_yaml_preview_route) - a not-yet-saved edit must show up in the
+    YAML it renders, and must not itself write anything to disk."""
+    from webui.forwarders import config_store
+
+    before = config_store.get_device_config(FAKE_CANONIC_ID)
+
+    resp = _post_form(
+        client,
+        f"/settings/devices/{FAKE_CANONIC_ID}/yaml/preview",
+        display_name="Not Yet Saved Name",
+        ep_order=["0"],
+        **{"ep-0-url": "http://not-yet-saved.example/", "ep-0-cron": "*/5 * * * *"},
+    )
+    assert resp.status_code == 200
+    assert "<legend>Not Yet Saved Name" in resp.text  # the heading, not part of the YAML body itself
+    assert "url: http://not-yet-saved.example/" in resp.text
+    assert "display_name" not in resp.text
+    assert "Edit as form" in resp.text
+
+    assert config_store.get_device_config(FAKE_CANONIC_ID) == before
+
+
+def test_edit_as_form_button_reflects_unsaved_yaml_edits_without_persisting(client):
+    """The mirror image of the test above - the YAML view's "Edit as form"
+    button posts the textarea's current (possibly not-yet-saved) endpoints
+    text (see device_form_preview_route). The alias itself was never part
+    of the YAML in the first place (see _to_yaml_doc) - it stays whatever's
+    already saved for this device regardless of what's in the textarea."""
+    from webui.forwarders import config_store
+
+    _post_form(
+        client,
+        f"/settings/devices/{FAKE_CANONIC_ID}",
+        display_name="My Tracker",
+        ep_order=["0"],
+        **{"ep-0-url": "http://saved.example/", "ep-0-cron": "*/5 * * * *"},
+    )
+    before = config_store.get_device_config(FAKE_CANONIC_ID)
+
+    yaml_text = "endpoints:\n  - url: http://not-yet-saved.example/\n    cron: '*/5 * * * *'\n"
+    resp = client.post(f"/settings/devices/{FAKE_CANONIC_ID}/form/preview", data={"yaml_text": yaml_text})
+    assert resp.status_code == 200
+    assert 'value="My Tracker"' in resp.text  # the alias, untouched by the YAML
+    assert ">http://not-yet-saved.example/</textarea>" in resp.text  # the not-yet-saved endpoint edit
+    assert "Edit as YAML" in resp.text
+
+    assert config_store.get_device_config(FAKE_CANONIC_ID) == before
+
+
+def test_edit_as_form_button_shows_invalid_yaml_error_without_switching(client):
+    resp = client.post(f"/settings/devices/{FAKE_CANONIC_ID}/form/preview", data={"yaml_text": "not: valid: yaml: ["})
+    assert resp.status_code == 200
+    assert "Invalid YAML" in resp.text
+    assert "Edit as form" in resp.text  # still in the YAML view, not switched away
+
+
 def test_save_device_yaml_persists_and_reflects_in_the_form(client):
+    """The alias itself is untouched by a YAML save - see _to_yaml_doc -
+    so it should still read back as whatever was already saved for it."""
+    _post_form(
+        client,
+        f"/settings/devices/{FAKE_CANONIC_ID}",
+        display_name="My Tracker",
+        ep_order=["0"],
+        **{"ep-0-url": "http://placeholder/", "ep-0-cron": "*/5 * * * *"},
+    )
+
     yaml_text = (
         "endpoints:\n"
-        "  - type: traccar\n"
+        "  - type: traccar\n"  # ignored on save, never persisted - see _from_yaml_doc
         "    method: GET\n"
         "    url: http://yaml.example\n"
         "    params: {}\n"
@@ -343,8 +417,9 @@ def test_save_device_yaml_persists_and_reflects_in_the_form(client):
     from webui.forwarders import config_store
 
     saved = config_store.get_device_config(FAKE_CANONIC_ID)
+    assert saved["display_name"] == "My Tracker"
     assert saved["endpoints"] == [{
-        "type": "traccar", "method": "GET", "url": "http://yaml.example",
+        "method": "GET", "url": "http://yaml.example",
         "params": {}, "headers": {}, "body_type": "none", "body": "",
         "variables": {"device_id": "yaml-dev"}, "cron": "*/10 * * * *",
     }]
@@ -374,8 +449,7 @@ def test_save_device_yaml_rejects_an_invalid_cron_without_persisting(client):
 
     good_yaml = (
         "endpoints:\n"
-        "  - type: traccar\n"
-        "    method: GET\n"
+        "  - method: GET\n"
         "    url: http://yaml.example\n"
         "    params: {}\n"
         "    headers: {}\n"
@@ -466,16 +540,22 @@ def test_invalid_cron_is_rejected_without_persisting(client):
 
 
 def test_last_forward_status_carries_forward_when_url_is_unchanged(client):
-    from webui.forwarders import config_store
+    """Runtime state is keyed by URL, not position (see
+    latest_values_store) - a save that keeps the same URL just naturally
+    leaves its recorded state alone, no explicit carry-forward needed."""
+    from webui.forwarders import config_store, latest_values_store
 
     config_store.set_device_config(FAKE_CANONIC_ID, {
         "display_name": "My Tracker",
         "endpoints": [{
-            "type": "traccar", "method": "GET", "url": "http://x/",
-            "params": {}, "headers": {}, "body_type": "none", "body": "", "variables": {},
-            "cron": "*/5 * * * *", "last_forward_status": "ok", "last_forward_time": 111,
-            "last_sent_lat": 1.0, "last_sent_lon": 2.0, "last_sent_fix_time": 100,
+            "method": "GET", "url": "http://x/",
+            "headers": {}, "body_type": "none", "body": "", "variables": {},
+            "cron": "*/5 * * * *",
         }],
+    })
+    latest_values_store.set_endpoint_state(FAKE_CANONIC_ID, "http://x/", {
+        "last_forward_status": "ok", "last_forward_time": 111,
+        "last_sent_lat": 1.0, "last_sent_lon": 2.0, "last_sent_fix_time": 100,
     })
 
     resp = _post_form(
@@ -483,26 +563,29 @@ def test_last_forward_status_carries_forward_when_url_is_unchanged(client):
         f"/settings/devices/{FAKE_CANONIC_ID}",
         display_name="My Tracker",
         ep_order=["0"],
-        # same URL, just a different cron - should carry the last-* fields forward
-        **{"ep-0-endpoint_type": "traccar", "ep-0-url": "http://x/", "ep-0-cron": "*/10 * * * *"},
+        # same URL, just a different cron - the recorded state should stay
+        **{"ep-0-url": "http://x/", "ep-0-cron": "*/10 * * * *"},
     )
     assert resp.status_code == 200
 
-    saved = config_store.get_device_config(FAKE_CANONIC_ID)["endpoints"][0]
-    assert saved["last_forward_status"] == "ok"
-    assert saved["last_sent_lat"] == 1.0
+    state = latest_values_store.get_endpoint_state(FAKE_CANONIC_ID, "http://x/")
+    assert state["last_forward_status"] == "ok"
+    assert state["last_sent_lat"] == 1.0
 
 
 def test_last_forward_status_resets_when_url_changes(client):
-    from webui.forwarders import config_store
+    from webui.forwarders import config_store, latest_values_store
 
     config_store.set_device_config(FAKE_CANONIC_ID, {
         "display_name": "My Tracker",
         "endpoints": [{
-            "type": "traccar", "method": "GET", "url": "http://x/",
-            "params": {}, "headers": {}, "body_type": "none", "body": "", "variables": {},
-            "cron": "*/5 * * * *", "last_forward_status": "ok", "last_forward_time": 111,
+            "method": "GET", "url": "http://x/",
+            "headers": {}, "body_type": "none", "body": "", "variables": {},
+            "cron": "*/5 * * * *",
         }],
+    })
+    latest_values_store.set_endpoint_state(FAKE_CANONIC_ID, "http://x/", {
+        "last_forward_status": "ok", "last_forward_time": 111,
     })
 
     resp = _post_form(
@@ -510,12 +593,13 @@ def test_last_forward_status_resets_when_url_changes(client):
         f"/settings/devices/{FAKE_CANONIC_ID}",
         display_name="My Tracker",
         ep_order=["0"],
-        **{"ep-0-endpoint_type": "traccar", "ep-0-url": "http://different/", "ep-0-cron": "*/5 * * * *"},
+        **{"ep-0-url": "http://different/", "ep-0-cron": "*/5 * * * *"},
     )
     assert resp.status_code == 200
 
-    saved = config_store.get_device_config(FAKE_CANONIC_ID)["endpoints"][0]
-    assert "last_forward_status" not in saved
+    assert latest_values_store.get_endpoint_state(FAKE_CANONIC_ID, "http://different/") == {}
+    # the old URL's entry is pruned away on save too, not left dangling
+    assert latest_values_store.get_endpoint_state(FAKE_CANONIC_ID, "http://x/") == {}
 
 
 def test_preset_control_only_appears_on_a_brand_new_endpoint(client):
@@ -539,7 +623,7 @@ def test_preset_control_only_appears_on_a_brand_new_endpoint(client):
 def test_posted_preset_type_is_never_saved(client):
     """Whatever gets posted for the (only ever shown on a new block) preset
     dropdown - even from a stale or hand-crafted request against an
-    existing endpoint - is ignored; the saved type is always "custom"."""
+    existing endpoint - is ignored; endpoints don't carry a "type" at all."""
     resp = _post_form(
         client,
         f"/settings/devices/{FAKE_CANONIC_ID}",
@@ -551,7 +635,7 @@ def test_posted_preset_type_is_never_saved(client):
 
     from webui.forwarders import config_store
 
-    assert config_store.get_device_config(FAKE_CANONIC_ID)["endpoints"][0]["type"] == "custom"
+    assert "type" not in config_store.get_device_config(FAKE_CANONIC_ID)["endpoints"][0]
 
 
 def test_variables_carry_forward_when_url_is_unchanged(client):
@@ -639,7 +723,7 @@ def test_save_device_yaml_failure_shows_an_error_instead_of_crashing(client, mon
 
     monkeypatch.setattr(config_store, "set_device_config", boom)
 
-    resp = client.post(f"/settings/devices/{FAKE_CANONIC_ID}/yaml", data={"yaml_text": "endpoints: []\n"})
+    resp = client.post(f"/settings/devices/{FAKE_CANONIC_ID}/yaml", data={"yaml_text": "My Tracker:\n  endpoints: []\n"})
     assert resp.status_code == 200
     assert "Failed to save" in resp.text
     assert "save-toast" not in resp.text

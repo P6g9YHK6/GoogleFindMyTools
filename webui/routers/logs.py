@@ -29,7 +29,12 @@ def _forwarding_entries() -> list[dict]:
             "level": e["level"],
             "level_label": e["level"].upper(),
             "source": e["device_name"],
-            "detail": f"{e['endpoint_type']} → {e['target']}: {e['status']}",
+            # endpoint_type used to always be the literal "custom" (every
+            # endpoint's now-removed "type" field - see routers/settings.py's
+            # _parse_endpoints_form) and never said anything a human didn't
+            # already know; skip the "custom → " prefix entirely rather than
+            # print a stale value for old log lines or a blank one for new.
+            "detail": f"{e['target']}: {e['status']}",
             "payload": e.get("payload", ""),
         })
     return entries

@@ -53,11 +53,12 @@ def _traccar_endpoint(**overrides) -> dict:
 
 async def test_poll_device_shares_one_locate_call_across_due_endpoints(monkeypatch, tmp_path):
     from webui import config
-    from webui.forwarders import config_store
+    from webui.forwarders import config_store, latest_values_store
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
     monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding_config.json")
     monkeypatch.setattr(config, "FORWARD_LOG_PATH", tmp_path / "forward_log.json")
+    monkeypatch.setattr(config, "LATEST_VALUES_PATH", tmp_path / "latest_values.yaml")
 
     monkeypatch.setattr(scheduler, "is_logged_in", lambda: True)
 
@@ -109,19 +110,26 @@ async def test_poll_device_shares_one_locate_call_across_due_endpoints(monkeypat
 
     assert call_count["n"] == 1
 
-    cfg = config_store.get_device_config(canonic_id)
-    for ep in cfg["endpoints"]:
-        assert ep["last_forward_status"] is not None
-        assert ep["last_forward_time"] is not None
+    # Both endpoints share this URL (after config_store's own one-time fold
+    # of the legacy "params" dict into the URL's querystring - see
+    # config_store._fold_params_into_url - so it's not literally the
+    # "http://127.0.0.1:9/" passed to _traccar_endpoint above) - and so,
+    # deliberately, the same recorded state too (see latest_values_store's
+    # URL-keying) - just the one entry to check.
+    url = config_store.get_device_config(canonic_id)["endpoints"][0]["url"]
+    state = latest_values_store.get_endpoint_state(canonic_id, url)
+    assert state["last_forward_status"] is not None
+    assert state["last_forward_time"] is not None
 
 
 async def test_poll_device_records_last_sent_position_on_success(monkeypatch, tmp_path):
     from webui import config
-    from webui.forwarders import config_store
+    from webui.forwarders import config_store, latest_values_store
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
     monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding_config.json")
     monkeypatch.setattr(config, "FORWARD_LOG_PATH", tmp_path / "forward_log.json")
+    monkeypatch.setattr(config, "LATEST_VALUES_PATH", tmp_path / "latest_values.yaml")
     monkeypatch.setattr(scheduler, "is_logged_in", lambda: True)
     # _poll_device calls policy._forward_one, which resolves _dispatch_forward
     # in policy's own module globals - patching scheduler's re-exported name
@@ -162,9 +170,12 @@ async def test_poll_device_records_last_sent_position_on_success(monkeypatch, tm
         pass
 
     ep = config_store.get_device_config(canonic_id)["endpoints"][0]
-    assert ep["last_forward_status"] == "ok"
-    assert ep["last_sent_lat"] == 12.5
-    assert ep["last_sent_lon"] == 34.5
+    assert "last_forward_status" not in ep  # not config anymore - see latest_values_store
+
+    state = latest_values_store.get_endpoint_state(canonic_id, ep["url"])
+    assert state["last_forward_status"] == "ok"
+    assert state["last_sent_lat"] == 12.5
+    assert state["last_sent_lon"] == 34.5
 
 
 async def test_poll_device_persists_last_location_for_the_devices_page(monkeypatch, tmp_path):
@@ -178,6 +189,7 @@ async def test_poll_device_persists_last_location_for_the_devices_page(monkeypat
     monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding.yaml")
     monkeypatch.setattr(config, "FORWARD_LOG_PATH", tmp_path / "forward.log")
     monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+    monkeypatch.setattr(config, "LATEST_VALUES_PATH", tmp_path / "latest_values.yaml")
     monkeypatch.setattr(scheduler, "is_logged_in", lambda: True)
     monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None: "ok")
 

@@ -9,7 +9,7 @@ from ProtoDecoders.decoder import get_canonic_ids, parse_device_list_protobuf
 from webui import scheduler
 from webui.auth_state import is_logged_in
 from webui.deps import run_blocking
-from webui.forwarders import BUILTIN_VARIABLES, PRESETS, config_store, policy
+from webui.forwarders import BUILTIN_VARIABLES, PRESETS, config_store, latest_values_store, policy
 from webui.forwarders import blank_endpoint as new_blank_endpoint
 from webui.templating import templates
 
@@ -61,6 +61,18 @@ async def _rows(overrides: dict[str, dict] | None = None, saved_id: str | None =
         if overrides and canonic_id in overrides:
             device_cfg = overrides[canonic_id]["config"]
             save_error = overrides[canonic_id]["error"]
+        # Runtime state (last forward status/time, last-sent position) isn't
+        # config anymore - see webui/forwarders/latest_values_store.py - so
+        # it never comes back from config_store above; merge it into each
+        # endpoint here, display-only, so _endpoint_fields.html's "Last
+        # forward: ..." line still has something to read. Safe to mutate in
+        # place: device_cfg is always a fresh dict (freshly loaded, or a
+        # freshly-built override above), never re-persisted after this point.
+        for ep in device_cfg.get("endpoints", []):
+            if isinstance(ep, dict):
+                state = latest_values_store.get_endpoint_state(canonic_id, ep.get("url", ""))
+                if state:
+                    ep.update(state)
         # The stored display_name is a user-set alias (Google's own device name is
         # sometimes cryptic/confusing) - fall back to Google's name until one is set.
         alias = device_cfg.get("display_name") or google_name
@@ -103,35 +115,26 @@ async def settings_page(request: Request):
     })
 
 
-@router.get("/settings/devices/{canonic_id}")
-async def device_form_route(request: Request, canonic_id: str):
-    """Re-renders just the structured form - the "Edit as form" button's
-    target when switching back out of the YAML view below."""
-    if not is_logged_in():
-        return templates.TemplateResponse(request, "_not_signed_in.html", {})
-    row = await _row(canonic_id)
-    return templates.TemplateResponse(request, "settings/_device_form.html", {
-        "row": row, **_TEMPLATE_CONTEXT,
-    })
+def _to_yaml_doc(endpoints: list[dict]) -> dict:
+    """The YAML editor's view of a device: just its endpoints - no
+    "display_name" (that's the "Device alias" field's job; editing the same
+    thing a second time here would be redundant and the two could drift),
+    no "google_name" (read-only, fed from Google's own device list,
+    never user-configurable - see _rows above), and no per-endpoint "type"
+    (see _parse_endpoints_form below - always the same generic query-
+    builder shape now, never a saved property, so it would never say
+    anything a human didn't already know)."""
+    clean_endpoints = [{k: v for k, v in ep.items() if k != "type"} for ep in endpoints]
+    return {"endpoints": clean_endpoints}
 
 
-@router.get("/settings/devices/{canonic_id}/yaml")
-async def device_yaml_route(request: Request, canonic_id: str):
-    if not is_logged_in():
-        return templates.TemplateResponse(request, "_not_signed_in.html", {})
-    row = await _row(canonic_id)
-    yaml_text = yaml.safe_dump(row["config"], sort_keys=False, allow_unicode=True)
-    return templates.TemplateResponse(request, "settings/_device_yaml.html", {
-        "canonic_id": canonic_id, "name": row["name"], "yaml_text": yaml_text,
-    })
-
-
-@router.post("/settings/devices/{canonic_id}/yaml")
-async def save_device_yaml_route(request: Request, canonic_id: str, yaml_text: str = Form(...)):
-    if not is_logged_in():
-        return templates.TemplateResponse(request, "_not_signed_in.html", {})
-
-    row = await _row(canonic_id)
+def _from_yaml_doc(yaml_text: str) -> tuple[list[dict], str | None]:
+    """Inverse of _to_yaml_doc: (endpoints, error). Shared by the real save
+    route and the live "switch to form" preview below, so both reject the
+    same malformed input the same way. Cron validity is deliberately not
+    checked here - that's a save-time concern (see the matching check in
+    save_device_yaml_route), not a parse-time one; a live preview should
+    never refuse to just show you what you typed."""
     try:
         parsed = yaml.safe_load(yaml_text)
         if parsed is None:
@@ -145,9 +148,99 @@ async def save_device_yaml_route(request: Request, canonic_id: str, yaml_text: s
             if not isinstance(endpoint, dict):
                 raise ValueError(f"endpoints[{i}] must be a mapping")
     except (yaml.YAMLError, ValueError) as e:
+        return [], f"Invalid YAML: {e}"
+
+    endpoints = [{k: v for k, v in ep.items() if k != "type"} for ep in parsed["endpoints"]]
+    return endpoints, None
+
+
+@router.get("/settings/devices/{canonic_id}")
+async def device_form_route(request: Request, canonic_id: str):
+    """Re-renders just the structured form from whatever's on disk - kept
+    around as a plain "load the saved config" route, though the "Edit as
+    form" button no longer uses it (see device_form_preview_route below,
+    which reflects not-yet-saved YAML edits instead)."""
+    if not is_logged_in():
+        return templates.TemplateResponse(request, "_not_signed_in.html", {})
+    row = await _row(canonic_id)
+    return templates.TemplateResponse(request, "settings/_device_form.html", {
+        "row": row, **_TEMPLATE_CONTEXT,
+    })
+
+
+@router.get("/settings/devices/{canonic_id}/yaml")
+async def device_yaml_route(request: Request, canonic_id: str):
+    """Plain "load the saved config as YAML" route - the "Edit as YAML"
+    button no longer uses this either (see device_yaml_preview_route
+    below), for the same reason as device_form_route above."""
+    if not is_logged_in():
+        return templates.TemplateResponse(request, "_not_signed_in.html", {})
+    row = await _row(canonic_id)
+    yaml_text = yaml.safe_dump(
+        _to_yaml_doc(row["config"].get("endpoints", [])), sort_keys=False, allow_unicode=True,
+    )
+    return templates.TemplateResponse(request, "settings/_device_yaml.html", {
+        "canonic_id": canonic_id, "name": row["name"], "yaml_text": yaml_text,
+    })
+
+
+@router.post("/settings/devices/{canonic_id}/yaml/preview")
+async def device_yaml_preview_route(request: Request, canonic_id: str, display_name: str = Form(...)):
+    """The "Edit as YAML" button's actual target: converts the form's
+    current field values - including whatever's been typed but not yet
+    saved - into YAML, entirely in memory. Switching views this way never
+    needs a Save first and never throws unsaved edits away by re-reading
+    the last-saved config instead (which is all the plain GET above could
+    do)."""
+    if not is_logged_in():
+        return templates.TemplateResponse(request, "_not_signed_in.html", {})
+
+    form = await request.form()
+    existing = config_store.get_device_config(canonic_id) or {"endpoints": []}
+    endpoints, _errors = _parse_endpoints_form(form, existing.get("endpoints", []))
+    yaml_text = yaml.safe_dump(_to_yaml_doc(endpoints), sort_keys=False, allow_unicode=True)
+    return templates.TemplateResponse(request, "settings/_device_yaml.html", {
+        "canonic_id": canonic_id, "name": display_name, "yaml_text": yaml_text,
+    })
+
+
+@router.post("/settings/devices/{canonic_id}/form/preview")
+async def device_form_preview_route(request: Request, canonic_id: str, yaml_text: str = Form(...)):
+    """The YAML view's "Edit as form" button's actual target - the mirror
+    image of device_yaml_preview_route above: parses whatever's currently
+    typed in the YAML textarea back into the form, without saving it."""
+    if not is_logged_in():
+        return templates.TemplateResponse(request, "_not_signed_in.html", {})
+
+    # The YAML never carries the alias (see _to_yaml_doc) - that's the
+    # "Device alias" field's job - so whatever's already saved for it just
+    # carries straight through untouched here.
+    existing = config_store.get_device_config(canonic_id) or {}
+    endpoints, error = _from_yaml_doc(yaml_text)
+    if error:
+        return templates.TemplateResponse(request, "settings/_device_yaml.html", {
+            "canonic_id": canonic_id, "name": existing.get("display_name") or canonic_id, "yaml_text": yaml_text,
+            "error": error,
+        })
+
+    device_cfg = {"display_name": existing.get("display_name", ""), "endpoints": endpoints}
+    row = await _row(canonic_id, overrides={canonic_id: {"config": device_cfg, "error": None}})
+    return templates.TemplateResponse(request, "settings/_device_form.html", {
+        "row": row, **_TEMPLATE_CONTEXT,
+    })
+
+
+@router.post("/settings/devices/{canonic_id}/yaml")
+async def save_device_yaml_route(request: Request, canonic_id: str, yaml_text: str = Form(...)):
+    if not is_logged_in():
+        return templates.TemplateResponse(request, "_not_signed_in.html", {})
+
+    row = await _row(canonic_id)
+    endpoints, error = _from_yaml_doc(yaml_text)
+    if error:
         return templates.TemplateResponse(request, "settings/_device_yaml.html", {
             "canonic_id": canonic_id, "name": row["name"], "yaml_text": yaml_text,
-            "error": f"Invalid YAML: {e}",
+            "error": error,
         })
 
     # The form path (update_device_settings below) has always rejected an
@@ -156,7 +249,7 @@ async def save_device_yaml_route(request: Request, canonic_id: str, yaml_text: s
     # device's, if every endpoint's cron was bad) with no error shown.
     cron_errors = [
         f"endpoints[{i}]: \"{ep.get('cron', '')}\" is not a valid cron expression"
-        for i, ep in enumerate(parsed["endpoints"])
+        for i, ep in enumerate(endpoints)
         if not croniter.is_valid(str(ep.get("cron", "")))
     ]
     if cron_errors:
@@ -165,15 +258,23 @@ async def save_device_yaml_route(request: Request, canonic_id: str, yaml_text: s
             "error": "; ".join(cron_errors),
         })
 
-    parsed.setdefault("display_name", row["name"])
+    # Neither the alias nor google_name are part of what this editor shows
+    # (see _to_yaml_doc) - carry both forward from what's already on disk
+    # instead of losing them.
+    existing = config_store.get_device_config(canonic_id)
+    device_cfg = {"display_name": (existing or {}).get("display_name", ""), "endpoints": endpoints}
+    if existing and existing.get("google_name"):
+        device_cfg["google_name"] = existing["google_name"]
+
     try:
-        config_store.set_device_config(canonic_id, parsed)
+        config_store.set_device_config(canonic_id, device_cfg)
         scheduler.restart_device(canonic_id)
     except Exception as e:
         return templates.TemplateResponse(request, "settings/_device_yaml.html", {
             "canonic_id": canonic_id, "name": row["name"], "yaml_text": yaml_text,
             "error": f"Failed to save: {e}",
         })
+    latest_values_store.prune_to_urls(canonic_id, {ep["url"] for ep in endpoints})
 
     fresh_row = await _row(canonic_id, saved=True)
     return templates.TemplateResponse(request, "settings/_device_form.html", {
@@ -251,26 +352,19 @@ def _parse_kv_rows(keys: list[str], values: list[str]) -> dict:
     return {k.strip(): v for k, v in zip(keys, values) if k.strip()}
 
 
-@router.post("/settings/devices/{canonic_id}")
-async def update_device_settings(
-    request: Request,
-    canonic_id: str,
-    display_name: str = Form(...),
-):
-    if not is_logged_in():
-        return templates.TemplateResponse(request, "_not_signed_in.html", {})
+def _parse_endpoints_form(form, existing_endpoints: list[dict]) -> tuple[list[dict], list[str]]:
+    """(endpoints, errors) straight off a posted device form - shared by the
+    real save route below and device_yaml_preview_route above, so switching
+    to the YAML view while mid-edit reflects the same not-yet-saved values
+    instead of whatever's still on disk.
 
-    form = await request.form()
-    # Every endpoint block's fields are namespaced "ep-{idx}-{field}", with
-    # idx unique per block (its saved position, or a fresh client-generated
-    # id for one just added via "+ Add endpoint" - see endpoint_fields.js).
-    # That, rather than one flat getlist() per field name shared across every
-    # endpoint, is what lets each block carry its own variable-length headers
-    # table without the rows of one block bleeding into another's.
+    Every endpoint block's fields are namespaced "ep-{idx}-{field}", with idx
+    unique per block (its saved position, or a fresh client-generated id for
+    one just added via "+ Add endpoint" - see endpoint_fields.js). That,
+    rather than one flat getlist() per field name shared across every
+    endpoint, is what lets each block carry its own variable-length headers
+    table without the rows of one block bleeding into another's."""
     ep_order = form.getlist("ep_order")
-
-    existing = config_store.get_device_config(canonic_id) or {"endpoints": []}
-    existing_endpoints = existing.get("endpoints", [])
 
     endpoints = []
     errors = []
@@ -285,13 +379,15 @@ async def update_device_settings(
         if not url:
             continue  # unfilled "+ Add endpoint" block, drop it silently
 
+        # A preset (see the "Preset" dropdown, only ever shown on a
+        # brand-new "+ Add endpoint" block - webui/forwarders/presets.py) is
+        # a one-time template for starting an endpoint, never a saved
+        # property of one - whatever the dropdown said (if it was even
+        # posted at all) is ignored here. Endpoints don't carry a "type"
+        # either - every one saved through this form is the same generic
+        # query-builder shape, so a stored "type: custom" would never say
+        # anything a human didn't already know.
         entry = {
-            # A preset (see the "Preset" dropdown, only ever shown on a
-            # brand-new "+ Add endpoint" block - webui/forwarders/presets.py)
-            # is a one-time template for starting an endpoint, never a saved
-            # property of one - whatever the dropdown said (if it was even
-            # posted at all) is ignored here.
-            "type": "custom",
             "method": (field("method", "GET").strip().upper() or "GET"),
             "url": url,
             "headers": _parse_kv_rows(field_list("header_key"), field_list("header_value")),
@@ -322,25 +418,37 @@ async def update_device_settings(
             except ValueError:
                 entry["min_update_gap_m"] = policy.DEFAULT_MIN_UPDATE_GAP_M
 
-        # Best-effort: carry forward this endpoint's last status/position (and
-        # any leftover "variables", from before the settings UI dropped the
-        # "Custom variables" table - there's no field left to re-post one, so
-        # without this a save would silently erase e.g. a Traccar endpoint's
-        # device_id) if it still looks like the same logical endpoint (same
-        # position, same URL) - these just re-populate from scratch
-        # otherwise (a fresh save would otherwise forget the last-sent
-        # position and always send the next fix).
+        # Best-effort: carry forward any leftover "variables" (from before
+        # the settings UI dropped the "Custom variables" table - there's no
+        # field left to re-post one, so without this a save would silently
+        # erase e.g. a Traccar endpoint's device_id) if it still looks like
+        # the same logical endpoint (same position, same URL). Last-forward
+        # status/position isn't config at all anymore - see
+        # webui/forwarders/latest_values_store.py, keyed by URL rather than
+        # position, so it survives a save like this with no carry-forward
+        # step needed here.
         position = len(endpoints)
         if position < len(existing_endpoints) and existing_endpoints[position].get("url") == url:
-            for key in (
-                "last_forward_status", "last_forward_time",
-                "last_sent_lat", "last_sent_lon", "last_sent_fix_time",
-                "variables",
-            ):
-                if key in existing_endpoints[position]:
-                    entry[key] = existing_endpoints[position][key]
+            if "variables" in existing_endpoints[position]:
+                entry["variables"] = existing_endpoints[position]["variables"]
 
         endpoints.append(entry)
+
+    return endpoints, errors
+
+
+@router.post("/settings/devices/{canonic_id}")
+async def update_device_settings(
+    request: Request,
+    canonic_id: str,
+    display_name: str = Form(...),
+):
+    if not is_logged_in():
+        return templates.TemplateResponse(request, "_not_signed_in.html", {})
+
+    form = await request.form()
+    existing = config_store.get_device_config(canonic_id) or {"endpoints": []}
+    endpoints, errors = _parse_endpoints_form(form, existing.get("endpoints", []))
 
     if errors:
         device_cfg = {"display_name": display_name, "endpoints": endpoints}
@@ -358,6 +466,7 @@ async def update_device_settings(
         return templates.TemplateResponse(request, "settings/_device_form.html", {
             "row": row, **_TEMPLATE_CONTEXT,
         })
+    latest_values_store.prune_to_urls(canonic_id, {ep["url"] for ep in endpoints})
 
     row = await _row(canonic_id, saved=True)
     return templates.TemplateResponse(request, "settings/_device_form.html", {

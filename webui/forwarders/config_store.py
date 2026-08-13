@@ -4,6 +4,7 @@ import threading
 import yaml
 
 from webui import config
+from webui.forwarders import latest_values_store
 from webui.forwarders.presets import PRESETS
 
 _lock = threading.Lock()
@@ -106,12 +107,24 @@ def _migrate_legacy_endpoint(entry: dict) -> dict:
     return _fold_params_into_url(entry)
 
 
+def _strip_endpoint_state(entry: dict) -> dict:
+    """Runtime state (last forward status/time, last-sent position,
+    consecutive-failure streak) lives in its own file now, not here - see
+    webui/forwarders/latest_values_store.py. An endpoint saved before that
+    split still has these baked directly into it; drop them here the same
+    "safe to run unconditionally on every load" way the rest of this
+    module's migrations do. A no-op on an endpoint that's already clean."""
+    if not any(k in entry for k in latest_values_store.STATE_KEYS):
+        return entry
+    return {k: v for k, v in entry.items() if k not in latest_values_store.STATE_KEYS}
+
+
 def normalize_device_config(device_cfg: dict) -> dict:
     """Convert a pre-multi-endpoint device record into the current
     endpoints-list shape, and every endpoint in it into the current generic
     query-builder shape. A no-op (same object) on records that need neither."""
     if "endpoints" in device_cfg:
-        migrated_endpoints = [_migrate_legacy_endpoint(e) for e in device_cfg["endpoints"]]
+        migrated_endpoints = [_strip_endpoint_state(_migrate_legacy_endpoint(e)) for e in device_cfg["endpoints"]]
         if migrated_endpoints == device_cfg["endpoints"]:
             return device_cfg
         normalized = dict(device_cfg)
@@ -122,25 +135,22 @@ def normalize_device_config(device_cfg: dict) -> dict:
     destination = normalized.pop("destination", "none")
     old_traccar = normalized.pop("traccar", None)
     old_phonetrack = normalized.pop("phonetrack", None)
-    last_status = normalized.pop("last_forward_status", None)
-    last_time = normalized.pop("last_forward_time", None)
+    # Runtime state on this pre-multi-endpoint shape gets dropped the same
+    # way _strip_endpoint_state does below for every other shape - see
+    # webui/forwarders/latest_values_store.py.
+    normalized.pop("last_forward_status", None)
+    normalized.pop("last_forward_time", None)
     poll_interval = normalized.pop("poll_interval_seconds", None)
     cron_expr = _seconds_to_cron(poll_interval)
 
     endpoints = []
     if destination == "traccar" and old_traccar:
-        endpoints.append({
-            "type": "traccar", "traccar": old_traccar, "cron": cron_expr,
-            "last_forward_status": last_status, "last_forward_time": last_time,
-        })
+        endpoints.append({"type": "traccar", "traccar": old_traccar, "cron": cron_expr})
     elif destination == "phonetrack" and old_phonetrack:
-        endpoints.append({
-            "type": "phonetrack", "phonetrack": old_phonetrack, "cron": cron_expr,
-            "last_forward_status": last_status, "last_forward_time": last_time,
-        })
+        endpoints.append({"type": "phonetrack", "phonetrack": old_phonetrack, "cron": cron_expr})
     # destination == "none" (or missing) -> empty list, forwarding stays disabled
 
-    normalized["endpoints"] = [_migrate_legacy_endpoint(e) for e in endpoints]
+    normalized["endpoints"] = [_strip_endpoint_state(_migrate_legacy_endpoint(e)) for e in endpoints]
     return normalized
 
 

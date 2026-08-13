@@ -65,13 +65,15 @@ body {
 }
 
 main {
-  /* Was a flat 960px - most of what lives in here (the endpoint request
-     builder's side-by-side rows, key/value tables, forwarding log) is
-     genuinely wide content that benefits from a bigger monitor instead of
-     wrapping/scrolling sooner than it needs to. 1200px is still well short
-     of "full-bleed on an ultrawide" (long paragraphs elsewhere stay
-     readable), just wider than a single dense form column needs to be. */
-  max-width: 1200px;
+  /* Was a flat 960px, then 1200px - every page in here (the endpoint
+     request builder's side-by-side rows, key/value tables, the devices
+     list, the forwarding/system log table) is table- or form-heavy content
+     that benefits from a bigger monitor instead of wrapping/scrolling
+     sooner than it needs to. min() instead of a flat px value so an
+     ultrawide monitor actually gets to use the extra room too, while a
+     1440px-ish laptop screen still keeps a bit of side margin instead of
+     running edge-to-edge. */
+  max-width: min(1800px, 96vw);
   margin: 0 auto;
 }
 
@@ -164,7 +166,7 @@ nav a.brand:hover {
 
 /* Footer */
 footer {
-  max-width: 1200px; /* matches main's width above, see its comment */
+  max-width: min(1800px, 96vw); /* matches main's width above, see its comment */
   margin: 3rem auto 0;
   padding-top: 1rem;
   border-top: 1px solid var(--border);
@@ -441,6 +443,52 @@ details ul {
   min-height: 2.3rem;
 }
 
+/* URL field token highlighting - a same-size, same-font backdrop sitting
+   behind the real (transparent-background) textarea, showing through as a
+   tinted rounded box under each {{var}} token. Its own text is fully
+   transparent (only the tint shows) so it never has to render pixel-
+   perfect glyphs, just line up the same wrapping as the real textarea on
+   top of it - which is why every box-model property below (border,
+   padding, font) is copied from .url-input/textarea rather than derived. */
+.url-highlight {
+  position: relative;
+}
+
+.url-highlight-backdrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.65rem;
+  font: inherit;
+  font-size: 0.92rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: transparent;
+  background: var(--surface);
+  pointer-events: none;
+}
+
+.url-highlight-backdrop .tok-resolved,
+.url-highlight-backdrop .tok-unresolved {
+  border-radius: 3px;
+  color: transparent;
+}
+
+.url-highlight-backdrop .tok-resolved {
+  background: color-mix(in srgb, var(--success) 30%, transparent);
+}
+
+.url-highlight-backdrop .tok-unresolved {
+  background: color-mix(in srgb, var(--warning) 30%, transparent);
+}
+
+.url-highlight .url-input {
+  position: relative;
+  background: transparent;
+}
+
 .endpoints-container {
   counter-reset: endpoint;
 }
@@ -541,22 +589,7 @@ details ul {
   height: 1rem;
 }
 
-/* Cron builder */
-.cron-builder {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.cron-builder .cron-field-label {
-  flex: 1 1 60px;
-  min-width: 60px;
-}
-
-.cron-field {
-  text-align: center;
-}
-
+/* Cron */
 .cron-raw.cron-invalid {
   border-color: var(--danger);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 18%, transparent);
@@ -564,6 +597,17 @@ details ul {
 
 .cron-advanced {
   margin: 0.75rem 0 0;
+}
+
+.cron-examples {
+  margin: 0 0 0.75rem;
+  padding-left: 1.15rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.cron-examples li {
+  margin: 0.2rem 0;
 }
 
 .cron-preview {

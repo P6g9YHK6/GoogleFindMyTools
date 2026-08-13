@@ -8,7 +8,7 @@ from croniter import croniter
 from webui import device_location_store, ws
 from webui.auth_state import is_logged_in
 from webui.deps import locate_device
-from webui.forwarders import config_store, log_store
+from webui.forwarders import config_store, latest_values_store, log_store
 from webui.forwarders.policy import (
     _dispatch_forward,
     _endpoint_target,
@@ -122,32 +122,38 @@ async def _poll_device(canonic_id: str):
         # same way the old flat status-only version did (last location in the
         # batch wins) - now also carrying which location that status came
         # from, so a successful "ok" can update the endpoint's last-sent
-        # position for next time's distance-skip check.
+        # position for next time's distance-skip check. Each result also
+        # captures the URL its request actually went to and a merged
+        # config+state view (see latest_values_store) up front, rather than
+        # re-reading `endpoints` after the fact below - a concurrent
+        # settings save could otherwise change what's at that position
+        # mid-poll.
         results: dict[int, dict] = {}
         for location in locations:
             for i in due_indices:
-                endpoint_location = location
-                status = await asyncio.to_thread(_forward_one, endpoints[i], endpoint_location, google_name, name)
-                results[i] = {"status": status, "location": location}
+                url = endpoints[i].get("url", "")
+                merged = {**endpoints[i], **latest_values_store.get_endpoint_state(canonic_id, url)}
+                status = await asyncio.to_thread(_forward_one, merged, location, google_name, name)
+                results[i] = {"status": status, "location": location, "url": url, "merged": merged}
                 log_store.append(
                     canonic_id=canonic_id,
                     device_name=name,
                     endpoint_type=endpoints[i].get("type", ""),
                     target=_endpoint_target(endpoints[i]),
                     status=status,
-                    payload=_serialize_location(endpoint_location),
+                    payload=_serialize_location(location),
                 )
         for i in due_indices:
-            results.setdefault(i, {"status": "no location", "location": None})
+            if i not in results:
+                url = endpoints[i].get("url", "")
+                merged = {**endpoints[i], **latest_values_store.get_endpoint_state(canonic_id, url)}
+                results[i] = {"status": "no location", "location": None, "url": url, "merged": merged}
 
-        fresh_cfg = config_store.get_device_config(canonic_id) or device_cfg
-        fresh_endpoints = fresh_cfg.get("endpoints", [])
         now_ts = int(time.time())
-        for i, result in results.items():
-            if i >= len(fresh_endpoints):
-                continue
-            _record_forward_result(fresh_endpoints[i], result["status"], result["location"], name, now_ts)
-        config_store.set_device_config(canonic_id, fresh_cfg)
+        for result in results.values():
+            _record_forward_result(result["merged"], result["status"], result["location"], name, now_ts)
+            state = {k: result["merged"][k] for k in latest_values_store.STATE_KEYS if k in result["merged"]}
+            latest_values_store.set_endpoint_state(canonic_id, result["url"], state)
 
         if due_indices:
             await ws.manager.broadcast({
@@ -163,8 +169,10 @@ async def forward_now(canonic_id: str, index: int) -> dict | None:
     """Immediately forwards one endpoint's current location - the "send now"
     button in the settings UI. Bypasses both its cron schedule and its
     distance-skip threshold (via _dispatch_forward, not _forward_one) since
-    forcing a send is the whole point. Returns the endpoint's persisted state
-    afterwards, or None if the device/endpoint no longer exists."""
+    forcing a send is the whole point. Returns the endpoint's config merged
+    with its freshly-recorded state (see latest_values_store) - the same
+    shape _endpoint_fields.html expects to render - or None if the
+    device/endpoint no longer exists."""
     device_cfg = config_store.get_device_config(canonic_id)
     endpoints = device_cfg.get("endpoints", []) if device_cfg else []
     if not device_cfg or not (0 <= index < len(endpoints)):
@@ -175,6 +183,8 @@ async def forward_now(canonic_id: str, index: int) -> dict | None:
     name = device_cfg.get("display_name", canonic_id)
     google_name = device_cfg.get("google_name") or name
     endpoint_cfg = endpoints[index]
+    url = endpoint_cfg.get("url", "")
+    merged = {**endpoint_cfg, **latest_values_store.get_endpoint_state(canonic_id, url)}
 
     try:
         locations = await locate_device(canonic_id, name)
@@ -194,15 +204,16 @@ async def forward_now(canonic_id: str, index: int) -> dict | None:
             status=status,
             payload=_serialize_location(endpoint_location),
         )
-        _record_forward_result(endpoint_cfg, status, endpoint_location, name)
+        _record_forward_result(merged, status, endpoint_location, name)
 
     if not locations:
         # Nothing to record per-location above - still needs its
         # last_forward_status/time updated to reflect this attempt.
-        _record_forward_result(endpoint_cfg, status, None, name)
+        _record_forward_result(merged, status, None, name)
 
-    config_store.set_device_config(canonic_id, device_cfg)
-    return endpoint_cfg
+    state = {k: merged[k] for k in latest_values_store.STATE_KEYS if k in merged}
+    latest_values_store.set_endpoint_state(canonic_id, url, state)
+    return merged
 
 
 def restart_device(canonic_id: str):

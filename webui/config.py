@@ -92,6 +92,12 @@ SYSTEM_LOG_MAX_ENTRIES = int(os.environ.get("SYSTEM_LOG_MAX_ENTRIES", "5000"))
 # webui/device_location_store.py and the Devices page.
 DEVICE_LOCATIONS_PATH = DATA_DIR / "device_locations.yaml"
 
+# Per-endpoint forwarding runtime state (last status/time, last-sent
+# position, consecutive-failure streak) - kept out of forwarding.yaml so
+# that file stays pure configuration instead of growing a pile of history -
+# see webui/forwarders/latest_values_store.py.
+LATEST_VALUES_PATH = DATA_DIR / "latest_values.yaml"
+
 # Default location for a generated self-signed cert/key (see webui/tls.py) -
 # flat in DATA_DIR like everything else here, so the existing volume mount
 # covers it with no new subfolder. Only used when GFMT_TLS_CERT_PATH/

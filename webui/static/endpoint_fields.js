@@ -177,13 +177,27 @@
     return vars;
   }
 
+  // Renders the URL field's own value through the same renderTemplate()
+  // the preview below uses, into the transparent backdrop sitting behind
+  // the real (transparent-background) textarea - see .url-highlight in
+  // app.css for why this only has to line up the tinted boxes, not redraw
+  // legible text.
+  function updateUrlHighlight(url, vars) {
+    if (!url) return;
+    const backdrop = url.closest(".url-highlight")?.querySelector(".url-highlight-backdrop");
+    if (backdrop) backdrop.innerHTML = renderTemplate(url.value, vars);
+  }
+
   function updatePreview(block) {
+    const vars = blockVars(block);
+    const urlField = block.querySelector(".url-input");
+    updateUrlHighlight(urlField, vars);
+
     const preview = block.querySelector(".preview-block");
     if (!preview) return;
 
-    const vars = blockVars(block);
     const method = (block.querySelector(".method-select") || {}).value || "GET";
-    const url = (block.querySelector(".url-input") || {}).value || "";
+    const url = (urlField || {}).value || "";
     const headers = readKvTable(block, "header");
     const bodyType = (block.querySelector(".body-type-select") || {}).value || "none";
     const bodyText = (block.querySelector(".body-textarea") || {}).value || "";
@@ -270,9 +284,9 @@
           // "Custom…" (empty value) means "leave whatever's there alone" -
           // only a real preset overwrites the raw field. Dispatching a real
           // input event (rather than setting .value and stopping) reuses
-          // the existing cron-raw input handler below to sync the 5-box
-          // builder and clear any stale invalid state, and triggers the
-          // live preview's own hx-trigger="input" the same way typing would.
+          // the existing cron-raw input handler below to clear any stale
+          // invalid state, and triggers the live preview's own
+          // hx-trigger="input" the same way typing would.
           const raw = block.querySelector(".cron-raw");
           raw.value = value;
           raw.dispatchEvent(new Event("input", { bubbles: true }));
@@ -299,20 +313,9 @@
     if (block) {
       if (event.target.classList.contains("endpoint-alias")) {
         block.querySelector(".endpoint-legend-text").textContent = event.target.value.trim();
-      } else if (event.target.classList.contains("cron-field")) {
-        const raw = block.querySelector(".cron-raw");
-        const fields = block.querySelectorAll(".cron-field");
-        raw.value = Array.from(fields).map((f) => f.value.trim() || "*").join(" ");
-        raw.classList.remove("cron-invalid");
-        syncCronPreset(block);
       } else if (event.target.classList.contains("cron-raw")) {
         const parts = event.target.value.trim().split(/\s+/);
-        if (parts.length === 5) {
-          block.querySelectorAll(".cron-field").forEach((field, i) => { field.value = parts[i]; });
-          event.target.classList.remove("cron-invalid");
-        } else {
-          event.target.classList.add("cron-invalid");
-        }
+        event.target.classList.toggle("cron-invalid", parts.length !== 5);
         syncCronPreset(block);
       }
       if (event.target.matches("input, textarea")) updatePreview(block);
