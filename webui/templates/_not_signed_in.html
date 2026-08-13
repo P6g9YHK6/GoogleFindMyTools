@@ -1,1 +1,7 @@
 <p>Not signed in yet. <a href="/auth">Sign in with Google</a> first.</p>
+<script>
+  // The devices table never loads far enough to seed the map (see
+  // static/app.js's seedMapMarkers) when we're not signed in - without
+  // this, the map's "Loading map…" overlay would just sit there forever.
+  if (window.hideMapLoading) window.hideMapLoading();
+</script>

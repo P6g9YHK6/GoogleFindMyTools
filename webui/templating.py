@@ -5,6 +5,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
 
 from webui import config, scheduler
+from webui.colors import location_color
 
 BASE_DIR = pathlib.Path(__file__).parent
 
@@ -42,3 +43,7 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"), context_proce
 # renders that partial - the live htmx update in webui/routers/settings.py
 # calls the exact same function, so the two can never disagree.
 templates.env.globals["cron_preview"] = scheduler.cron_preview
+# Lets devices/_locate_cell.html color each location's swatch the same as
+# its map pin (see webui/colors.py) without every caller threading the
+# color through by hand.
+templates.env.globals["location_color"] = location_color

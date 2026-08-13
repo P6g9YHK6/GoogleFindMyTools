@@ -7,5 +7,13 @@
 </div>
 
 <h2>Map</h2>
-<div id="map"></div>
+<div id="map-wrap">
+  <div id="map"></div>
+  {# Removed by static/app.js once seedMapMarkers actually runs, or by
+     _not_signed_in.html's script if the devices load never gets that far -
+     the devices table's request_device_list() call is often the slowest
+     thing on this page, and the map used to just sit empty at the [0,0]
+     world view with nothing telling you it was still waiting on that. #}
+  <div id="map-loading">Loading map…</div>
+</div>
 {% endblock %}

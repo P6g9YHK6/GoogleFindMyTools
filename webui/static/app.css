@@ -334,6 +334,10 @@ td button {
 }
 
 /* Map */
+#map-wrap {
+  position: relative;
+}
+
 #map {
   height: 400px;
   border: 1px solid var(--border);
@@ -342,11 +346,65 @@ td button {
   overflow: hidden;
 }
 
+#map-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-alt);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  pointer-events: none;
+}
+
 /* Leaflet's default .leaflet-div-icon styling adds a white box + border
    behind divIcon content - our pins are self-contained SVG, so drop it. */
 .device-pin {
   background: transparent;
   border: none;
+}
+
+/* The pin SVG (not the marker's own positioning wrapper, which Leaflet
+   moves around with its own transform) bounces when its matching table row
+   is hovered - see static/app.js's bounceMarker. */
+.device-pin svg {
+  transform-origin: 50% 100%;
+}
+
+.device-pin svg.bounce {
+  animation: pin-bounce 0.6s ease-in-out infinite;
+}
+
+@keyframes pin-bounce {
+  0%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-10px); }
+  50% { transform: translateY(0); }
+  65% { transform: translateY(-4px); }
+  80% { transform: translateY(0); }
+}
+
+/* Locate-result list: a colored dot per location, matching its map pin
+   (see webui/colors.py's location_color / static/app.js's colorForKey),
+   glowing when that pin is hovered (static/app.js's glowRows). */
+.loc-dot {
+  display: inline-block;
+  width: 0.6rem;
+  height: 0.6rem;
+  margin-right: 0.4rem;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  background: var(--dot-color, var(--text-muted));
+  vertical-align: middle;
+}
+
+li[data-loc-key] {
+  transition: text-shadow 0.15s ease;
+}
+
+li[data-loc-key].loc-glow {
+  text-shadow: 0 0 6px var(--dot-color), 0 0 12px var(--dot-color);
 }
 
 /* Details / diagnostics */

@@ -16,6 +16,8 @@
         <button hx-post="/devices/{{ device.canonic_id }}/sound/stop">Stop sound</button>
       </td>
       <td id="locate-result-{{ loop.index }}">
+        {% set canonic_id = device.canonic_id %}
+        {% set name = device.name %}
         {% set locations = device.last_locations %}
         {% set fetched_at_str = device.last_fetched_at_str %}
         {% include "devices/_locate_cell.html" %}

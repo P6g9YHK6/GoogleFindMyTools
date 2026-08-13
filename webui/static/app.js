@@ -7,18 +7,33 @@ document.addEventListener("DOMContentLoaded", () => {
     attribution: "&copy; OpenStreetMap contributors",
   }).addTo(map);
 
+  // Shown until the devices table's (often slow) load actually reaches the
+  // map - see seedMapMarkers and _not_signed_in.html's script.
+  window.hideMapLoading = function () {
+    document.getElementById("map-loading")?.remove();
+  };
+
   // canonicId -> { [locationIndex]: L.Marker } - a single device can report
   // more than one location at once (its own report plus a crowd-sourced
   // network estimate, older entries, etc, see decrypt_locations.py), so
   // markers are tracked per location slot rather than one-per-device.
   const markersByDevice = {};
 
+  function markerForKey(key) {
+    const sep = key.lastIndexOf(":");
+    const canonicId = key.slice(0, sep);
+    const index = key.slice(sep + 1);
+    return (markersByDevice[canonicId] || {})[index];
+  }
+
   // Colors are assigned per location dot, not per device (a device with
   // several open dots would otherwise be a single color repeated), and the
   // dot count is unbounded, so this generates from a hash instead of
   // indexing into a small fixed palette. Fixed saturation/lightness keeps
   // every generated hue legible on the light OSM tiles and readable against
-  // the white center dot.
+  // the white center dot. Mirrored server-side (in the same order of
+  // operations) by webui/colors.py's location_color, so a location's list
+  // swatch always matches its map pin.
   function colorForKey(key) {
     let hash = 0;
     for (let i = 0; i < key.length; i++) {
@@ -49,6 +64,34 @@ document.addEventListener("DOMContentLoaded", () => {
     return bits.length ? `${name} (${bits.join(", ")})` : name;
   }
 
+  // Hovering a location's row in the table bounces its map pin; hovering a
+  // pin glows its row's text back in the table - each direction just finds
+  // the other side via the shared "<canonic_id>:<index>" key and toggles a
+  // CSS class, see app.css for the actual animation/glow.
+  function bounceMarker(marker, on) {
+    const svg = marker.getElement()?.querySelector("svg");
+    svg?.classList.toggle("bounce", on);
+  }
+
+  function glowRows(key, on) {
+    document.querySelectorAll(`[data-loc-key="${CSS.escape(key)}"]`).forEach((el) => {
+      el.classList.toggle("loc-glow", on);
+    });
+  }
+
+  document.addEventListener("mouseover", (e) => {
+    const row = e.target.closest("[data-loc-key]");
+    if (!row) return;
+    const marker = markerForKey(row.dataset.locKey);
+    if (marker) bounceMarker(marker, true);
+  });
+  document.addEventListener("mouseout", (e) => {
+    const row = e.target.closest("[data-loc-key]");
+    if (!row) return;
+    const marker = markerForKey(row.dataset.locKey);
+    if (marker) bounceMarker(marker, false);
+  });
+
   // Adds/updates/removes markers for one device's current set of locations,
   // keyed by position in the locations array so each dot keeps its own
   // color and identity across updates. Returns the latlngs it plotted, for
@@ -63,13 +106,17 @@ document.addEventListener("DOMContentLoaded", () => {
       seenIndexes.add(index);
 
       const latlng = [loc.latitude, loc.longitude];
-      const color = colorForKey(`${canonicId}:${index}`);
+      const key = `${canonicId}:${index}`;
+      const color = colorForKey(key);
       const label = popupLabel(name, loc, source);
 
       if (slots[index]) {
         slots[index].setLatLng(latlng).setPopupContent(label);
       } else {
-        slots[index] = L.marker(latlng, { icon: pinIcon(color) }).addTo(map).bindPopup(label);
+        const marker = L.marker(latlng, { icon: pinIcon(color) }).addTo(map).bindPopup(label);
+        marker.on("mouseover", () => glowRows(key, true));
+        marker.on("mouseout", () => glowRows(key, false));
+        slots[index] = marker;
       }
       latlngs.push(latlng);
     });
@@ -102,6 +149,7 @@ document.addEventListener("DOMContentLoaded", () => {
     } else if (allLatLngs.length > 1) {
       map.fitBounds(allLatLngs, { padding: [30, 30] });
     }
+    window.hideMapLoading();
   };
 
   function connect() {

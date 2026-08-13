@@ -3,14 +3,20 @@
 {% elif locations %}
   <ul>
   {% for loc in locations %}
+    {% if loc.is_semantic %}
     <li>
-      {% if loc.is_semantic %}
         {{ loc.semantic_name }}
-      {% else %}
+    </li>
+    {% else %}
+    {# data-loc-key matches the "<canonic_id>:<index>" key static/app.js
+       uses for the same location's map pin, so hovering either end can
+       find the other (see seedMapMarkers/upsertDeviceMarkers). #}
+    <li data-loc-key="{{ canonic_id }}:{{ loop.index0 }}" style="--dot-color: {{ location_color(canonic_id, loop.index0) }};">
+        <span class="loc-dot"></span>
         {{ "%.5f"|format(loc.latitude) }}, {{ "%.5f"|format(loc.longitude) }}
         (<a href="{{ loc.google_maps_link }}" target="_blank" rel="noopener">map</a>)
-      {% endif %}
     </li>
+    {% endif %}
   {% endfor %}
   </ul>
   {% if fetched_at_str %}
