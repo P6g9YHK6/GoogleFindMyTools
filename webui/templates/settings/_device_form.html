@@ -9,7 +9,15 @@
               hx-target="closest .device-editor" hx-swap="innerHTML">Edit as YAML</button>
     </legend>
     <label>Device alias
-      <input type="text" name="display_name" value="{{ row.name }}"
+      {# row.name already falls back to the Google account name when no
+         alias is set (see routers/settings.py's _rows) - that's right for
+         every *display* use of it (the legend above, page headings, etc.),
+         but pre-filling this field with it would make an unset alias look
+         like it had deliberately been typed in, and saving as-is would
+         permanently pin display_name to whatever the account name happened
+         to be. The raw stored value (blank when unset) is what actually
+         belongs here; the Google name stays visible as the placeholder. #}
+      <input type="text" name="display_name" value="{{ row.config.display_name or '' }}"
              {% if row.google_name %}placeholder="{{ row.google_name }}"{% endif %}>
     </label>
     <p class="field-hint">Available as <code>{{ '{{device_alias}}' }}</code> in this device's endpoint templates below. <code>{{ '{{device_name}}' }}</code> is separately available there too, always this device's real Google account name{% if row.google_name %} (currently <strong>{{ row.google_name }}</strong>){% endif %}.</p>

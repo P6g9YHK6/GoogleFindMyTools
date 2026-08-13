@@ -199,8 +199,12 @@ async def device_yaml_preview_route(request: Request, canonic_id: str, display_n
     existing = config_store.get_device_config(canonic_id) or {"endpoints": []}
     endpoints, _errors = _parse_endpoints_form(form, existing.get("endpoints", []))
     yaml_text = yaml.safe_dump(_to_yaml_doc(endpoints), sort_keys=False, allow_unicode=True)
+    # The alias field is blank until one's actually set (see
+    # _device_form.html) - fall back the same way row.name/_rows does, so
+    # this heading doesn't just go blank for a device with no alias yet.
+    name = display_name.strip() or existing.get("google_name") or canonic_id
     return templates.TemplateResponse(request, "settings/_device_yaml.html", {
-        "canonic_id": canonic_id, "name": display_name, "yaml_text": yaml_text,
+        "canonic_id": canonic_id, "name": name, "yaml_text": yaml_text,
     })
 
 
@@ -218,8 +222,9 @@ async def device_form_preview_route(request: Request, canonic_id: str, yaml_text
     existing = config_store.get_device_config(canonic_id) or {}
     endpoints, error = _from_yaml_doc(yaml_text)
     if error:
+        name = existing.get("display_name") or existing.get("google_name") or canonic_id
         return templates.TemplateResponse(request, "settings/_device_yaml.html", {
-            "canonic_id": canonic_id, "name": existing.get("display_name") or canonic_id, "yaml_text": yaml_text,
+            "canonic_id": canonic_id, "name": name, "yaml_text": yaml_text,
             "error": error,
         })
 

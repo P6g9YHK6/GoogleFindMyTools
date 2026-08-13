@@ -115,6 +115,24 @@ def test_device_alias_overrides_confusing_google_name(client):
     assert "Garage Tracker" in page.text
 
 
+def test_device_alias_field_is_blank_by_default_not_prefilled_with_google_name(client):
+    """Before any alias is ever saved, the "Device alias" input must start
+    empty - not pre-filled with the Google account name as if that had been
+    deliberately typed in (see _device_form.html) - the Google name only
+    shows up as the field's placeholder."""
+    from webui.forwarders import config_store
+
+    # No "display_name" key at all - same as a device that's never been
+    # through the settings form (other tests in this file may have already
+    # set one for FAKE_CANONIC_ID, so this can't just rely on a fresh device).
+    config_store.set_device_config(FAKE_CANONIC_ID, {"endpoints": []})
+
+    resp = client.get(f"/settings/devices/{FAKE_CANONIC_ID}")
+    assert resp.status_code == 200
+    assert 'name="display_name" value=""' in resp.text
+    assert f'placeholder="{FAKE_DEVICE_NAME}"' in resp.text
+
+
 def test_endpoint_alias_is_saved_and_shown_in_legend(client):
     resp = _post_form(
         client,
