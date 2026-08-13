@@ -18,15 +18,17 @@
     {% endif %}
   {% endfor %}
   </ul>
-  {% if fetched_at_str %}
-    <p class="field-hint">Polled at {{ fetched_at_str }}</p>
-  {% endif %}
 {% else %}
   <span>No location received yet.</span>
 {% endif %}
 
-{% if oob_map_links %}
+{% if oob_swaps %}
 <div id="map-links-{{ canonic_id }}" hx-swap-oob="true">
   {% include "devices/_map_links_cell.html" %}
 </div>
+{# "Polled at" used to be an inline line under the coordinate list itself -
+   moved to its own column (see _table.html) since it's per-fetch metadata,
+   not per-location, and having it only in this cell threw off row-for-row
+   alignment against the Map column next to it. #}
+<div id="polled-at-{{ canonic_id }}" hx-swap-oob="true">{{ fetched_at_str or "-" }}</div>
 {% endif %}

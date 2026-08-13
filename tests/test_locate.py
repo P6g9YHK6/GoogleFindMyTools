@@ -27,6 +27,10 @@ def test_locate_failure_renders_error_fragment_not_bare_500(client, monkeypatch)
     resp = client.post(f"/devices/{FAKE_CANONIC_ID}/locate", params={"name": "My Tracker"})
     assert resp.status_code == 200  # error is rendered inline, not a 500 - htmx doesn't swap those in
     assert "decrypt failed" in resp.text
+    # A failed attempt didn't change what's persisted - the Map/Polled-at
+    # columns must be left alone, not OOB-blanked with this response's own
+    # empty locations (see routers/locate.py).
+    assert "hx-swap-oob" not in resp.text
 
 
 def test_locate_success_persists_the_result_with_a_timestamp(client, tmp_path, monkeypatch):
@@ -37,7 +41,9 @@ def test_locate_success_persists_the_result_with_a_timestamp(client, tmp_path, m
 
     resp = client.post(f"/devices/{FAKE_CANONIC_ID}/locate", params={"name": "My Tracker"})
     assert resp.status_code == 200
-    assert "Polled at" in resp.text  # the persisted-timestamp line
+    # The separate "Polled at" column (see _table.html) is also updated via
+    # an out-of-band swap, same as the Map column - see test_locate_success.
+    assert f'id="polled-at-{FAKE_CANONIC_ID}"' in resp.text
 
     saved = device_location_store.get_last_location(FAKE_CANONIC_ID)
     assert saved is not None

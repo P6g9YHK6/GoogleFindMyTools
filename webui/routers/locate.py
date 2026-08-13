@@ -25,26 +25,30 @@ async def locate(request: Request, canonic_id: str, name: str = ""):
         # locate result" cell - htmx doesn't swap error responses in by
         # default, so the real reason was only ever visible in server logs.
         logger.exception("Locate failed for %s", canonic_id)
+        # No oob_swaps here - a failure doesn't touch what's persisted (see
+        # the "A timeout/empty result must never clobber..." comment below),
+        # so the separate Map/Polled-at columns (see _locate_cell.html) must
+        # stay exactly as they were, not get OOB-replaced with this
+        # response's own empty `locations`.
         return templates.TemplateResponse(request, "devices/_locate_cell.html", {
             "canonic_id": canonic_id,
             "name": display_name,
             "locations": None,
             "error": str(e) or f"{type(e).__name__} (see server logs for details)",
-            # Out-of-band-swaps the separate "Map" column too (see
-            # _locate_cell.html) - only set on this standalone-render path,
-            # never when included as part of the whole table, or the OOB
-            # <div> would show up as a second, duplicate-id copy of the map
-            # links sitting inertly in the "Last locate result" cell.
-            "oob_map_links": True,
         })
 
     fetched_at = int(time.time())
     fetched_at_str = None
+    oob_swaps = False
     if locations:
         # A timeout/empty result must never clobber the last real fix
-        # already on file - only persist an actual location.
+        # already on file - only persist an actual location, and only then
+        # OOB-swap the Map/Polled-at columns (see _locate_cell.html) - for
+        # the same reason as the error branch above, an empty result here
+        # must leave both exactly as they were instead of blanking them out.
         device_location_store.set_last_location(canonic_id, locations, fetched_at)
         fetched_at_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(fetched_at))
+        oob_swaps = True
 
     await manager.broadcast({
         "type": "locate_result",
@@ -59,5 +63,5 @@ async def locate(request: Request, canonic_id: str, name: str = ""):
         "name": display_name,
         "locations": locations,
         "fetched_at_str": fetched_at_str,
-        "oob_map_links": True,  # see the comment on the error branch above
+        "oob_swaps": oob_swaps,
     })

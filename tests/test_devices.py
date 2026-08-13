@@ -83,7 +83,10 @@ def test_devices_table_prepopulates_from_a_prior_locate_no_click_needed(client, 
     resp = client.get("/devices/table")
     assert resp.status_code == 200
     assert "12.50000, 34.50000" in resp.text
-    assert "Polled at" in resp.text
+    assert "<th>Polled at</th>" in resp.text
+    from datetime import datetime
+
+    assert datetime.fromtimestamp(1700000000).strftime("%Y-%m-%d %H:%M:%S") in resp.text
 
 
 def test_devices_table_shows_a_map_links_column_with_every_provider(client, tmp_path, monkeypatch):
@@ -212,5 +215,37 @@ def test_devices_table_uses_persisted_location_time_when_proto_has_no_last_seen(
     resp = client.get("/devices/table")
     assert resp.status_code == 200
     assert datetime.fromtimestamp(1786118431).strftime("%Y-%m-%d %H:%M:%S") in resp.text
+
+
+def test_devices_table_reuses_cached_device_list_across_requests(client, monkeypatch):
+    """See webui/device_list_cache.py - request_device_list() is the slow
+    call the cache exists to avoid repeating on every page load."""
+    from webui.routers import devices
+
+    calls = []
+    monkeypatch.setattr(devices, "request_device_list", lambda: calls.append(1) or b"")
+
+    assert client.get("/devices/table").status_code == 200
+    assert client.get("/devices/table").status_code == 200
+    assert len(calls) == 1
+
+
+def test_devices_and_settings_pages_share_one_cache_fill(client, monkeypatch):
+    """The two routers hit the same underlying device_list_cache singleton
+    (webui/device_list_cache.py), so a /settings load right after /devices
+    (or vice versa) reuses that fetch too - one of them "wins" the miss and
+    the other gets a hit, whichever asks first. This also means
+    devices.py's refresh_custom_trackers side effect only runs when
+    devices.py's own fetch is the one that wins - a deliberate tradeoff,
+    see webui/device_list_cache.py's module docstring."""
+    from webui.routers import devices, settings
+
+    calls = []
+    monkeypatch.setattr(devices, "request_device_list", lambda: calls.append("devices") or b"")
+    monkeypatch.setattr(settings, "request_device_list", lambda: calls.append("settings") or b"")
+
+    assert client.get("/devices/table").status_code == 200
+    assert client.get("/settings").status_code == 200
+    assert len(calls) == 1  # only "devices" won the fetch; settings got a cache hit
 
 

@@ -2,7 +2,7 @@
 <table>
   <thead>
     <tr>
-      <th>Name</th><th>Alias</th><th>Actions</th><th>Last locate result</th><th>Map</th><th>Last seen by find hub</th><th>Endpoints</th><th>Next poll</th>
+      <th>Name</th><th>Alias</th><th>Actions</th><th>Last locate result</th><th>Map</th><th>Last seen by find hub</th><th>Endpoints</th><th>Polled at</th><th>Next poll</th>
     </tr>
   </thead>
   <tbody>
@@ -33,6 +33,11 @@
          ProtoDecoders/decoder.py:get_last_seen. #}
       <td>{{ device.last_seen_str or "-" }}</td>
       <td>{{ device.endpoint_count }}</td>
+      {# Per-fetch metadata, not per-location - its own column (updated via
+         the same OOB swap as the Map column - see _locate_cell.html) rather
+         than a line inside the "Last locate result" cell, which used to
+         throw off that column's row-for-row alignment with Map's. #}
+      <td id="polled-at-{{ device.canonic_id }}">{{ device.last_fetched_at_str or "-" }}</td>
       <td>
         {{ device.next_poll_str or "Not scheduled" }}
         · <a href="/settings#device-{{ device.canonic_id }}">Edit</a>
@@ -42,7 +47,7 @@
       </td>
     </tr>
   {% else %}
-    <tr><td colspan="8">No devices found.</td></tr>
+    <tr><td colspan="9">No devices found.</td></tr>
   {% endfor %}
   </tbody>
 </table>
