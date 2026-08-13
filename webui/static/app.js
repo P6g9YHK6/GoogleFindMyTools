@@ -40,21 +40,28 @@ document.addEventListener("DOMContentLoaded", () => {
     return (markersByDevice[canonicId] || {})[index];
   }
 
-  // Colors are assigned per location dot, not per device (a device with
-  // several open dots would otherwise be a single color repeated), and the
-  // dot count is unbounded, so this generates from a hash instead of
-  // indexing into a small fixed palette. Fixed saturation/lightness keeps
-  // every generated hue legible on the light OSM tiles and readable against
-  // the white center dot. Mirrored server-side (in the same order of
-  // operations) by webui/colors.py's location_color, so a location's list
-  // swatch always matches its map pin.
-  function colorForKey(key) {
+  // Each device gets one base hue, hashed from its canonic_id alone (stable
+  // across reloads, independent of how many locations it currently has,
+  // and still effectively unbounded across devices). Each of that device's
+  // individual locations then gets a shade of that same hue, picked from
+  // SHADE_LIGHTNESS by its position among the device's dots - so several
+  // open locations for one device read as "the same device, different
+  // fixes" instead of unrelated colors. Mirrored server-side (identical
+  // hash loop + shade table) by webui/colors.py's location_color, so a
+  // location's list swatch always matches its map pin.
+  const SHADE_LIGHTNESS = [38, 48, 58, 68, 30]; // %, cycles past 5 locations
+
+  function hueForDevice(canonicId) {
     let hash = 0;
-    for (let i = 0; i < key.length; i++) {
-      hash = (Math.imul(hash, 31) + key.charCodeAt(i)) >>> 0;
+    for (let i = 0; i < canonicId.length; i++) {
+      hash = (Math.imul(hash, 31) + canonicId.charCodeAt(i)) >>> 0;
     }
-    const hue = hash % 360;
-    return `hsl(${hue}, 72%, 40%)`;
+    return hash % 360;
+  }
+
+  function colorForDeviceLocation(canonicId, index) {
+    const lightness = SHADE_LIGHTNESS[index % SHADE_LIGHTNESS.length];
+    return `hsl(${hueForDevice(canonicId)}, 70%, ${lightness}%)`;
   }
 
   function pinIcon(color) {
@@ -121,7 +128,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const latlng = [loc.latitude, loc.longitude];
       const key = `${canonicId}:${index}`;
-      const color = colorForKey(key);
+      const color = colorForDeviceLocation(canonicId, index);
       const label = popupLabel(name, loc, source);
 
       if (slots[index]) {
