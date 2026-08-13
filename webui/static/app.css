@@ -321,6 +321,57 @@ th {
   background: var(--surface-alt);
 }
 
+/* Sortable + resizable columns (Devices, Logs - see static/tables.js).
+   Opt-in via .sortable-table, not every <table> - the endpoint editor's
+   Headers key/value table is editable form input, not browsable data, and
+   sorting/resizing would just fight with its own add/remove-row behavior. */
+.sortable-table th {
+  position: relative;
+  cursor: pointer;
+  user-select: none;
+  padding-right: 1.35rem; /* room for the resize handle without crowding the text/indicator */
+}
+
+.sortable-table th:hover {
+  background: color-mix(in srgb, var(--text-muted) 12%, var(--surface-alt));
+}
+
+.sort-indicator {
+  color: var(--primary);
+}
+
+.col-resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 16px; /* wider than it looks (the visible bar is 2px) - a comfortable touch target */
+  height: 100%;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.col-resize-handle::after {
+  content: "";
+  position: absolute;
+  top: 18%;
+  bottom: 18%;
+  right: 6px;
+  width: 2px;
+  background: var(--border);
+}
+
+.col-resize-handle:hover::after {
+  background: var(--primary);
+}
+
+body.col-resizing {
+  cursor: col-resize;
+}
+
+body.col-resizing, body.col-resizing * {
+  user-select: none;
+}
+
 tbody tr:last-child td {
   border-bottom: none;
 }

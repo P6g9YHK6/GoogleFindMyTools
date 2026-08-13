@@ -107,9 +107,16 @@ def test_logs_table_partial_is_just_the_fragment(client):
 
     resp = client.get("/logs/table")
     assert resp.status_code == 200
-    assert "<table>" in resp.text
+    assert "<table" in resp.text
     assert "<html" not in resp.text
     assert "<nav>" not in resp.text
+
+
+def test_logs_table_is_sortable(client):
+    """Opts into static/tables.js's click-to-sort/drag-to-resize columns."""
+    resp = client.get("/logs/table")
+    assert resp.status_code == 200
+    assert '<table class="sortable-table">' in resp.text
 
 
 def test_logs_system_redirects_to_unified_page(client):
