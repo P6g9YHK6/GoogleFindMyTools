@@ -229,4 +229,8 @@ async def test_poll_device_persists_last_location_for_the_devices_page(monkeypat
 
     saved = device_location_store.get_last_location(canonic_id)
     assert saved is not None
-    assert saved["locations"] == [fix]
+    loc = saved["locations"][0]
+    assert loc["latitude"] == fix["latitude"]
+    assert loc["longitude"] == fix["longitude"]
+    assert loc["time"] == fix["time"]
+    assert loc["map_links"]["OSM"]  # backfilled on read - see device_location_store.py
