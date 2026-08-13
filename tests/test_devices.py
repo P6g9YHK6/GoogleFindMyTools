@@ -14,6 +14,14 @@ def test_devices_table_logged_in(client):
     assert FAKE_DEVICE_NAME in resp.text
 
 
+def test_devices_table_last_seen_header_credits_the_find_hub(client):
+    """Clarifies that this timestamp is Google's Find My Device network's
+    own reporting, not e.g. this app's last poll."""
+    resp = client.get("/devices/table")
+    assert resp.status_code == 200
+    assert "<th>Last seen by find hub</th>" in resp.text
+
+
 def test_devices_table_shows_last_seen_when_available(client):
     resp = client.get("/devices/table")
     assert resp.status_code == 200
