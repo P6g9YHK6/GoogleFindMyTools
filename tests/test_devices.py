@@ -14,6 +14,37 @@ def test_devices_table_logged_in(client):
     assert FAKE_DEVICE_NAME in resp.text
 
 
+def test_devices_table_shows_alias_and_endpoint_count(client, tmp_path, monkeypatch):
+    from webui import config
+    from webui.forwarders import config_store
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding.yaml")
+    monkeypatch.setattr(config, "FORWARDING_CONFIG_LEGACY_JSON_PATH", tmp_path / "forwarding_config.json")
+
+    config_store.set_device_config(FAKE_CANONIC_ID, {
+        "display_name": "Garage Tracker",
+        "endpoints": [
+            {"method": "GET", "url": "http://a/", "cron": "*/5 * * * *"},
+            {"method": "GET", "url": "http://b/", "cron": "*/5 * * * *"},
+        ],
+    })
+
+    resp = client.get("/devices/table")
+    assert resp.status_code == 200
+    assert "<th>Alias</th>" in resp.text
+    assert "<th>Endpoints</th>" in resp.text
+    assert "Garage Tracker" in resp.text
+    assert "<td>2</td>" in resp.text
+
+
+def test_devices_table_alias_and_endpoint_count_default_for_an_unconfigured_device(client):
+    resp = client.get("/devices/table")
+    assert resp.status_code == 200
+    assert "<td>-</td>" in resp.text  # no alias set yet
+    assert "<td>0</td>" in resp.text  # no endpoints configured yet
+
+
 def test_devices_table_last_seen_header_credits_the_find_hub(client):
     """Clarifies that this timestamp is Google's Find My Device network's
     own reporting, not e.g. this app's last poll."""
@@ -181,3 +212,5 @@ def test_devices_table_uses_persisted_location_time_when_proto_has_no_last_seen(
     resp = client.get("/devices/table")
     assert resp.status_code == 200
     assert datetime.fromtimestamp(1786118431).strftime("%Y-%m-%d %H:%M:%S") in resp.text
+
+

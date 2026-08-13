@@ -70,9 +70,15 @@ async def get_devices() -> list[dict]:
         last = device_location_store.get_last_location(canonic_id)
         last_seen = last_seen or _last_seen_from_persisted_locations(last)
         next_poll = _next_poll(canonic_id)
+        # The local nickname (if any - see webui/routers/settings.py) and how
+        # many forwarding endpoints are configured, straight off the same
+        # forwarding config _next_poll above already reads per device.
+        device_cfg = config_store.get_device_config(canonic_id)
         devices.append({
             "name": name,
             "canonic_id": canonic_id,
+            "alias": device_cfg.get("display_name") if device_cfg else None,
+            "endpoint_count": len(device_cfg.get("endpoints") or []) if device_cfg else 0,
             "last_locations": last["locations"] if last else None,
             "last_fetched_at_str": (
                 datetime.fromtimestamp(last["fetched_at"]).strftime("%Y-%m-%d %H:%M:%S") if last else None

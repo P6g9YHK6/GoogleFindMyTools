@@ -2,13 +2,17 @@
 <table>
   <thead>
     <tr>
-      <th>Name</th><th>Actions</th><th>Last locate result</th><th>Map</th><th>Last seen by find hub</th><th>Next poll</th>
+      <th>Name</th><th>Alias</th><th>Actions</th><th>Last locate result</th><th>Map</th><th>Last seen by find hub</th><th>Endpoints</th><th>Next poll</th>
     </tr>
   </thead>
   <tbody>
   {% for device in devices %}
     <tr>
       <td>{{ device.name }}</td>
+      {# The local nickname set on the Settings page (see
+         webui/routers/settings.py's "Device alias" field) - blank until
+         one's actually set, same as that field itself. #}
+      <td>{{ device.alias or "-" }}</td>
       <td>
         <button hx-post="/devices/{{ device.canonic_id }}/locate?name={{ device.name | urlencode }}"
                 hx-target="#locate-result-{{ loop.index }}" hx-swap="innerHTML">Locate</button>
@@ -28,6 +32,7 @@
       {# Phone-only (Spot/BLE tags never have this) - see
          ProtoDecoders/decoder.py:get_last_seen. #}
       <td>{{ device.last_seen_str or "-" }}</td>
+      <td>{{ device.endpoint_count }}</td>
       <td>
         {{ device.next_poll_str or "Not scheduled" }}
         · <a href="/settings#device-{{ device.canonic_id }}">Edit</a>
@@ -37,7 +42,7 @@
       </td>
     </tr>
   {% else %}
-    <tr><td colspan="6">No devices found.</td></tr>
+    <tr><td colspan="8">No devices found.</td></tr>
   {% endfor %}
   </tbody>
 </table>
