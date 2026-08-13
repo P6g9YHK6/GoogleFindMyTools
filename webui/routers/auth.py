@@ -8,6 +8,7 @@ from webui.auth_state import is_logged_in
 from webui.deps import query_gate
 from webui.templating import templates
 
+
 def _to_bool(value) -> bool:
     """Used as an _APP_SETTINGS_SCHEMA caster - plain bool(value) would
     treat any non-empty string (including the literal text "false", if
