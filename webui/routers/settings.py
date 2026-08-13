@@ -439,6 +439,11 @@ def _parse_endpoints_form(form, existing_endpoints: list[dict]) -> tuple[list[di
         if field("skip_if_already_seen", "1") != "1":
             entry["skip_if_already_seen"] = False
 
+        # Same on-by-default convention as skip_if_already_seen above - see
+        # policy._skip_not_most_recent.
+        if field("only_most_recent", "1") != "1":
+            entry["only_most_recent"] = False
+
         # Best-effort: carry forward any leftover "variables" (from before
         # the settings UI dropped the "Custom variables" table - there's no
         # field left to re-post one, so without this a save would silently

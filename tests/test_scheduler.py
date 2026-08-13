@@ -317,3 +317,72 @@ async def test_poll_device_skips_forwarding_a_reading_google_already_reported(mo
     statuses = [e["status"] for e in entries if e["canonic_id"] == canonic_id]
     assert statuses.count("ok") == 1
     assert any(s == "skipped: already reported by Google (not a new reading)" for s in statuses)
+
+
+async def test_poll_device_only_forwards_the_most_recent_reading_in_a_batch(monkeypatch, tmp_path):
+    """Google can bundle several readings in one response - by default an
+    endpoint only gets the one with the latest "time", not every point in
+    the batch (see policy._skip_not_most_recent)."""
+    from webui import config
+    from webui.forwarders import config_store, log_store
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding_config.json")
+    monkeypatch.setattr(config, "FORWARD_LOG_PATH", tmp_path / "forward_log.json")
+    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+    monkeypatch.setattr(config, "LATEST_VALUES_PATH", tmp_path / "latest_values.yaml")
+    monkeypatch.setattr(scheduler, "is_logged_in", lambda: True)
+
+    dispatched = []
+    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None: dispatched.append(loc) or "ok")
+
+    older_fix = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 100}
+    newer_fix = {"is_semantic": False, "latitude": 3.0, "longitude": 4.0, "time": 200}
+    tick_done = asyncio.Event()
+
+    async def locate_then_signal(canonic_id, name):
+        tick_done.set()
+        return [older_fix, newer_fix]
+
+    monkeypatch.setattr(scheduler, "locate_device", locate_then_signal)
+
+    orig_sleep = asyncio.sleep
+    sleep_calls = {"n": 0}
+
+    async def fast_sleep(_secs):
+        # See test_poll_device_records_last_sent_position_on_success's
+        # identical guard - keeps this to exactly one tick deterministically.
+        sleep_calls["n"] += 1
+        await orig_sleep(0 if sleep_calls["n"] <= 1 else _secs)
+
+    monkeypatch.setattr(asyncio, "sleep", fast_sleep)
+
+    canonic_id = "batch-most-recent-device"
+    config_store.set_device_config(canonic_id, {
+        "display_name": "Test",
+        "endpoints": [_traccar_endpoint(cron="* * * * *")],
+    })
+
+    task = asyncio.create_task(scheduler._poll_device(canonic_id))
+    try:
+        await asyncio.wait_for(tick_done.wait(), timeout=5)
+    finally:
+        monkeypatch.setattr(asyncio, "sleep", orig_sleep)
+    await orig_sleep(0.5)  # let the forward+writeback following that locate call finish
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+
+    # only the newer reading was actually dispatched - carrying the
+    # "first_seen" device_location_store stamped onto it.
+    assert len(dispatched) == 1
+    assert dispatched[0]["latitude"] == newer_fix["latitude"]
+    assert dispatched[0]["longitude"] == newer_fix["longitude"]
+    assert dispatched[0]["time"] == newer_fix["time"]
+
+    entries = log_store.recent_entries()
+    statuses = [e["status"] for e in entries if e["canonic_id"] == canonic_id]
+    assert statuses.count("ok") == 1
+    assert any(s == "skipped: not the most recent reading in this batch" for s in statuses)

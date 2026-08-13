@@ -6,7 +6,7 @@ from fastapi import APIRouter, Request
 from NovaApi.ListDevices.nbe_list_devices import request_device_list
 from ProtoDecoders.decoder import get_canonic_ids, parse_device_list_protobuf
 from SpotApi.UploadPrecomputedPublicKeyIds.upload_precomputed_public_key_ids import refresh_custom_trackers
-from webui import device_location_store, scheduler
+from webui import device_location_store, scheduler, settings_store
 from webui.auth_state import is_logged_in
 from webui.deps import run_blocking
 from webui.device_list_cache import device_list_cache
@@ -65,22 +65,34 @@ async def get_devices() -> list[dict]:
         return get_canonic_ids(device_list)
 
     canonic_ids = await run_blocking(device_list_cache.get_or_fetch, _fetch)
+    # Loaded once for the whole page, not per device - a page-load-time
+    # display preference, not a per-device or per-endpoint setting (see
+    # settings_store.py; unrelated to forwarding's own per-endpoint
+    # only_most_recent toggle in webui/forwarders/policy.py).
+    most_recent_only_display = settings_store.load().get("devices_page_most_recent_only")
 
     devices = []
     for name, canonic_id, last_seen in canonic_ids:
         last = device_location_store.get_last_location(canonic_id)
+        # _last_seen_from_persisted_locations must stay correct regardless
+        # of the display preference below, so it reads last["locations"]
+        # unfiltered - only what's actually shown ("last_locations") is
+        # narrowed down.
         last_seen = last_seen or _last_seen_from_persisted_locations(last)
         next_poll = _next_poll(canonic_id)
         # The local nickname (if any - see webui/routers/settings.py) and how
         # many forwarding endpoints are configured, straight off the same
         # forwarding config _next_poll above already reads per device.
         device_cfg = config_store.get_device_config(canonic_id)
+        last_locations = last["locations"] if last else None
+        if last_locations and most_recent_only_display:
+            last_locations = device_location_store.most_recent_only(last_locations)
         devices.append({
             "name": name,
             "canonic_id": canonic_id,
             "alias": device_cfg.get("display_name") if device_cfg else None,
             "endpoint_count": len(device_cfg.get("endpoints") or []) if device_cfg else 0,
-            "last_locations": last["locations"] if last else None,
+            "last_locations": last_locations,
             "last_fetched_at_str": (
                 datetime.fromtimestamp(last["fetched_at"]).strftime("%Y-%m-%d %H:%M:%S") if last else None
             ),

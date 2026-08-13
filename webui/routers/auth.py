@@ -8,12 +8,26 @@ from webui.auth_state import is_logged_in
 from webui.deps import query_gate
 from webui.templating import templates
 
+def _to_bool(value) -> bool:
+    """Used as an _APP_SETTINGS_SCHEMA caster - plain bool(value) would
+    treat any non-empty string (including the literal text "false", if
+    someone quotes it that way editing the YAML view) as True. A real YAML
+    boolean already comes out of yaml.safe_load as an actual bool, so this
+    only has to special-case the string form."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in ("1", "true", "yes", "on")
+    return bool(value)
+
+
 _APP_SETTINGS_SCHEMA = {
     "query_throttle_max": int,
     "query_throttle_window_s": float,
     "query_min_spread_s": float,
     "apprise_urls": str,
     "apprise_notify_level": str,
+    "devices_page_most_recent_only": _to_bool,
 }
 
 router = APIRouter()
@@ -62,6 +76,11 @@ async def save_app_settings(
     query_min_spread_s: float = Form(...),
     apprise_urls: str = Form(""),
     apprise_notify_level: str = Form("WARNING"),
+    # An unchecked checkbox simply isn't posted at all - Form(False) is what
+    # correctly resolves that absence to False, same as every other missing-
+    # field default here (nothing browser-side to distinguish "off" from
+    # "never touched" for a plain, non-htmx form like this one).
+    devices_page_most_recent_only: bool = Form(False),
 ):
     app_settings = {
         "query_throttle_max": query_throttle_max,
@@ -69,6 +88,7 @@ async def save_app_settings(
         "query_min_spread_s": query_min_spread_s,
         "apprise_urls": apprise_urls,
         "apprise_notify_level": apprise_notify_level,
+        "devices_page_most_recent_only": devices_page_most_recent_only,
     }
     _apply_app_settings(app_settings)
 

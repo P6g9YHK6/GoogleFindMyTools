@@ -174,3 +174,26 @@ def test_get_last_location_backfills_first_seen_for_a_location_saved_before_that
 
     loc = device_location_store.get_last_location("dev-1")["locations"][0]
     assert loc["first_seen"] == 1234
+
+
+def test_most_recent_only_keeps_just_the_latest_time():
+    older = {"latitude": 1.0, "longitude": 2.0, "time": 100}
+    newer = {"latitude": 3.0, "longitude": 4.0, "time": 200}
+    assert device_location_store.most_recent_only([older, newer]) == [newer]
+    assert device_location_store.most_recent_only([newer, older]) == [newer]  # order-independent
+
+
+def test_most_recent_only_keeps_every_reading_tied_for_latest():
+    a = {"latitude": 1.0, "time": 100}
+    b = {"latitude": 2.0, "time": 100}
+    c = {"latitude": 3.0, "time": 50}
+    assert device_location_store.most_recent_only([a, b, c]) == [a, b]
+
+
+def test_most_recent_only_returns_unchanged_if_nothing_has_a_time():
+    locations = [{"is_semantic": True, "semantic_name": "Home"}]
+    assert device_location_store.most_recent_only(locations) == locations
+
+
+def test_most_recent_only_handles_an_empty_list():
+    assert device_location_store.most_recent_only([]) == []

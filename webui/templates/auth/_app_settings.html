@@ -45,6 +45,16 @@
     </label>
   </fieldset>
 
+  <fieldset>
+    <legend>Devices page</legend>
+    <label class="checkbox-label">
+      <input type="checkbox" name="devices_page_most_recent_only"
+             {% if app_settings.devices_page_most_recent_only %}checked{% endif %}>
+      Only show the most recent reading per device
+    </label>
+    <p class="field-hint">Instead of listing every location from the last pull, show just the one with the latest timestamp (and only that one's map pin). Google can return several readings in one response - most people only want to see the newest.</p>
+  </fieldset>
+
   {% if saved %}
     <p class="endpoint-status">Saved.</p>
   {% endif %}

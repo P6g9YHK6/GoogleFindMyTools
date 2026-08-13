@@ -3,7 +3,7 @@ import time
 
 from fastapi import APIRouter, Request
 
-from webui import device_location_store
+from webui import device_location_store, settings_store
 from webui.deps import locate_device
 from webui.templating import templates
 from webui.ws import manager
@@ -50,18 +50,26 @@ async def locate(request: Request, canonic_id: str, name: str = ""):
         fetched_at_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(fetched_at))
         oob_swaps = True
 
+    # Display-only, same as webui/routers/devices.py's page-load table - the
+    # full `locations` list above is what's actually persisted; this is just
+    # what's shown/broadcast, so the manual click and the page-load table
+    # never disagree with each other.
+    display_locations = locations
+    if display_locations and settings_store.load().get("devices_page_most_recent_only"):
+        display_locations = device_location_store.most_recent_only(display_locations)
+
     await manager.broadcast({
         "type": "locate_result",
         "canonic_id": canonic_id,
         "name": display_name,
-        "locations": locations,
+        "locations": display_locations,
         "source": "manual",
     })
 
     return templates.TemplateResponse(request, "devices/_locate_cell.html", {
         "canonic_id": canonic_id,
         "name": display_name,
-        "locations": locations,
+        "locations": display_locations,
         "fetched_at_str": fetched_at_str,
         "oob_swaps": oob_swaps,
     })

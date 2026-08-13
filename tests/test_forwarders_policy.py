@@ -232,6 +232,46 @@ def test_forward_one_forwards_an_already_seen_reading_when_the_endpoint_opted_ou
     assert dispatched == [location]
 
 
+def test_skip_not_most_recent_defaults_on_but_can_be_opted_out_per_endpoint():
+    # no only_most_recent key at all - defaults to on
+    assert policy._skip_not_most_recent({}, is_most_recent=False) is True
+    assert policy._skip_not_most_recent({}, is_most_recent=True) is False
+
+    # explicitly on - same as the default
+    assert policy._skip_not_most_recent({"only_most_recent": True}, is_most_recent=False) is True
+
+    # explicitly opted out - an older reading in the batch still gets sent
+    assert policy._skip_not_most_recent({"only_most_recent": False}, is_most_recent=False) is False
+
+
+def test_forward_one_reports_not_most_recent_skip_without_dispatching(monkeypatch):
+    dispatched = []
+    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None: dispatched.append(loc) or "ok")
+
+    endpoint_cfg = _traccar_endpoint()
+    location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
+
+    status = policy._forward_one(endpoint_cfg, location, is_most_recent=False)
+    assert status == "skipped: not the most recent reading in this batch"
+    assert dispatched == []  # the network dispatch was never reached
+
+    status = policy._forward_one(endpoint_cfg, location, is_most_recent=True)
+    assert status == "ok"
+    assert dispatched == [location]
+
+
+def test_forward_one_forwards_an_older_reading_when_the_endpoint_opted_out_of_most_recent_only(monkeypatch):
+    dispatched = []
+    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None: dispatched.append(loc) or "ok")
+
+    endpoint_cfg = _traccar_endpoint(only_most_recent=False)
+    location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
+
+    status = policy._forward_one(endpoint_cfg, location, is_most_recent=False)
+    assert status == "ok"
+    assert dispatched == [location]
+
+
 def test_forward_one_reports_distance_skip_without_dispatching(monkeypatch):
     dispatched = []
     monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None: dispatched.append(loc) or "ok")

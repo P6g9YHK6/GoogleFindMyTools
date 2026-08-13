@@ -5,7 +5,7 @@ from datetime import datetime
 
 from croniter import croniter
 
-from webui import device_location_store, ws
+from webui import device_location_store, settings_store, ws
 from webui.auth_state import is_logged_in
 from webui.deps import locate_device
 from webui.forwarders import config_store, latest_values_store, log_store
@@ -112,6 +112,7 @@ async def _poll_device(canonic_id: str):
                 logger.warning("Locate failed for %s: %s", name, e)
 
         already_seen_by_index: list[bool] = []
+        is_most_recent_by_index: list[bool] = []
         if locations:
             # The Devices page's "last locate result" should reflect cron
             # polls too, not just manual clicks - a timeout/failure above
@@ -125,6 +126,16 @@ async def _poll_device(canonic_id: str):
             # the forwarding payload below.
             locations = device_location_store.set_last_location(canonic_id, locations, int(time.time()))
             already_seen_by_index = [not loc.pop("_new_this_fetch") for loc in locations]
+            # Google can bundle several readings in one response (see
+            # decrypt_locations.py) in no particular order - computed once
+            # per batch here, same "skip" role as already_seen_by_index
+            # above, for policy._skip_not_most_recent's per-endpoint toggle.
+            most_recent_time = max(
+                (loc.get("time") for loc in locations if loc.get("time") is not None), default=None,
+            )
+            is_most_recent_by_index = [
+                most_recent_time is None or loc.get("time") == most_recent_time for loc in locations
+            ]
 
         # Keyed by endpoint index, overwritten on every matching location the
         # same way the old flat status-only version did (last location in the
@@ -137,11 +148,13 @@ async def _poll_device(canonic_id: str):
         # settings save could otherwise change what's at that position
         # mid-poll.
         results: dict[int, dict] = {}
-        for location, already_seen in zip(locations, already_seen_by_index):
+        for location, already_seen, is_most_recent in zip(locations, already_seen_by_index, is_most_recent_by_index):
             for i in due_indices:
                 url = endpoints[i].get("url", "")
                 merged = {**endpoints[i], **latest_values_store.get_endpoint_state(canonic_id, url)}
-                status = await asyncio.to_thread(_forward_one, merged, location, google_name, name, already_seen)
+                status = await asyncio.to_thread(
+                    _forward_one, merged, location, google_name, name, already_seen, is_most_recent,
+                )
                 results[i] = {"status": status, "location": location, "url": url, "merged": merged}
                 log_store.append(
                     canonic_id=canonic_id,
@@ -164,11 +177,19 @@ async def _poll_device(canonic_id: str):
             latest_values_store.set_endpoint_state(canonic_id, result["url"], state)
 
         if due_indices:
+            # Display-only, same as webui/routers/locate.py's manual button -
+            # forwarding above already saw the full `locations`; this is just
+            # what's broadcast to live map pins on the Devices page, so a
+            # cron poll's live update never disagrees with what a page
+            # reload (webui/routers/devices.py) would show.
+            display_locations = locations
+            if display_locations and settings_store.load().get("devices_page_most_recent_only"):
+                display_locations = device_location_store.most_recent_only(display_locations)
             await ws.manager.broadcast({
                 "type": "locate_result",
                 "canonic_id": canonic_id,
                 "name": name,
-                "locations": locations,
+                "locations": display_locations,
                 "source": "poll",
             })
 

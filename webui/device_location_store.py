@@ -57,6 +57,23 @@ def _location_key(loc: dict) -> tuple:
     return (loc.get("time"), loc.get("latitude"), loc.get("longitude"), loc.get("status"), loc.get("semantic_name"))
 
 
+def most_recent_only(locations: list[dict]) -> list[dict]:
+    """Just the reading(s) with the latest "time" in this list - all of them
+    if several share that exact max (no further way to break the tie), or
+    the list unchanged if nothing in it has a "time" at all. Used for
+    *display* (the Devices page's "Last locate result" column and its map
+    pins, per webui/routers/devices.py and webui/routers/locate.py, gated
+    on settings_store's devices_page_most_recent_only) - unrelated to
+    forwarding's own per-endpoint only_most_recent toggle (see
+    webui/forwarders/policy.py's _skip_not_most_recent), which decides
+    what gets sent to an endpoint, not what gets shown on this page."""
+    times = [loc.get("time") for loc in locations if loc.get("time") is not None]
+    if not times:
+        return locations
+    newest = max(times)
+    return [loc for loc in locations if loc.get("time") == newest]
+
+
 def _load_unlocked() -> dict:
     config.DATA_DIR.mkdir(parents=True, exist_ok=True)
     if not config.DEVICE_LOCATIONS_PATH.exists():

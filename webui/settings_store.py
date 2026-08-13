@@ -22,6 +22,13 @@ def _defaults() -> dict:
         "query_min_spread_s": config.QUERY_MIN_SPREAD_S,
         "apprise_urls": os.environ.get("APPRISE_URLS", ""),
         "apprise_notify_level": os.environ.get("APPRISE_NOTIFY_LEVEL", "WARNING"),
+        # Devices page's "Last locate result" column (and its map pins) -
+        # see webui/device_location_store.py's most_recent_only and its
+        # callers in webui/routers/devices.py and webui/routers/locate.py.
+        # Unrelated to forwarding's own per-endpoint only_most_recent
+        # toggle (webui/forwarders/policy.py) - this is purely a display
+        # preference, not tied to any endpoint's config.
+        "devices_page_most_recent_only": True,
     }
 
 

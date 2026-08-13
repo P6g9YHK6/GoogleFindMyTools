@@ -215,6 +215,18 @@
       </label>
       <p class="field-hint">On by default: Google sometimes bundles an old, already-sent reading alongside a genuinely new one, and this stops it going out to this endpoint a second time. Turn off to always forward every reading Google returns, duplicates included.</p>
     </div>
+
+    <div class="toggle-group">
+      {# only_most_recent defaults to on, same convention as
+         skip_if_already_seen above. See policy.py's _skip_not_most_recent
+         and this form's parsing in settings.py. #}
+      <label class="checkbox-label">
+        <input type="checkbox" class="skip-toggle" {% if endpoint.only_most_recent is undefined or endpoint.only_most_recent %}checked{% endif %}>
+        <input type="hidden" name="ep-{{ idx }}-only_most_recent" value="{{ '1' if (endpoint.only_most_recent is undefined or endpoint.only_most_recent) else '0' }}">
+        Only send the most recent reading
+      </label>
+      <p class="field-hint">On by default: Google can return several readings in one response, and this only forwards the one with the latest timestamp to this endpoint instead of all of them.</p>
+    </div>
   </fieldset>
   </div>
   </div>

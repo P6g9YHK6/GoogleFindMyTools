@@ -44,6 +44,19 @@ def _skip_already_seen(endpoint_cfg: dict, already_seen: bool) -> bool:
     return already_seen and endpoint_cfg.get("skip_if_already_seen", True)
 
 
+def _skip_not_most_recent(endpoint_cfg: dict, is_most_recent: bool) -> bool:
+    """True if this endpoint's "only send the most recent reading" toggle is
+    on (default) and this location isn't the one with the latest "time" in
+    this fetch's whole batch - Google can return several readings in one
+    response (see decrypt_locations.py), and most endpoints only care about
+    the newest one, not every point in the batch.
+
+    Same on-by-default convention as _skip_already_seen above - "off" has
+    to be a persisted only_most_recent: False, not mere absence of the
+    key."""
+    return not is_most_recent and endpoint_cfg.get("only_most_recent", True)
+
+
 def _too_close_to_bother(endpoint_cfg: dict, location: dict) -> bool:
     """True if this endpoint's "skip if it hasn't moved" toggle is on and the
     new fix is under its configured minimum-movement threshold from the last
@@ -100,16 +113,21 @@ def _dispatch_forward(
 
 def _forward_one(
     endpoint_cfg: dict, location: dict, device_name: str = "", device_alias: str | None = None,
-    already_seen: bool = False,
+    already_seen: bool = False, is_most_recent: bool = True,
 ) -> str:
     """already_seen is True when this exact reading (see
     device_location_store._location_key) was already present in an earlier
     fetch - Google re-serving something we've already handled, not a new
-    observation. Checked first since, unlike the two gates below, whether
-    it's skipped only depends on this one already_seen flag plus this
-    endpoint's own toggle - no distance/timing math needed."""
+    observation. is_most_recent is False when this location's "time" isn't
+    the latest one in this fetch's whole batch (see webui/scheduler.py,
+    which computes both once per batch before calling this per location).
+    Both checked first since, unlike the two gates below, whether they skip
+    only depends on that one flag plus this endpoint's own toggle - no
+    distance/timing math needed."""
     if _skip_already_seen(endpoint_cfg, already_seen):
         return "skipped: already reported by Google (not a new reading)"
+    if _skip_not_most_recent(endpoint_cfg, is_most_recent):
+        return "skipped: not the most recent reading in this batch"
     if _too_close_to_bother(endpoint_cfg, location):
         threshold = endpoint_cfg.get("min_movement_m") or DEFAULT_MIN_MOVEMENT_M
         return f"skipped: moved less than {threshold:g}m"

@@ -14,6 +14,13 @@ def test_devices_table_logged_in(client):
     assert FAKE_DEVICE_NAME in resp.text
 
 
+def test_devices_table_is_sortable(client):
+    """Opts into static/tables.js's click-to-sort/drag-to-resize columns."""
+    resp = client.get("/devices/table")
+    assert resp.status_code == 200
+    assert '<table class="sortable-table">' in resp.text
+
+
 def test_devices_table_shows_alias_and_endpoint_count(client, tmp_path, monkeypatch):
     from webui import config
     from webui.forwarders import config_store
@@ -87,6 +94,53 @@ def test_devices_table_prepopulates_from_a_prior_locate_no_click_needed(client, 
     from datetime import datetime
 
     assert datetime.fromtimestamp(1700000000).strftime("%Y-%m-%d %H:%M:%S") in resp.text
+
+
+def test_devices_table_shows_only_the_most_recent_reading_by_default(client, tmp_path, monkeypatch):
+    """devices_page_most_recent_only defaults to on (see settings_store.py) -
+    a batch with an older and a newer reading only shows the newer one."""
+    from webui import config, device_location_store
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+    monkeypatch.setattr(config, "APP_SETTINGS_PATH", tmp_path / "config.yaml")
+
+    device_location_store.set_last_location(
+        FAKE_CANONIC_ID,
+        [
+            {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 100, "map_links": {}},
+            {"is_semantic": False, "latitude": 12.5, "longitude": 34.5, "time": 200, "map_links": {}},
+        ],
+        fetched_at=1700000000,
+    )
+
+    resp = client.get("/devices/table")
+    assert resp.status_code == 200
+    assert "12.50000, 34.50000" in resp.text
+    assert "1.00000, 2.00000" not in resp.text
+
+
+def test_devices_table_shows_the_full_batch_when_most_recent_only_is_off(client, tmp_path, monkeypatch):
+    from webui import config, device_location_store, settings_store
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+    monkeypatch.setattr(config, "APP_SETTINGS_PATH", tmp_path / "config.yaml")
+    settings_store.save({**settings_store.load(), "devices_page_most_recent_only": False})
+
+    device_location_store.set_last_location(
+        FAKE_CANONIC_ID,
+        [
+            {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 100, "map_links": {}},
+            {"is_semantic": False, "latitude": 12.5, "longitude": 34.5, "time": 200, "map_links": {}},
+        ],
+        fetched_at=1700000000,
+    )
+
+    resp = client.get("/devices/table")
+    assert resp.status_code == 200
+    assert "12.50000, 34.50000" in resp.text
+    assert "1.00000, 2.00000" in resp.text
 
 
 def test_devices_table_shows_a_map_links_column_with_every_provider(client, tmp_path, monkeypatch):

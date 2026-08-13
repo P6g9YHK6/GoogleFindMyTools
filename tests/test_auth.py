@@ -115,6 +115,44 @@ def test_app_settings_round_trip(client, tmp_path, monkeypatch):
                 logging.getLogger("webui").removeHandler(handler)
 
 
+def test_app_settings_devices_page_most_recent_only_round_trips(client, tmp_path, monkeypatch):
+    """Unlike the endpoint-level toggles (webui/forwarders/policy.py), this
+    is a plain non-htmx checkbox - Form(False) is what correctly resolves
+    "checkbox not posted at all" to off (see routers/auth.py's
+    save_app_settings)."""
+    from webui import config, notify, settings_store
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "APP_SETTINGS_PATH", tmp_path / "config.yaml")
+
+    class FakeApprise:
+        def add(self, url):
+            return True
+
+    monkeypatch.setattr(notify.apprise, "Apprise", FakeApprise)
+
+    try:
+        # Checked - actually posted.
+        resp = client.post("/auth/settings", data={
+            "query_throttle_max": "5", "query_throttle_window_s": "30", "query_min_spread_s": "0.5",
+            "apprise_urls": "", "apprise_notify_level": "WARNING",
+            "devices_page_most_recent_only": "true",
+        })
+        assert resp.status_code == 200
+        assert settings_store.load()["devices_page_most_recent_only"] is True
+        assert "checked" in resp.text
+
+        # Unchecked - a real browser simply wouldn't post this field at all.
+        resp = client.post("/auth/settings", data={
+            "query_throttle_max": "5", "query_throttle_window_s": "30", "query_min_spread_s": "0.5",
+            "apprise_urls": "", "apprise_notify_level": "WARNING",
+        })
+        assert resp.status_code == 200
+        assert settings_store.load()["devices_page_most_recent_only"] is False
+    finally:
+        _remove_apprise_handlers()
+
+
 def _stub_apprise(monkeypatch):
     from webui import notify
 
@@ -168,6 +206,7 @@ def test_save_app_settings_yaml_persists_and_switches_back_to_form(client, tmp_p
             "query_min_spread_s: 2.0\n"
             "apprise_urls: json://yaml.example/hook\n"
             "apprise_notify_level: CRITICAL\n"
+            "devices_page_most_recent_only: false\n"
         )
         resp = client.post("/auth/settings/yaml", data={"yaml_text": yaml_text})
         assert resp.status_code == 200
@@ -178,6 +217,7 @@ def test_save_app_settings_yaml_persists_and_switches_back_to_form(client, tmp_p
         assert saved["query_throttle_max"] == 9
         assert saved["apprise_urls"] == "json://yaml.example/hook"
         assert saved["apprise_notify_level"] == "CRITICAL"
+        assert saved["devices_page_most_recent_only"] is False
     finally:
         _remove_apprise_handlers()
 
