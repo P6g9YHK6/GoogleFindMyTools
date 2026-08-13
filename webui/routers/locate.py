@@ -30,6 +30,12 @@ async def locate(request: Request, canonic_id: str, name: str = ""):
             "name": display_name,
             "locations": None,
             "error": str(e) or f"{type(e).__name__} (see server logs for details)",
+            # Out-of-band-swaps the separate "Map" column too (see
+            # _locate_cell.html) - only set on this standalone-render path,
+            # never when included as part of the whole table, or the OOB
+            # <div> would show up as a second, duplicate-id copy of the map
+            # links sitting inertly in the "Last locate result" cell.
+            "oob_map_links": True,
         })
 
     fetched_at = int(time.time())
@@ -53,4 +59,5 @@ async def locate(request: Request, canonic_id: str, name: str = ""):
         "name": display_name,
         "locations": locations,
         "fetched_at_str": fetched_at_str,
+        "oob_map_links": True,  # see the comment on the error branch above
     })

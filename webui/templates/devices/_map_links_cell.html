@@ -1,0 +1,21 @@
+{# The "Map" column - one line of provider links per location, lined up
+   with devices/_locate_cell.html's own per-location list next to it. Shares
+   that partial's data-loc-key/--dot-color convention (see webui/colors.py's
+   location_color and app.css's .loc-dot/.loc-glow) so hovering a row here,
+   the coordinate row, or the map pin itself highlights all three together -
+   static/app.js's glowRows() already queries *every* element with a given
+   key, not just one, so this comes for free. #}
+{% if locations %}
+  <ul>
+  {% for loc in locations %}
+    {% if not loc.is_semantic and loc.map_links %}
+    <li data-loc-key="{{ canonic_id }}:{{ loop.index0 }}" style="--dot-color: {{ location_color(canonic_id, loop.index0) }};">
+        <span class="loc-dot"></span>
+        {% for label, url in loc.map_links.items() %}<a href="{{ url }}" target="_blank" rel="noopener">{{ label }}</a>{% if not loop.last %} · {% endif %}{% endfor %}
+    </li>
+    {% else %}
+    <li></li>
+    {% endif %}
+  {% endfor %}
+  </ul>
+{% endif %}

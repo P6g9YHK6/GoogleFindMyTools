@@ -14,7 +14,6 @@
     <li data-loc-key="{{ canonic_id }}:{{ loop.index0 }}" style="--dot-color: {{ location_color(canonic_id, loop.index0) }};">
         <span class="loc-dot"></span>
         {{ "%.5f"|format(loc.latitude) }}, {{ "%.5f"|format(loc.longitude) }}
-        (<a href="{{ loc.google_maps_link }}" target="_blank" rel="noopener">map</a>)
     </li>
     {% endif %}
   {% endfor %}
@@ -24,4 +23,10 @@
   {% endif %}
 {% else %}
   <span>No location received yet.</span>
+{% endif %}
+
+{% if oob_map_links %}
+<div id="map-links-{{ canonic_id }}" hx-swap-oob="true">
+  {% include "devices/_map_links_cell.html" %}
+</div>
 {% endif %}

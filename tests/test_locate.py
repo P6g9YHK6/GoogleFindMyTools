@@ -9,7 +9,11 @@ def test_locate_success(client, tmp_path, monkeypatch):
 
     resp = client.post(f"/devices/{FAKE_CANONIC_ID}/locate", params={"name": "My Tracker"})
     assert resp.status_code == 200
-    assert "map" in resp.text  # a google maps link is rendered for a non-semantic location
+    # The separate "Map" column is updated via an out-of-band swap alongside
+    # the main response (see _locate_cell.html/_table.html) - not part of
+    # the normal targeted swap, so it needs its own id + hx-swap-oob here.
+    assert f'id="map-links-{FAKE_CANONIC_ID}"' in resp.text
+    assert 'hx-swap-oob="true"' in resp.text
 
 
 def test_locate_failure_renders_error_fragment_not_bare_500(client, monkeypatch):

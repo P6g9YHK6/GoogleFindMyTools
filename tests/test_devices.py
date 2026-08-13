@@ -37,7 +37,7 @@ def test_devices_table_prepopulates_from_a_prior_locate_no_click_needed(client, 
 
     device_location_store.set_last_location(
         FAKE_CANONIC_ID,
-        [{"is_semantic": False, "latitude": 12.5, "longitude": 34.5, "google_maps_link": "http://maps.example"}],
+        [{"is_semantic": False, "latitude": 12.5, "longitude": 34.5, "map_links": {"OSM": "http://maps.example"}}],
         fetched_at=1700000000,
     )
 
@@ -45,6 +45,29 @@ def test_devices_table_prepopulates_from_a_prior_locate_no_click_needed(client, 
     assert resp.status_code == 200
     assert "12.50000, 34.50000" in resp.text
     assert "as of" in resp.text
+
+
+def test_devices_table_shows_a_map_links_column_with_every_provider(client, tmp_path, monkeypatch):
+    from webui import config, device_location_store
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+
+    from NovaApi.ExecuteAction.LocateTracker.decrypt_locations import create_map_links
+
+    device_location_store.set_last_location(
+        FAKE_CANONIC_ID,
+        [{"is_semantic": False, "latitude": 12.5, "longitude": 34.5, "map_links": create_map_links(12.5, 34.5)}],
+        fetched_at=1700000000,
+    )
+
+    resp = client.get("/devices/table")
+    assert resp.status_code == 200
+    assert "<th>Map</th>" in resp.text
+    # OSM is the default/primary provider - listed first, not just present
+    assert resp.text.index("openstreetmap.org") < resp.text.index("google.com/maps")
+    for host in ("openstreetmap.org", "google.com/maps", "maps.apple.com", "bing.com/maps", "waze.com"):
+        assert host in resp.text
 
 
 def test_last_seen_falls_back_to_the_most_recent_persisted_location_time():

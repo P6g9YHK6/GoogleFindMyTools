@@ -2,7 +2,7 @@
 <table>
   <thead>
     <tr>
-      <th>Name</th><th>Actions</th><th>Last locate result</th><th>Last seen</th><th>Next poll</th>
+      <th>Name</th><th>Actions</th><th>Last locate result</th><th>Map</th><th>Last seen</th><th>Next poll</th>
     </tr>
   </thead>
   <tbody>
@@ -22,6 +22,9 @@
         {% set fetched_at_str = device.last_fetched_at_str %}
         {% include "devices/_locate_cell.html" %}
       </td>
+      <td id="map-links-{{ device.canonic_id }}">
+        {% include "devices/_map_links_cell.html" %}
+      </td>
       {# Phone-only (Spot/BLE tags never have this) - see
          ProtoDecoders/decoder.py:get_last_seen. #}
       <td>{{ device.last_seen_str or "-" }}</td>
@@ -31,7 +34,7 @@
       </td>
     </tr>
   {% else %}
-    <tr><td colspan="5">No devices found.</td></tr>
+    <tr><td colspan="6">No devices found.</td></tr>
   {% endfor %}
   </tbody>
 </table>

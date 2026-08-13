@@ -22,18 +22,29 @@ from SpotApi.GetEidInfoForE2eeDevices.get_owner_key import get_owner_key, get_ow
 logger = logging.getLogger(__name__)
 
 
-def create_google_maps_link(latitude, longitude):
-    try:  
+def create_map_links(latitude, longitude):
+    """One link per major map provider for a single location, OpenStreetMap
+    first (the default/primary one) - returned as a dict rather than a
+    single URL so callers can offer a choice instead of being locked into
+    whichever provider used to be hardcoded here. None of these need an API
+    key; each is just a deep-link URL built straight from the coordinates.
+    Returns {} for invalid coordinates instead of a link, rather than the
+    old behavior of quietly handing back an error string as if it were one."""
+    try:
         latitude = float(latitude)
         longitude = float(longitude)
         if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
             raise ValueError("Invalid latitude or longitude values.")
-    except ValueError as e:
-        return f"Error: {e}" #more descriptive error message for the user
-    base_url = "https://www.google.com/maps/search/?api=1"
-    query_params = f"query={latitude},{longitude}"  
+    except ValueError:
+        return {}
 
-    return f"{base_url}&{query_params}"
+    return {
+        "OSM": f"https://www.openstreetmap.org/?mlat={latitude}&mlon={longitude}#map=17/{latitude}/{longitude}",
+        "Google": f"https://www.google.com/maps/search/?api=1&query={latitude},{longitude}",
+        "Apple": f"https://maps.apple.com/?ll={latitude},{longitude}&q=Location",
+        "Bing": f"https://www.bing.com/maps?cp={latitude}~{longitude}&lvl=16",
+        "Waze": f"https://waze.com/ul?ll={latitude},{longitude}&navigate=yes",
+    }
 
 # Indicates if the device is a custom microcontroller
 def is_mcu_tracker(device_registration: DeviceRegistration) -> bool:
@@ -198,7 +209,7 @@ def decrypt_location_response_locations(device_update_protobuf):
 
             logger.info("Location %s, %s (altitude=%s) at %s (status=%s, own_report=%s) - %s",
                         latitude, longitude, altitude, loc_time_str, loc.status, loc.is_own_report,
-                        create_google_maps_link(latitude, longitude))
+                        create_map_links(latitude, longitude).get("OSM"))
 
         results.append({
             "latitude": latitude,
@@ -210,7 +221,7 @@ def decrypt_location_response_locations(device_update_protobuf):
             "status": Common_pb2.Status.Name(loc.status),
             "accuracy": loc.accuracy,
             "is_own_report": loc.is_own_report,
-            "google_maps_link": create_google_maps_link(latitude, longitude) if not is_semantic else None,
+            "map_links": create_map_links(latitude, longitude) if not is_semantic else None,
         })
 
     return results
