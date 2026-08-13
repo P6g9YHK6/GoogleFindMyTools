@@ -94,6 +94,12 @@ h2 {
 
 p {
   color: var(--text-muted);
+  /* main can be up to 1800px wide (see its own comment) - a multi-sentence
+     paragraph at that width reads as one long uncomfortable line rather
+     than the page being "wide-screen friendly". ~65 characters/line is the
+     usual readable-line-length target; doesn't affect anything already
+     narrower than that. */
+  max-width: 65ch;
 }
 
 a {
@@ -282,6 +288,21 @@ textarea {
   border-radius: var(--radius-sm);
   padding: 0.5rem 0.65rem;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* label's flex-column + the default align-items:stretch (see `label` above)
+   means every plain input/select in here fills its *entire* container
+   width with nothing else to size it - fine up to a normal form column,
+   but on a wide monitor (main can be up to 1800px, see its own comment)
+   a one-line "cron expression" or a number field would otherwise balloon
+   to a thousand-plus pixels wide. Textarea is deliberately excluded - the
+   URL/YAML/body editors want all the width they can get. */
+input[type="text"],
+input[type="number"],
+input[type="password"],
+input[type="email"],
+select {
+  max-width: 26rem;
 }
 
 input:focus, select:focus, textarea:focus {
@@ -673,6 +694,7 @@ details ul {
   font-weight: 500;
   padding: 0.25rem 0.55rem;
   margin-left: 0.5rem;
+  min-height: 2.1rem; /* ~34px - a comfortable tap target, the padding above alone is too short */
 }
 
 .btn-remove:hover:not(:disabled) {
@@ -706,6 +728,9 @@ details ul {
   font-size: 0.8rem;
   color: var(--text-muted);
   margin: -0.5rem 0 0.75rem;
+  /* Same readable-line-length reasoning as `p` above - a no-op on the few
+     places this class sits on an inline <span> instead of a <p>. */
+  max-width: 65ch;
 }
 
 .checkbox-label {
@@ -788,6 +813,7 @@ details ul {
      actually shrink to the 220px basis (and below, if wrapped) like a plain
      text input already would. */
   min-width: 0;
+  max-width: 26rem; /* matches the input/select cap above - stops the whole label+field growing wastefully wide on a large monitor */
 }
 
 .method-url-row {
@@ -817,12 +843,21 @@ details ul {
 /* Query params / headers / variables key-value tables */
 .kv-section {
   margin: 1rem 0;
+  /* The Headers table has no responsive treatment of its own the way
+     Devices/Logs do (see .table-scroll) - two text inputs plus a remove
+     button don't fit a narrow phone screen without this, and unlike those
+     tables a forced min-width would be overkill for just 3 columns, so
+     this scrolls only as much as the inputs' own natural minimum width
+     actually needs. */
+  overflow-x: auto;
 }
 
 .kv-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
+  gap: 0.4rem;
   margin-bottom: 0.5rem;
 }
 
@@ -845,8 +880,8 @@ details ul {
 }
 
 .kv-remove-cell {
-  width: 2.25rem;
-  padding: 0.45rem 0.4rem !important;
+  width: 2.75rem;
+  padding: 0.3rem 0.4rem !important;
 }
 
 .btn-remove-row {
@@ -854,9 +889,11 @@ details ul {
   color: var(--text-muted);
   border: none;
   box-shadow: none;
-  padding: 0.2rem 0.4rem;
+  padding: 0.5rem 0.6rem; /* the ✕ glyph itself stays small (font-size below); this just widens the tap target */
   font-size: 0.85rem;
   line-height: 1;
+  min-width: 2.1rem;
+  min-height: 2.1rem;
 }
 
 .btn-remove-row:hover:not(:disabled) {
@@ -882,6 +919,7 @@ details ul {
 
 .body-type-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.75rem;
   margin-bottom: 0.5rem;
@@ -894,7 +932,8 @@ details ul {
 
 .body-type-row select {
   width: auto;
-  flex: 0 0 11rem;
+  flex: 0 1 11rem; /* shrinks (was 0 0, non-shrinking) instead of forcing the row wider than a narrow screen */
+  min-width: 8rem;
 }
 
 .body-textarea {
@@ -908,7 +947,7 @@ details ul {
 .chip-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
+  gap: 0.5rem; /* was 0.4rem - a bit more breathing room between tap targets */
   margin: 0.5rem 0 1rem;
 }
 
@@ -922,6 +961,7 @@ details ul {
   border-radius: 999px;
   padding: 0.28rem 0.65rem;
   box-shadow: none;
+  min-height: 2.1rem; /* the label itself stays compact; this just widens the tap target */
 }
 
 .chip:hover:not(:disabled) {
@@ -1100,6 +1140,7 @@ details ul {
 .log-filters input[type="text"] {
   flex: 1 1 18rem;
   min-width: 12rem;
+  max-width: 34rem; /* wider than the general input cap - it's the primary search box on this page */
 }
 
 .log-filters select {
