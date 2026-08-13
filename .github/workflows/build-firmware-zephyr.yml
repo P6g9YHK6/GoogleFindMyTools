@@ -9,6 +9,9 @@ on:
       - ZephyrFirmware/**
   workflow_call:
 
+permissions:
+  contents: read
+
 jobs:
   build-firmware-zephyr:
     runs-on: ubuntu-latest
