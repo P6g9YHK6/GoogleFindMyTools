@@ -37,7 +37,7 @@ def test_locate_success_persists_the_result_with_a_timestamp(client, tmp_path, m
 
     resp = client.post(f"/devices/{FAKE_CANONIC_ID}/locate", params={"name": "My Tracker"})
     assert resp.status_code == 200
-    assert "as of" in resp.text  # the persisted-timestamp line
+    assert "Polled at" in resp.text  # the persisted-timestamp line
 
     saved = device_location_store.get_last_location(FAKE_CANONIC_ID)
     assert saved is not None

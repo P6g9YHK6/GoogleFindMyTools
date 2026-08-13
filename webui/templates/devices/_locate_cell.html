@@ -19,7 +19,7 @@
   {% endfor %}
   </ul>
   {% if fetched_at_str %}
-    <p class="field-hint">as of {{ fetched_at_str }}</p>
+    <p class="field-hint">Polled at {{ fetched_at_str }}</p>
   {% endif %}
 {% else %}
   <span>No location received yet.</span>

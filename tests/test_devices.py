@@ -52,7 +52,7 @@ def test_devices_table_prepopulates_from_a_prior_locate_no_click_needed(client, 
     resp = client.get("/devices/table")
     assert resp.status_code == 200
     assert "12.50000, 34.50000" in resp.text
-    assert "as of" in resp.text
+    assert "Polled at" in resp.text
 
 
 def test_devices_table_shows_a_map_links_column_with_every_provider(client, tmp_path, monkeypatch):
