@@ -47,10 +47,9 @@ def _warn_if_unencrypted():
         return
     _warned_unencrypted = True
     logger.warning(
-        "SECRETS_ENCRYPTION_KEY is not set - credentials in %s (OAuth tokens, FCM "
-        "credentials, vault keys, ...) are stored in plain text on disk. Set "
-        "SECRETS_ENCRYPTION_KEY to encrypt them at rest.",
-        _auth_store_path(),
+        "SECRETS_ENCRYPTION_KEY is not set - credentials in the auth store (OAuth "
+        "tokens, FCM credentials, vault keys, ...) are stored in plain text on disk. "
+        "Set SECRETS_ENCRYPTION_KEY to encrypt them at rest."
     )
 
 
@@ -79,7 +78,7 @@ def _decrypt(value):
     except (InvalidTag, ValueError):
         # Wrong/rotated SECRETS_ENCRYPTION_KEY, or corrupt data - treat as
         # missing rather than crashing every caller of get_cached_value.
-        logger.error("Could not decrypt a value from %s - wrong SECRETS_ENCRYPTION_KEY?", _auth_store_path())
+        logger.error("Could not decrypt a stored value - wrong SECRETS_ENCRYPTION_KEY?")
         return None
 
 
