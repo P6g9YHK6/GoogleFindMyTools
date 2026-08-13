@@ -114,6 +114,31 @@ def test_devices_table_shows_the_next_poll_time_for_a_configured_device(client, 
     assert '<a href="/settings#device-' + FAKE_CANONIC_ID in resp.text
 
 
+def test_devices_table_shows_a_live_countdown_for_a_configured_device(client, tmp_path, monkeypatch):
+    from webui import config
+    from webui.forwarders import config_store
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding.yaml")
+    monkeypatch.setattr(config, "FORWARDING_CONFIG_LEGACY_JSON_PATH", tmp_path / "forwarding_config.json")
+
+    config_store.set_device_config(FAKE_CANONIC_ID, {
+        "display_name": FAKE_DEVICE_NAME,
+        "endpoints": [{"type": "traccar", "url": "http://x/", "cron": "*/5 * * * *"}],
+    })
+
+    resp = client.get("/devices/table")
+    assert resp.status_code == 200
+    assert 'class="next-poll-countdown" data-next-poll-ts="' in resp.text
+
+
+def test_devices_table_has_no_countdown_element_when_not_scheduled(client):
+    resp = client.get("/devices/table")
+    assert resp.status_code == 200
+    assert "Not scheduled" in resp.text
+    assert "data-next-poll-ts" not in resp.text
+
+
 def test_next_poll_str_is_none_with_no_valid_cron(monkeypatch, tmp_path):
     from webui import config
     from webui.forwarders import config_store

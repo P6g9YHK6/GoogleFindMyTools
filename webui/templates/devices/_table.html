@@ -31,6 +31,9 @@
       <td>
         {{ device.next_poll_str or "Not scheduled" }}
         · <a href="/settings#device-{{ device.canonic_id }}">Edit</a>
+        {% if device.next_poll_ts %}
+          <br><span class="next-poll-countdown" data-next-poll-ts="{{ device.next_poll_ts }}"></span>
+        {% endif %}
       </td>
     </tr>
   {% else %}
@@ -42,5 +45,8 @@
 <script>
   if (window.seedMapMarkers) {
     window.seedMapMarkers({{ map_devices_json|safe }});
+  }
+  if (window.startNextPollCountdowns) {
+    window.startNextPollCountdowns();
   }
 </script>

@@ -169,3 +169,39 @@ document.addEventListener("DOMContentLoaded", () => {
 
   connect();
 });
+
+// Live "time until next poll" under the Devices table's "Next poll" column
+// (see devices/_table.html's data-next-poll-ts) - deliberately not nested
+// inside the #map-guarded block above, since this has nothing to do with
+// whether the map itself exists. One shared interval for every row rather
+// than one per element, and called fresh (clearing any previous interval)
+// each time devices/_table.html's own inline script runs, since that
+// fragment - and every data-next-poll-ts element in it - gets replaced
+// wholesale on every htmx load of that fragment.
+let _nextPollTimer = null;
+
+function _formatCountdown(diffMs) {
+  if (diffMs <= 0) return "due now";
+  const totalSeconds = Math.floor(diffMs / 1000);
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  if (h > 0) return `in ${h}h ${m}m`;
+  if (m > 0) return `in ${m}m ${s}s`;
+  return `in ${s}s`;
+}
+
+window.startNextPollCountdowns = function () {
+  if (_nextPollTimer) clearInterval(_nextPollTimer);
+
+  function tick() {
+    document.querySelectorAll("[data-next-poll-ts]").forEach((el) => {
+      const ts = Number(el.dataset.nextPollTs);
+      if (!ts) return;
+      el.textContent = _formatCountdown(ts * 1000 - Date.now());
+    });
+  }
+
+  tick();
+  _nextPollTimer = setInterval(tick, 1000);
+};

@@ -32,7 +32,7 @@ def _last_seen_from_persisted_locations(last: dict | None) -> int | None:
     return max(times) if times else None
 
 
-def _next_poll_str(canonic_id: str) -> str | None:
+def _next_poll(canonic_id: str) -> datetime | None:
     """Soonest upcoming poll across this device's configured endpoints, for
     the Devices page - reuses scheduler._next_run directly (the same
     function the real poll loop waits on, see webui/scheduler.py's
@@ -48,7 +48,12 @@ def _next_poll_str(canonic_id: str) -> str | None:
     valid_next_runs = [t for t in next_runs if t is not None]
     if not valid_next_runs:
         return None
-    return min(valid_next_runs).strftime("%Y-%m-%d %H:%M:%S")
+    return min(valid_next_runs)
+
+
+def _next_poll_str(canonic_id: str) -> str | None:
+    next_poll = _next_poll(canonic_id)
+    return next_poll.strftime("%Y-%m-%d %H:%M:%S") if next_poll else None
 
 
 async def get_devices() -> list[dict]:
@@ -64,6 +69,7 @@ async def get_devices() -> list[dict]:
     for name, canonic_id, last_seen in canonic_ids:
         last = device_location_store.get_last_location(canonic_id)
         last_seen = last_seen or _last_seen_from_persisted_locations(last)
+        next_poll = _next_poll(canonic_id)
         devices.append({
             "name": name,
             "canonic_id": canonic_id,
@@ -72,7 +78,12 @@ async def get_devices() -> list[dict]:
                 datetime.fromtimestamp(last["fetched_at"]).strftime("%Y-%m-%d %H:%M:%S") if last else None
             ),
             "last_seen_str": datetime.fromtimestamp(last_seen).strftime("%Y-%m-%d %H:%M:%S") if last_seen else None,
-            "next_poll_str": _next_poll_str(canonic_id),
+            "next_poll_str": next_poll.strftime("%Y-%m-%d %H:%M:%S") if next_poll else None,
+            # Raw epoch seconds alongside the formatted string above, for the
+            # live countdown static/app.js ticks down client-side (see
+            # devices/_table.html's data-next-poll-ts) - a formatted string
+            # alone can't be recomputed against "now" every second.
+            "next_poll_ts": int(next_poll.timestamp()) if next_poll else None,
         })
     return devices
 

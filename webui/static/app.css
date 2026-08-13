@@ -1074,3 +1074,14 @@ details ul {
 .table-scroll td {
   overflow-wrap: anywhere;
 }
+
+/* Live countdown under the Devices table's "Next poll" value (see
+   static/app.js's startNextPollCountdowns). Not .field-hint - that class's
+   negative top margin assumes a block sibling right after a <label>, which
+   doesn't fit a <span> inside a table cell. */
+.next-poll-countdown {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin-top: 0.15rem;
+}
