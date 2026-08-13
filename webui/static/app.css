@@ -342,6 +342,13 @@ td button {
   overflow: hidden;
 }
 
+/* Leaflet's default .leaflet-div-icon styling adds a white box + border
+   behind divIcon content - our pins are self-contained SVG, so drop it. */
+.device-pin {
+  background: transparent;
+  border: none;
+}
+
 /* Details / diagnostics */
 details {
   background: var(--surface);

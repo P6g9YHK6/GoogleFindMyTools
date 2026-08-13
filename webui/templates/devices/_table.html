@@ -34,3 +34,8 @@
   </tbody>
 </table>
 </div>
+<script>
+  if (window.seedMapMarkers) {
+    window.seedMapMarkers({{ map_devices_json|safe }});
+  }
+</script>
