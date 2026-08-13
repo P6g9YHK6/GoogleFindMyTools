@@ -192,6 +192,18 @@ def test_forward_one_reports_stale_duplicate_skip_without_dispatching(monkeypatc
     assert policy._forward_one(endpoint_cfg, fresh_location) == "ok"
 
 
+def test_skip_already_seen_defaults_on_but_can_be_opted_out_per_endpoint():
+    # no skip_if_already_seen key at all - defaults to on
+    assert policy._skip_already_seen({}, already_seen=True) is True
+    assert policy._skip_already_seen({}, already_seen=False) is False
+
+    # explicitly on - same as the default
+    assert policy._skip_already_seen({"skip_if_already_seen": True}, already_seen=True) is True
+
+    # explicitly opted out - a reading Google already reported still gets sent
+    assert policy._skip_already_seen({"skip_if_already_seen": False}, already_seen=True) is False
+
+
 def test_forward_one_reports_already_seen_skip_without_dispatching(monkeypatch):
     dispatched = []
     monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None: dispatched.append(loc) or "ok")
@@ -204,6 +216,18 @@ def test_forward_one_reports_already_seen_skip_without_dispatching(monkeypatch):
     assert dispatched == []  # the network dispatch was never reached
 
     status = policy._forward_one(endpoint_cfg, location, already_seen=False)
+    assert status == "ok"
+    assert dispatched == [location]
+
+
+def test_forward_one_forwards_an_already_seen_reading_when_the_endpoint_opted_out(monkeypatch):
+    dispatched = []
+    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None: dispatched.append(loc) or "ok")
+
+    endpoint_cfg = _traccar_endpoint(skip_if_already_seen=False)
+    location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
+
+    status = policy._forward_one(endpoint_cfg, location, already_seen=True)
     assert status == "ok"
     assert dispatched == [location]
 

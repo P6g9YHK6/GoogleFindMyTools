@@ -133,6 +133,32 @@ def test_device_alias_field_is_blank_by_default_not_prefilled_with_google_name(c
     assert f'placeholder="{FAKE_DEVICE_NAME}"' in resp.text
 
 
+def test_device_alias_field_is_blank_for_a_device_that_has_never_been_saved_at_all(client):
+    """Same as above, but for a device that's never even been through
+    config_store.set_device_config once (the very first time its settings
+    row is opened) - _rows' own fallback device_cfg for an unrecognized
+    canonic_id must not seed "display_name" with the Google account name
+    either, or a save with the field left untouched would silently pin the
+    alias to it forever."""
+    from webui.forwarders import config_store
+
+    # DATA_DIR is shared for the whole test session (see conftest.py), so an
+    # earlier test may have already saved something for FAKE_CANONIC_ID -
+    # reset the store to guarantee this test actually exercises the
+    # never-configured-at-all path (devices.get(canonic_id) is None in
+    # _rows), not just "saved with no display_name key" (already covered
+    # above).
+    config_store.save({"devices": {}})
+    assert config_store.get_device_config(FAKE_CANONIC_ID) is None
+
+    resp = client.get(f"/settings/devices/{FAKE_CANONIC_ID}")
+    assert resp.status_code == 200
+    assert 'name="display_name" value=""' in resp.text
+    assert f'placeholder="{FAKE_DEVICE_NAME}"' in resp.text
+
+    assert config_store.get_device_config(FAKE_CANONIC_ID) is None  # merely viewing it must not save anything
+
+
 def test_endpoint_alias_is_saved_and_shown_in_legend(client):
     resp = _post_form(
         client,
@@ -275,6 +301,45 @@ def test_skip_if_stale_defaults_off_when_not_submitted(client):
 
     saved = config_store.get_device_config(FAKE_CANONIC_ID)["endpoints"][0]
     assert "skip_if_stale" not in saved
+
+
+def test_skip_if_already_seen_defaults_on_when_not_submitted(client):
+    """Unlike skip_if_close/skip_if_stale, this toggle defaults to *on* -
+    not submitting it at all (a brand-new endpoint, or one saved before
+    this toggle existed) must not be saved as off."""
+    resp = _post_form(
+        client,
+        f"/settings/devices/{FAKE_CANONIC_ID}",
+        display_name="My Tracker",
+        ep_order=["0"],
+        **{"ep-0-endpoint_type": "traccar", "ep-0-url": "http://x/", "ep-0-cron": "*/5 * * * *"},
+    )
+    assert resp.status_code == 200
+    assert "checked" in resp.text
+
+    from webui.forwarders import config_store
+
+    saved = config_store.get_device_config(FAKE_CANONIC_ID)["endpoints"][0]
+    assert "skip_if_already_seen" not in saved  # absence means on, same as an explicit True
+
+
+def test_skip_if_already_seen_can_be_turned_off(client):
+    resp = _post_form(
+        client,
+        f"/settings/devices/{FAKE_CANONIC_ID}",
+        display_name="My Tracker",
+        ep_order=["0"],
+        **{
+            "ep-0-endpoint_type": "traccar", "ep-0-url": "http://x/", "ep-0-cron": "*/5 * * * *",
+            "ep-0-skip_if_already_seen": "0",
+        },
+    )
+    assert resp.status_code == 200
+
+    from webui.forwarders import config_store
+
+    saved = config_store.get_device_config(FAKE_CANONIC_ID)["endpoints"][0]
+    assert saved["skip_if_already_seen"] is False
 
 
 def test_send_now_forwards_immediately_bypassing_schedule_and_skip(client, monkeypatch):

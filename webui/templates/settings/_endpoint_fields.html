@@ -202,6 +202,19 @@
         <p class="field-hint">This is based on the fix timestamp <strong>Google's backend</strong> reports for this tracker, not on when this endpoint last sent something. Google can keep returning the exact same cached fix for a while; this only delays re-sending that identical stale fix by the time set here. The moment Google reports an actually newer fix, it's sent immediately regardless of this timer.</p>
       </div>
     </div>
+
+    <div class="toggle-group">
+      {# skip_if_already_seen defaults to on (unlike the two toggles above,
+         which default off) - checked whenever the key is absent or true;
+         only an explicit False unchecks it. See policy.py's
+         _skip_already_seen and this form's parsing in settings.py. #}
+      <label class="checkbox-label">
+        <input type="checkbox" class="skip-toggle" {% if endpoint.skip_if_already_seen is undefined or endpoint.skip_if_already_seen %}checked{% endif %}>
+        <input type="hidden" name="ep-{{ idx }}-skip_if_already_seen" value="{{ '1' if (endpoint.skip_if_already_seen is undefined or endpoint.skip_if_already_seen) else '0' }}">
+        Skip sending a reading Google already reported before
+      </label>
+      <p class="field-hint">On by default: Google sometimes bundles an old, already-sent reading alongside a genuinely new one, and this stops it going out to this endpoint a second time. Turn off to always forward every reading Google returns, duplicates included.</p>
+    </div>
   </fieldset>
   </div>
   </div>

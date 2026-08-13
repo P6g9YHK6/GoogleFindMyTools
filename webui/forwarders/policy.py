@@ -30,6 +30,20 @@ FRESH_FIX_AGE_S = 120
 FORWARD_FAILURE_ESCALATION_THRESHOLD = 3
 
 
+def _skip_already_seen(endpoint_cfg: dict, already_seen: bool) -> bool:
+    """True if this reading was already reported by Google in an earlier
+    fetch (see webui/device_location_store.py's first_seen tracking) and
+    this endpoint hasn't opted out of skipping those.
+
+    Unlike skip_if_close/skip_if_stale below, this one defaults to *on*
+    when the endpoint has no skip_if_already_seen key at all - so
+    "explicitly turned off" has to be persisted as skip_if_already_seen:
+    False rather than represented by the key's mere absence (which is how
+    the other two toggles represent "off" - see
+    webui/routers/settings.py's _parse_endpoints_form)."""
+    return already_seen and endpoint_cfg.get("skip_if_already_seen", True)
+
+
 def _too_close_to_bother(endpoint_cfg: dict, location: dict) -> bool:
     """True if this endpoint's "skip if it hasn't moved" toggle is on and the
     new fix is under its configured minimum-movement threshold from the last
@@ -91,9 +105,10 @@ def _forward_one(
     """already_seen is True when this exact reading (see
     device_location_store._location_key) was already present in an earlier
     fetch - Google re-serving something we've already handled, not a new
-    observation - checked first since it needs no per-endpoint state at
-    all, unlike the two gates below."""
-    if already_seen:
+    observation. Checked first since, unlike the two gates below, whether
+    it's skipped only depends on this one already_seen flag plus this
+    endpoint's own toggle - no distance/timing math needed."""
+    if _skip_already_seen(endpoint_cfg, already_seen):
         return "skipped: already reported by Google (not a new reading)"
     if _too_close_to_bother(endpoint_cfg, location):
         threshold = endpoint_cfg.get("min_movement_m") or DEFAULT_MIN_MOVEMENT_M

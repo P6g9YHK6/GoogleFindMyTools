@@ -83,6 +83,26 @@ def test_a_corrupt_file_is_treated_as_empty(tmp_path, monkeypatch):
     assert device_location_store.get_last_location("dev-1") is None
 
 
+def test_set_last_location_backfills_first_seen_for_a_reading_stored_before_that_field_existed(tmp_path, monkeypatch):
+    """A device_locations.yaml written before first_seen existed has none on
+    its stored locations - set_last_location must not just propagate that
+    missing/null value forever once the same reading reappears; it should
+    fall back to the prior snapshot's own fetched_at instead."""
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    path = tmp_path / "device_locations.yaml"
+    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", path)
+
+    import yaml
+
+    reading = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "status": "REPORTED", "time": 100}
+    path.write_text(yaml.safe_dump({"dev-1": {"locations": [reading], "fetched_at": 500}}))
+
+    stamped = device_location_store.set_last_location("dev-1", [reading], fetched_at=1000)
+
+    assert stamped[0]["first_seen"] == 500
+    assert stamped[0]["_new_this_fetch"] is False  # still correctly recognized as already seen
+
+
 def test_set_last_location_stamps_a_new_reading_with_this_fetchs_time(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
     monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")

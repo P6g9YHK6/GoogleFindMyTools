@@ -9,6 +9,7 @@ from ProtoDecoders.decoder import get_canonic_ids, parse_device_list_protobuf
 from webui import scheduler
 from webui.auth_state import is_logged_in
 from webui.deps import run_blocking
+from webui.device_list_cache import device_list_cache
 from webui.forwarders import BUILTIN_VARIABLES, PRESETS, config_store, latest_values_store, policy
 from webui.forwarders import blank_endpoint as new_blank_endpoint
 from webui.templating import templates
@@ -37,14 +38,22 @@ async def _rows(overrides: dict[str, dict] | None = None, saved_id: str | None =
         device_list = parse_device_list_protobuf(result_hex)
         return get_canonic_ids(device_list)
 
-    canonic_ids = await run_blocking(_fetch)
+    canonic_ids = await run_blocking(device_list_cache.get_or_fetch, _fetch)
     devices = config_store.all_devices()
 
     rows = []
     for google_name, canonic_id, _last_seen in canonic_ids:
         device_cfg = devices.get(canonic_id)
         if device_cfg is None:
-            device_cfg = {"display_name": google_name, "endpoints": []}
+            # Blank, not google_name - a device that's never actually been
+            # saved must not have its alias field show up pre-filled with
+            # the account name (see _device_form.html's "Device alias"
+            # input comment for why that's wrong: it'd look deliberately
+            # typed in, and a save with the field untouched would silently
+            # pin display_name to it forever). row["name"] below still
+            # falls back to google_name on its own for display purposes
+            # (the heading etc.), so nothing here loses that.
+            device_cfg = {"display_name": "", "endpoints": []}
         elif device_cfg.get("google_name") != google_name:
             # Keep the account's real name in sync on local disk too (only
             # for devices actually saved already - this must never be what
@@ -422,6 +431,13 @@ def _parse_endpoints_form(form, existing_endpoints: list[dict]) -> tuple[list[di
                 entry["min_update_gap_m"] = float(field("min_update_gap_m") or policy.DEFAULT_MIN_UPDATE_GAP_M)
             except ValueError:
                 entry["min_update_gap_m"] = policy.DEFAULT_MIN_UPDATE_GAP_M
+
+        # Opposite default from the two toggles above: this one is *on* by
+        # default (see policy._skip_already_seen), so "off" has to be a real
+        # persisted False rather than the key's absence - which is what the
+        # other two toggles rely on for their own (off) default.
+        if field("skip_if_already_seen", "1") != "1":
+            entry["skip_if_already_seen"] = False
 
         # Best-effort: carry forward any leftover "variables" (from before
         # the settings UI dropped the "Custom variables" table - there's no

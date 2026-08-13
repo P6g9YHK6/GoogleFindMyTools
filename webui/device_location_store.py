@@ -112,7 +112,18 @@ def set_last_location(canonic_id: str, locations: list[dict], fetched_at: int) -
     with _lock:
         data = _load_unlocked()
         entry = data.setdefault(canonic_id, {})
-        previously_seen = {_location_key(loc): loc.get("first_seen") for loc in entry.get("locations", [])}
+        # A location stored before "first_seen" existed has no such key on
+        # disk (entry.get("locations", []) is the raw, un-migrated data -
+        # get_last_location's _migrate_location backfill never runs here) -
+        # fall back to that prior snapshot's own fetched_at rather than
+        # letting a bare .get(...) hand back None and poison first_seen
+        # (and downstream skip-if-already-seen decisions) for that reading
+        # from here on.
+        prior_fetched_at = entry.get("fetched_at")
+        previously_seen = {
+            _location_key(loc): loc.get("first_seen", prior_fetched_at) or prior_fetched_at
+            for loc in entry.get("locations", [])
+        }
 
         stamped = []
         persisted = []
