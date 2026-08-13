@@ -8,6 +8,7 @@ built on top of everything here.
 import json
 import logging
 import time
+from urllib.parse import urlsplit
 
 from webui.forwarders.custom import forward_to_custom
 from webui.geo import haversine_distance_m
@@ -156,6 +157,22 @@ def _endpoint_target(endpoint_cfg: dict) -> str:
     return f"{alias} ({label})" if alias else label
 
 
+def _redacted_endpoint_target(endpoint_cfg: dict) -> str:
+    """Same as _endpoint_target, but with the URL's path and query dropped -
+    some built-in presets (see webui/forwarders/presets.py) embed an access
+    token directly in the URL path, and this one, unlike _endpoint_target's
+    other callers, feeds the shared application log rather than this
+    endpoint's own Forwarding Log entry (where the owner already sees their
+    full endpoint config right next to it)."""
+    url = endpoint_cfg.get("url") or ""
+    parsed = urlsplit(url)
+    host = f"{parsed.scheme}://{parsed.netloc}" if parsed.scheme and parsed.netloc else "(unparseable url)"
+    method = endpoint_cfg.get("method") or "GET"
+    label = f"{method} {host}/...".strip()
+    alias = endpoint_cfg.get("alias")
+    return f"{alias} ({label})" if alias else label
+
+
 def _record_forward_result(
     endpoint_cfg: dict, status: str, location: dict | None, device_display_name: str, now_ts: int | None = None,
 ):
@@ -179,6 +196,6 @@ def _record_forward_result(
         endpoint_cfg["consecutive_failures"] = failures
         if failures % FORWARD_FAILURE_ESCALATION_THRESHOLD == 0:
             logger.error(
-                "Forwarding to %s for %s has failed %d times in a row (latest: %s)",
-                _endpoint_target(endpoint_cfg), device_display_name, failures, status,
+                "Forwarding to %s for %s has failed %d times in a row",
+                _redacted_endpoint_target(endpoint_cfg), device_display_name, failures,
             )
