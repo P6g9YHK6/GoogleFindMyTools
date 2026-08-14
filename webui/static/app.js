@@ -29,22 +29,30 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Each device gets one base hue, hashed from its canonic_id alone (stable
-  // across reloads, independent of how many locations it currently has,
-  // and still effectively unbounded across devices). Each of that device's
-  // individual locations then gets a shade of that same hue, picked from
-  // SHADE_LIGHTNESS by its position among the device's dots - so several
-  // open locations for one device read as "the same device, different
-  // fixes" instead of unrelated colors. Mirrored server-side (identical
-  // hash loop + shade table) by webui/colors.py's location_color, so a
-  // location's list swatch always matches its map pin.
+  // across reloads, independent of how many locations it currently has).
+  // Each of that device's individual locations then gets a shade of that
+  // same hue, picked from SHADE_LIGHTNESS by its position among the
+  // device's dots - so several open locations for one device read as "the
+  // same device, different fixes" instead of unrelated colors. Mirrored
+  // server-side (identical hash loop + step/shade tables) by
+  // webui/colors.py's location_color, so a location's list swatch always
+  // matches its map pin.
   const SHADE_LIGHTNESS = [38, 48, 58, 68, 30]; // %, cycles past 5 locations
+
+  // The hash is quantized to a small number of evenly-spaced hues rather
+  // than used as a raw mod-360 value: two devices whose IDs happen to hash
+  // close together (e.g. 40° apart) would otherwise render as
+  // near-identical colors. 12 steps = 30° apart, which stays visually
+  // distinct at these lightness levels; devices only share a hue once
+  // there are more than 12 of them.
+  const HUE_STEPS = 12;
 
   function hueForDevice(canonicId) {
     let hash = 0;
     for (let i = 0; i < canonicId.length; i++) {
       hash = (Math.imul(hash, 31) + canonicId.charCodeAt(i)) >>> 0;
     }
-    return hash % 360;
+    return (hash % HUE_STEPS) * (360 / HUE_STEPS);
   }
 
   function colorForDeviceLocation(canonicId, index) {
