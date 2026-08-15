@@ -25,7 +25,14 @@
            page. #}
         <div class="device-summary">
           {% if device.image_url %}
-            <img class="device-thumb" src="{{ device.image_url }}" alt="" loading="lazy">
+            {# Same URL as the full-size popup (see static/app.js's
+               .device-thumb-btn handler and devices/list.html's
+               #device-image-modal) - Google already serves one image per
+               device, just shown here shrunk to an icon by .device-thumb's
+               own CSS, so opening it larger needs no different URL. #}
+            <button type="button" class="device-thumb-btn" data-image-url="{{ device.image_url }}" data-image-label="{{ device.name }}" aria-label="View full-size photo of {{ device.name }}">
+              <img class="device-thumb" src="{{ device.image_url }}" alt="" loading="lazy">
+            </button>
           {% endif %}
           {% if device.type_label %}<span>{{ device.type_label }}</span>{% endif %}
         </div>

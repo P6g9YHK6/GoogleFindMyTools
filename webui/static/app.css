@@ -900,6 +900,64 @@ details ul {
   background: var(--surface-alt);
 }
 
+/* Wraps .device-thumb so it's a real, keyboard-operable control (see
+   static/app.js's click handler and #device-image-modal in
+   devices/list.html) - reset to plain button chrome so it doesn't look
+   like a button, just a clickable photo. */
+.device-thumb-btn {
+  display: inline-flex;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  cursor: pointer;
+}
+
+.device-thumb-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Full-size device photo popup - a native <dialog>, so the centered
+   layout, the dimmed backdrop below, and Escape-to-close all come for
+   free instead of being hand-rolled. */
+.image-modal {
+  position: relative;
+  max-width: min(90vw, 640px);
+  max-height: 90vh;
+  padding: 1rem;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+
+.image-modal::backdrop {
+  background: color-mix(in srgb, black 55%, transparent);
+}
+
+.image-modal-img {
+  display: block;
+  max-width: 100%;
+  max-height: 75vh;
+  margin: 0 auto;
+  border-radius: var(--radius-sm);
+  object-fit: contain;
+}
+
+.image-modal-caption {
+  margin: 0.6rem 0 0;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.image-modal-close {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+}
+
 .device-details {
   margin-top: 0.3rem;
   font-size: 0.8rem;

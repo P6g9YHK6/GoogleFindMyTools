@@ -222,3 +222,32 @@ window.startNextPollCountdowns = function () {
   tick();
   _nextPollTimer = setInterval(tick, 1000);
 };
+
+// Devices table photo -> full-size popup (see devices/_table.html's
+// .device-thumb-btn and devices/list.html's #device-image-modal) - also
+// deliberately not nested inside the #map-guarded block above, same reason
+// as the poll countdown just above: nothing to do with the map. Delegated
+// off `document` so it keeps working across the table's own htmx reloads
+// with no re-init step.
+document.addEventListener("click", (event) => {
+  const modal = document.getElementById("device-image-modal");
+  if (!modal) return;
+
+  const thumbBtn = event.target.closest(".device-thumb-btn");
+  if (thumbBtn) {
+    modal.querySelector(".image-modal-img").src = thumbBtn.dataset.imageUrl;
+    modal.querySelector(".image-modal-img").alt = thumbBtn.dataset.imageLabel || "";
+    modal.querySelector(".image-modal-caption").textContent = thumbBtn.dataset.imageLabel || "";
+    modal.showModal();
+    return;
+  }
+
+  // Closes on the ✕ button, or on the dialog's own ::backdrop - a native
+  // <dialog>'s backdrop click bubbles with the dialog element itself as
+  // the target, which is what the equality check below actually detects
+  // (a click landing on the image or caption instead leaves event.target
+  // as that inner element, so it's excluded automatically).
+  if (event.target.closest(".image-modal-close") || event.target === modal) {
+    modal.close();
+  }
+});
