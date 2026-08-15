@@ -157,35 +157,44 @@
 
   // ---- request preview (client-only, sample data) -----------------------
 
-  function renderTemplate(str, vars) {
+  // literal=true keeps a resolved token's own {{name}} text on screen
+  // (just colored) instead of swapping in the sample value it resolves
+  // to - used by the URL field itself, which edits the template, not a
+  // preview of what it produces. The request preview below wants the
+  // opposite (literal=false, the default): substituted, so it actually
+  // shows "what goes out".
+  function renderTemplate(str, vars, literal) {
     const escaped = escapeHtml(str || "");
     return escaped.replace(/\{\{(\w+)\}\}/g, (m, k) => {
       if (Object.prototype.hasOwnProperty.call(vars, k)) {
-        return '<span class="tok-resolved">' + escapeHtml(String(vars[k])) + "</span>";
+        const text = literal ? "{{" + k + "}}" : escapeHtml(String(vars[k]));
+        return '<span class="tok-resolved">' + text + "</span>";
       }
       return '<span class="tok-unresolved">{{' + k + "}}</span>";
     });
   }
 
-  // Same as renderTemplate(), plus marks the URL's own scheme and host so
-  // the request's shape (protocol vs fqdn vs path) is visible at a glance.
-  // Splits the raw string into scheme/host/tail first and runs each piece
-  // through renderTemplate() on its own, so a {{var}} occurring inside the
-  // scheme or host (e.g. "https://{{tracker_id}}.example.com/...") still
-  // gets its own nested resolved/unresolved tint. No scheme means nothing
-  // typed yet looks like "scheme://" - falls back to plain renderTemplate().
+  // Same as renderTemplate(str, vars, true) - always literal, since this
+  // is only ever used for the URL field's own edit surface - plus marks
+  // the URL's own scheme and host so the request's shape (protocol vs
+  // fqdn vs path) is visible at a glance. Splits the raw string into
+  // scheme/host/tail first and runs each piece through renderTemplate()
+  // on its own, so a {{var}} occurring inside the scheme or host (e.g.
+  // "https://{{tracker_id}}.example.com/...") still gets its own nested
+  // resolved/unresolved tint. No scheme means nothing typed yet looks
+  // like "scheme://" - falls back to plain renderTemplate().
   function renderUrlTemplate(str, vars) {
     const raw = str || "";
     const schemeMatch = /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.exec(raw);
-    if (!schemeMatch) return renderTemplate(raw, vars);
+    if (!schemeMatch) return renderTemplate(raw, vars, true);
     const scheme = schemeMatch[0];
     const rest = raw.slice(scheme.length);
     const hostMatch = /^[^/?#\s]*/.exec(rest);
     const host = hostMatch ? hostMatch[0] : "";
     const tail = rest.slice(host.length);
-    let out = '<span class="tok-scheme">' + renderTemplate(scheme, vars) + "</span>";
-    if (host) out += '<span class="tok-host">' + renderTemplate(host, vars) + "</span>";
-    out += renderTemplate(tail, vars);
+    let out = '<span class="tok-scheme">' + renderTemplate(scheme, vars, true) + "</span>";
+    if (host) out += '<span class="tok-host">' + renderTemplate(host, vars, true) + "</span>";
+    out += renderTemplate(tail, vars, true);
     return out;
   }
 
