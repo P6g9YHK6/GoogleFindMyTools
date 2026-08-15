@@ -29,13 +29,17 @@ def test_register_then_devices_table_sees_the_new_tracker_immediately(client, mo
     assert FAKE_DEVICE_NAME in resp.text
     assert "New Tracker" not in resp.text
 
-    def fake_get_canonic_ids(device_list):
+    def fake_get_device_details(device_list):
+        base = {
+            "is_phone": False, "image_url": None, "device_type": None, "manufacturer": None, "model": None,
+            "carrier": None, "codename": None, "imei": None, "registered_at": None, "access": [],
+        }
         return [
-            (FAKE_DEVICE_NAME, FAKE_CANONIC_ID, FAKE_LAST_SEEN),
-            ("New Tracker", "new-canonic-id", None),
+            {"name": FAKE_DEVICE_NAME, "canonic_id": FAKE_CANONIC_ID, "last_seen": FAKE_LAST_SEEN, **base},
+            {"name": "New Tracker", "canonic_id": "new-canonic-id", "last_seen": None, **base},
         ]
 
-    monkeypatch.setattr(devices, "get_canonic_ids", fake_get_canonic_ids)
+    monkeypatch.setattr(devices, "get_device_details", fake_get_device_details)
 
     resp = client.post("/register")
     assert resp.status_code == 200

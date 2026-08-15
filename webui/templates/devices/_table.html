@@ -2,7 +2,7 @@
 <table class="sortable-table">
   <thead>
     <tr>
-      <th>Name</th><th>Alias</th><th>Actions</th><th>Last locate result</th><th>Map</th><th>Last seen by find hub</th><th>Endpoints</th><th>Polled at</th><th>Next poll</th>
+      <th>Name</th><th>Alias</th><th>Device</th><th>Actions</th><th>Last locate result</th><th>Map</th><th>Last seen by find hub</th><th>Endpoints</th><th>Polled at</th><th>Next poll</th>
     </tr>
   </thead>
   <tbody>
@@ -13,6 +13,37 @@
          webui/routers/settings.py's "Device alias" field) - blank until
          one's actually set, same as that field itself. #}
       <td>{{ device.alias or "-" }}</td>
+      <td class="device-cell">
+        {# Category/photo straight from Google's own response - see
+           ProtoDecoders.decoder.get_device_details and
+           webui/routers/devices.py's _device_type_label. Manufacturer/
+           model/carrier/codename/registration date/IMEI/sharing info are
+           real but more sensitive (IMEI especially) or just verbose, so
+           they stay behind this <details> toggle rather than in the
+           always-visible row - same "advanced, not hidden" pattern as the
+           cron builder's "Advanced: custom cron schedule" on the Settings
+           page. #}
+        <div class="device-summary">
+          {% if device.image_url %}
+            <img class="device-thumb" src="{{ device.image_url }}" alt="" loading="lazy">
+          {% endif %}
+          {% if device.type_label %}<span>{{ device.type_label }}</span>{% endif %}
+        </div>
+        {% if device.manufacturer or device.model or device.carrier or device.codename or device.registered_at_str or device.imei or device.shared_with %}
+          <details class="device-details">
+            <summary>Details</summary>
+            <ul>
+              {% if device.manufacturer %}<li>Manufacturer: {{ device.manufacturer }}</li>{% endif %}
+              {% if device.model %}<li>Model: {{ device.model }}</li>{% endif %}
+              {% if device.carrier %}<li>Carrier: {{ device.carrier }}</li>{% endif %}
+              {% if device.codename %}<li>Codename: {{ device.codename }}</li>{% endif %}
+              {% if device.registered_at_str %}<li>Registered: {{ device.registered_at_str }}</li>{% endif %}
+              {% if device.imei %}<li>IMEI: {{ device.imei }}</li>{% endif %}
+              {% if device.shared_with %}<li>Shared with: {{ device.shared_with | join(", ") }}</li>{% endif %}
+            </ul>
+          </details>
+        {% endif %}
+      </td>
       <td class="actions-cell">
         <button type="button" class="btn-icon" title="Locate"
                 hx-post="/devices/{{ device.canonic_id }}/locate?name={{ device.name | urlencode }}"
@@ -64,7 +95,7 @@
       </td>
     </tr>
   {% else %}
-    <tr><td colspan="9">No devices found.</td></tr>
+    <tr><td colspan="10">No devices found.</td></tr>
   {% endfor %}
   </tbody>
 </table>

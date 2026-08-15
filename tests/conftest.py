@@ -62,18 +62,25 @@ def stub_backend(monkeypatch):
     # like query_throttle above - without this, a value cached by one test
     # (well within its default 8s TTL; tests run in milliseconds) would
     # leak into the next test instead of that test's own monkeypatched
-    # get_canonic_ids/request_device_list ever actually running.
+    # get_device_details/request_device_list ever actually running.
     device_list_cache.invalidate()
 
-    def fake_get_canonic_ids(device_list):
-        return [(FAKE_DEVICE_NAME, FAKE_CANONIC_ID, FAKE_LAST_SEEN)]
+    def fake_get_device_details(device_list):
+        return [{
+            "name": FAKE_DEVICE_NAME, "canonic_id": FAKE_CANONIC_ID, "last_seen": FAKE_LAST_SEEN,
+            "is_phone": False, "image_url": None, "device_type": None, "manufacturer": None, "model": None,
+            "carrier": None, "codename": None, "imei": None, "registered_at": None, "access": [],
+        }]
 
     for mod in (devices, settings, logs):
         monkeypatch.setattr(mod, "is_logged_in", lambda: True)
     for mod in (devices, settings):
         monkeypatch.setattr(mod, "request_device_list", lambda: b"")
         monkeypatch.setattr(mod, "parse_device_list_protobuf", lambda hex: None)
-        monkeypatch.setattr(mod, "get_canonic_ids", fake_get_canonic_ids)
+        # Both pages share one device_list_cache slot (see its own
+        # docstring), so both need to fetch the same shape from it even
+        # though settings.py only actually uses name/canonic_id.
+        monkeypatch.setattr(mod, "get_device_details", fake_get_device_details)
 
     monkeypatch.setattr(devices, "refresh_custom_trackers", lambda device_list: None)
     monkeypatch.setattr(auth, "is_logged_in", lambda: True)

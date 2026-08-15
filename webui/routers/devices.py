@@ -4,7 +4,7 @@ from datetime import datetime
 from fastapi import APIRouter, Request
 
 from NovaApi.ListDevices.nbe_list_devices import request_device_list
-from ProtoDecoders.decoder import get_canonic_ids, parse_device_list_protobuf
+from ProtoDecoders.decoder import get_device_details, parse_device_list_protobuf
 from SpotApi.UploadPrecomputedPublicKeyIds.upload_precomputed_public_key_ids import refresh_custom_trackers
 from webui import device_location_store, scheduler, settings_store
 from webui.auth_state import is_logged_in
@@ -14,6 +14,51 @@ from webui.forwarders import config_store
 from webui.templating import templates
 
 router = APIRouter()
+
+# Icon + human label per ProtoDecoders.DeviceUpdate_pb2.SpotDeviceType name
+# (Spot/BLE tags only - phones don't carry this, see _device_type_label
+# below). Kept here rather than in the decoder, which stays presentation-
+# agnostic and just hands back the raw enum name.
+_DEVICE_TYPE_LABELS = {
+    "DEVICE_TYPE_BEACON": "📡 Beacon",
+    "DEVICE_TYPE_HEADPHONES": "🎧 Headphones",
+    "DEVICE_TYPE_KEYS": "🔑 Keys",
+    "DEVICE_TYPE_WATCH": "⌚ Watch",
+    "DEVICE_TYPE_WALLET": "👛 Wallet",
+    "DEVICE_TYPE_BAG": "🎒 Bag",
+    "DEVICE_TYPE_LAPTOP": "💻 Laptop",
+    "DEVICE_TYPE_CAR": "🚗 Car",
+    "DEVICE_TYPE_REMOTE_CONTROL": "🎮 Remote control",
+    "DEVICE_TYPE_BADGE": "🪪 Badge",
+    "DEVICE_TYPE_BIKE": "🚲 Bike",
+    "DEVICE_TYPE_CAMERA": "📷 Camera",
+    "DEVICE_TYPE_CAT": "🐱 Cat",
+    "DEVICE_TYPE_CHARGER": "🔌 Charger",
+    "DEVICE_TYPE_CLOTHING": "👕 Clothing",
+    "DEVICE_TYPE_DOG": "🐶 Dog",
+    "DEVICE_TYPE_NOTEBOOK": "📓 Notebook",
+    "DEVICE_TYPE_PASSPORT": "🛂 Passport",
+    "DEVICE_TYPE_PHONE": "📱 Phone",
+    "DEVICE_TYPE_SPEAKER": "🔊 Speaker",
+    "DEVICE_TYPE_TABLET": "📱 Tablet",
+    "DEVICE_TYPE_TOY": "🧸 Toy",
+    "DEVICE_TYPE_UMBRELLA": "☂️ Umbrella",
+    "DEVICE_TYPE_STYLUS": "🖊️ Stylus",
+    "DEVICE_TYPE_EARBUDS": "🎧 Earbuds",
+}
+
+
+def _device_type_label(device_type: str | None, is_phone: bool) -> str | None:
+    if is_phone:
+        return "📱 Phone"
+    if not device_type:
+        return None
+    if device_type in _DEVICE_TYPE_LABELS:
+        return _DEVICE_TYPE_LABELS[device_type]
+    # Unmapped (DEVICE_TYPE_UNKNOWN, or a type added to Google's schema
+    # after this list was last updated) - a readable fallback beats a
+    # crash or a blank cell.
+    return "🏷️ " + device_type.removeprefix("DEVICE_TYPE_").replace("_", " ").title()
 
 
 def _last_seen_from_persisted_locations(last: dict | None) -> int | None:
@@ -62,9 +107,9 @@ async def get_devices() -> list[dict]:
         result_hex = request_device_list()
         device_list = parse_device_list_protobuf(result_hex)
         refresh_custom_trackers(device_list)
-        return get_canonic_ids(device_list)
+        return get_device_details(device_list)
 
-    canonic_ids = await run_blocking(device_list_cache.get_or_fetch, _fetch)
+    device_details = await run_blocking(device_list_cache.get_or_fetch, _fetch)
     # Loaded once for the whole page, not per device - a page-load-time
     # display preference, not a per-device or per-endpoint setting (see
     # settings_store.py; unrelated to forwarding's own per-endpoint
@@ -72,13 +117,14 @@ async def get_devices() -> list[dict]:
     most_recent_only_display = settings_store.load().get("devices_page_most_recent_only")
 
     devices = []
-    for name, canonic_id, last_seen in canonic_ids:
+    for detail in device_details:
+        canonic_id = detail["canonic_id"]
         last = device_location_store.get_last_location(canonic_id)
         # _last_seen_from_persisted_locations must stay correct regardless
         # of the display preference below, so it reads last["locations"]
         # unfiltered - only what's actually shown ("last_locations") is
         # narrowed down.
-        last_seen = last_seen or _last_seen_from_persisted_locations(last)
+        last_seen = detail["last_seen"] or _last_seen_from_persisted_locations(last)
         next_poll = _next_poll(canonic_id)
         # The local nickname (if any - see webui/routers/settings.py) and how
         # many forwarding endpoints are configured, straight off the same
@@ -87,8 +133,12 @@ async def get_devices() -> list[dict]:
         last_locations = last["locations"] if last else None
         if last_locations and most_recent_only_display:
             last_locations = device_location_store.most_recent_only(last_locations)
+        # Sharing/ownership info (see ProtoDecoders.decoder.get_device_details)
+        # - "Owner only" for the common case (just your own account, isOwner
+        # true) rather than listing yourself back to yourself.
+        shared_with = [a["email"] for a in detail["access"] if not a["this_account"]]
         devices.append({
-            "name": name,
+            "name": detail["name"],
             "canonic_id": canonic_id,
             "alias": device_cfg.get("display_name") if device_cfg else None,
             "endpoint_count": len(device_cfg.get("endpoints") or []) if device_cfg else 0,
@@ -103,6 +153,23 @@ async def get_devices() -> list[dict]:
             # devices/_table.html's data-next-poll-ts) - a formatted string
             # alone can't be recomputed against "now" every second.
             "next_poll_ts": int(next_poll.timestamp()) if next_poll else None,
+            # Device metadata from Google's own response - see
+            # ProtoDecoders.decoder.get_device_details and this module's
+            # _device_type_label. image_url/manufacturer/model/carrier/
+            # codename/imei/registered_at_str are None when Google doesn't
+            # report them (e.g. no hardwareInfo for a Spot/BLE tag).
+            "image_url": detail["image_url"],
+            "type_label": _device_type_label(detail["device_type"], detail["is_phone"]),
+            "manufacturer": detail["manufacturer"],
+            "model": detail["model"],
+            "carrier": detail["carrier"],
+            "codename": detail["codename"],
+            "imei": detail["imei"],
+            "registered_at_str": (
+                datetime.fromtimestamp(detail["registered_at"]).strftime("%Y-%m-%d %H:%M:%S")
+                if detail["registered_at"] else None
+            ),
+            "shared_with": shared_with,
         })
     return devices
 

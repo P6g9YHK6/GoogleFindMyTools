@@ -259,7 +259,11 @@ def test_devices_table_uses_persisted_location_time_when_proto_has_no_last_seen(
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
     monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
-    monkeypatch.setattr(devices, "get_canonic_ids", lambda device_list: [(FAKE_DEVICE_NAME, FAKE_CANONIC_ID, None)])
+    monkeypatch.setattr(devices, "get_device_details", lambda device_list: [{
+        "name": FAKE_DEVICE_NAME, "canonic_id": FAKE_CANONIC_ID, "last_seen": None,
+        "is_phone": False, "image_url": None, "device_type": None, "manufacturer": None, "model": None,
+        "carrier": None, "codename": None, "imei": None, "registered_at": None, "access": [],
+    }])
 
     device_location_store.set_last_location(
         FAKE_CANONIC_ID, [{"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1786118431}],
@@ -301,5 +305,94 @@ def test_devices_and_settings_pages_share_one_cache_fill(client, monkeypatch):
     assert client.get("/devices/table").status_code == 200
     assert client.get("/settings").status_code == 200
     assert len(calls) == 1  # only "devices" won the fetch; settings got a cache hit
+
+
+def _fake_detail(**overrides) -> dict:
+    base = {
+        "name": FAKE_DEVICE_NAME, "canonic_id": FAKE_CANONIC_ID, "last_seen": FAKE_LAST_SEEN,
+        "is_phone": False, "image_url": None, "device_type": None, "manufacturer": None, "model": None,
+        "carrier": None, "codename": None, "imei": None, "registered_at": None, "access": [],
+    }
+    base.update(overrides)
+    return base
+
+
+def test_devices_table_shows_device_type_and_photo_for_a_tag(client, monkeypatch):
+    from webui.routers import devices
+
+    monkeypatch.setattr(devices, "get_device_details", lambda device_list: [_fake_detail(
+        device_type="DEVICE_TYPE_KEYS", image_url="https://example.com/tag.png",
+        manufacturer="Chipolo", model="Chipolo ONE Point",
+    )])
+
+    resp = client.get("/devices/table")
+    assert resp.status_code == 200
+    assert "🔑 Keys" in resp.text
+    assert 'src="https://example.com/tag.png"' in resp.text
+
+
+def test_devices_table_shows_phone_label_for_a_phone(client, monkeypatch):
+    from webui.routers import devices
+
+    monkeypatch.setattr(devices, "get_device_details", lambda device_list: [_fake_detail(is_phone=True)])
+
+    resp = client.get("/devices/table")
+    assert resp.status_code == 200
+    assert "📱 Phone" in resp.text
+
+
+def test_devices_table_falls_back_to_a_readable_label_for_an_unmapped_device_type(client, monkeypatch):
+    from webui.routers import devices
+
+    monkeypatch.setattr(devices, "get_device_details", lambda device_list: [_fake_detail(
+        device_type="DEVICE_TYPE_SOMETHING_NEW",
+    )])
+
+    resp = client.get("/devices/table")
+    assert resp.status_code == 200
+    assert "🏷️ Something New" in resp.text
+
+
+def test_devices_table_keeps_imei_and_hardware_details_behind_a_details_toggle(client, monkeypatch):
+    from webui.routers import devices
+
+    monkeypatch.setattr(devices, "get_device_details", lambda device_list: [_fake_detail(
+        is_phone=True, manufacturer="Xiaomi", model="M2007J17G",
+        carrier="No carrier", codename="gauguin", imei="864025058184054",
+    )])
+
+    resp = client.get("/devices/table")
+    assert resp.status_code == 200
+    assert "<details" in resp.text
+    assert "IMEI: 864025058184054" in resp.text
+    # everything sensitive/verbose lives inside the <details> block, not
+    # rendered plain into the always-visible row above it
+    assert resp.text.index("864025058184054") > resp.text.index("<details")
+
+
+def test_devices_table_shows_who_a_device_is_shared_with(client, monkeypatch):
+    from webui.routers import devices
+
+    monkeypatch.setattr(devices, "get_device_details", lambda device_list: [_fake_detail(access=[
+        {"email": "me@example.com", "has_access": True, "is_owner": True, "this_account": True},
+        {"email": "family@example.com", "has_access": True, "is_owner": False, "this_account": False},
+    ])])
+
+    resp = client.get("/devices/table")
+    assert resp.status_code == 200
+    assert "Shared with: family@example.com" in resp.text
+    assert "me@example.com" not in resp.text  # your own account isn't "shared with"
+
+
+def test_devices_table_omits_sharing_line_when_only_the_owner_has_access(client, monkeypatch):
+    from webui.routers import devices
+
+    monkeypatch.setattr(devices, "get_device_details", lambda device_list: [_fake_detail(access=[
+        {"email": "me@example.com", "has_access": True, "is_owner": True, "this_account": True},
+    ])])
+
+    resp = client.get("/devices/table")
+    assert resp.status_code == 200
+    assert "Shared with" not in resp.text
 
 

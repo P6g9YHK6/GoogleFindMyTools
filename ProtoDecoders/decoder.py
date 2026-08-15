@@ -88,18 +88,64 @@ def get_last_seen(device) -> int | None:
     return None
 
 
-def get_canonic_ids(device_list):
+def get_device_details(device_list) -> list[dict]:
+    """Every field the Devices page wants to show, per canonic id - a richer
+    view than get_canonic_ids' plain (name, canonic_id, last_seen) tuples,
+    for the one caller (webui/routers/devices.py) that actually wants the
+    rest of what Google's response carries (device category/photo,
+    manufacturer/model, phone hardware, sharing info). See DeviceMetadata in
+    DeviceUpdate.proto for where each of these lives.
+
+    Scalar string fields (manufacturer, model, carrier, codename, imei) are
+    "" rather than absent when unset - proto3 doesn't distinguish the two
+    without an explicit `optional` in the schema - so each is normalized to
+    None here rather than carrying an empty string through to the UI."""
     result = []
     for device in device_list.deviceMetadata:
-        if device.identifierInformation.type == DeviceUpdate_pb2.IDENTIFIER_ANDROID:
+        is_phone = device.identifierInformation.type == DeviceUpdate_pb2.IDENTIFIER_ANDROID
+        if is_phone:
             canonic_ids = device.identifierInformation.phoneInformation.canonicIds.canonicId
         else:
             canonic_ids = device.identifierInformation.canonicIds.canonicId
         device_name = device.userDefinedDeviceName
         last_seen = get_last_seen(device)
+        image_url = device.imageInformation.imageUrl if device.HasField("imageInformation") else None
+
+        manufacturer = model = carrier = codename = imei = device_type = None
+        registered_at = None
+        if is_phone and device.HasField("hardwareInfo"):
+            hw = device.hardwareInfo
+            manufacturer = hw.manufacturer or None
+            model = hw.model or None
+            carrier = hw.carrier or None
+            codename = hw.codename or None
+            imei = hw.imei or None
+            if hw.HasField("registrationTime"):
+                registered_at = hw.registrationTime.seconds
+        elif device.information.HasField("deviceRegistration"):
+            reg = device.information.deviceRegistration
+            manufacturer = reg.manufacturer or None
+            model = reg.model or None
+            if reg.HasField("deviceTypeInformation"):
+                device_type = DeviceUpdate_pb2.SpotDeviceType.Name(reg.deviceTypeInformation.deviceType)
+
+        access = [
+            {"email": a.email, "has_access": a.hasAccess, "is_owner": a.isOwner, "this_account": a.thisAccount}
+            for a in device.information.accessInformation
+        ]
+
         for canonic_id in canonic_ids:
-            result.append((device_name, canonic_id.id, last_seen))
+            result.append({
+                "name": device_name, "canonic_id": canonic_id.id, "last_seen": last_seen,
+                "is_phone": is_phone, "image_url": image_url or None, "device_type": device_type,
+                "manufacturer": manufacturer, "model": model, "carrier": carrier, "codename": codename,
+                "imei": imei, "registered_at": registered_at, "access": access,
+            })
     return result
+
+
+def get_canonic_ids(device_list):
+    return [(d["name"], d["canonic_id"], d["last_seen"]) for d in get_device_details(device_list)]
 
 
 def print_location_report_upload_protobuf(hex_string):

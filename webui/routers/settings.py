@@ -5,7 +5,7 @@ from croniter import croniter
 from fastapi import APIRouter, Form, HTTPException, Request
 
 from NovaApi.ListDevices.nbe_list_devices import request_device_list
-from ProtoDecoders.decoder import get_canonic_ids, parse_device_list_protobuf
+from ProtoDecoders.decoder import get_device_details, parse_device_list_protobuf
 from webui import scheduler
 from webui.auth_state import is_logged_in
 from webui.deps import run_blocking
@@ -45,13 +45,20 @@ async def _rows(overrides: dict[str, dict] | None = None, saved_id: str | None =
     def _fetch():
         result_hex = request_device_list()
         device_list = parse_device_list_protobuf(result_hex)
-        return get_canonic_ids(device_list)
+        return get_device_details(device_list)
 
-    canonic_ids = await run_blocking(device_list_cache.get_or_fetch, _fetch)
+    # Same richer per-device dicts webui/routers/devices.py fetches - not
+    # because this page needs the rest of what's in them, but because both
+    # pages share one underlying device_list_cache slot (see its own
+    # docstring): whichever page loads first within the cache's TTL decides
+    # what shape the other one gets back too, so both have to ask for the
+    # same shape. Only name/canonic_id are actually used below.
+    device_details = await run_blocking(device_list_cache.get_or_fetch, _fetch)
     devices = config_store.all_devices()
 
     rows = []
-    for google_name, canonic_id, _last_seen in canonic_ids:
+    for detail in device_details:
+        google_name, canonic_id = detail["name"], detail["canonic_id"]
         device_cfg = devices.get(canonic_id)
         if device_cfg is None:
             # Blank, not google_name - a device that's never actually been

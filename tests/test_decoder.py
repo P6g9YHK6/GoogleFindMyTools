@@ -1,5 +1,5 @@
 from ProtoDecoders import DeviceUpdate_pb2
-from ProtoDecoders.decoder import get_canonic_ids, get_last_seen
+from ProtoDecoders.decoder import get_canonic_ids, get_device_details, get_last_seen
 
 
 def _phone_device(canonic_id: str, name: str, last_seen: int | None) -> DeviceUpdate_pb2.DeviceMetadata:
@@ -64,3 +64,96 @@ def test_get_canonic_ids_includes_last_seen_per_row():
         ("My Phone", "phone-1", 1786118431),
         ("My Tag", "tag-1", 1786118000),
     ]
+
+
+def test_get_device_details_extracts_phone_hardware_info():
+    device = _phone_device("phone-1", "My Phone", last_seen=1786118431)
+    device.hardwareInfo.manufacturer = "Xiaomi"
+    device.hardwareInfo.model = "M2007J17G"
+    device.hardwareInfo.carrier = "No carrier"
+    device.hardwareInfo.codename = "gauguin"
+    device.hardwareInfo.imei = "864025058184054"
+    device.hardwareInfo.registrationTime.seconds = 1785964218
+    device.imageInformation.imageUrl = "https://example.com/phone.png"
+
+    device_list = DeviceUpdate_pb2.DevicesList()
+    device_list.deviceMetadata.append(device)
+
+    [detail] = get_device_details(device_list)
+    assert detail["is_phone"] is True
+    assert detail["manufacturer"] == "Xiaomi"
+    assert detail["model"] == "M2007J17G"
+    assert detail["carrier"] == "No carrier"
+    assert detail["codename"] == "gauguin"
+    assert detail["imei"] == "864025058184054"
+    assert detail["registered_at"] == 1785964218
+    assert detail["image_url"] == "https://example.com/phone.png"
+    assert detail["device_type"] is None  # SpotDeviceType doesn't apply to phones
+
+
+def test_get_device_details_extracts_spot_tag_registration_info():
+    device = _tag_device("tag-1", "My Tag")
+    reg = device.information.deviceRegistration
+    reg.manufacturer = "Chipolo"
+    reg.model = "Chipolo ONE Point"
+    reg.deviceTypeInformation.deviceType = DeviceUpdate_pb2.DEVICE_TYPE_KEYS
+    device.imageInformation.imageUrl = "https://example.com/tag.png"
+
+    device_list = DeviceUpdate_pb2.DevicesList()
+    device_list.deviceMetadata.append(device)
+
+    [detail] = get_device_details(device_list)
+    assert detail["is_phone"] is False
+    assert detail["manufacturer"] == "Chipolo"
+    assert detail["model"] == "Chipolo ONE Point"
+    assert detail["device_type"] == "DEVICE_TYPE_KEYS"
+    assert detail["image_url"] == "https://example.com/tag.png"
+    # Phone-only fields must not leak onto a tag
+    assert detail["carrier"] is None
+    assert detail["imei"] is None
+
+
+def test_get_device_details_extracts_access_information():
+    device = _tag_device("tag-1", "My Tag")
+    device.information.accessInformation.add(
+        email="me@example.com", hasAccess=True, isOwner=True, thisAccount=True,
+    )
+    device.information.accessInformation.add(
+        email="family@example.com", hasAccess=True, isOwner=False, thisAccount=False,
+    )
+
+    device_list = DeviceUpdate_pb2.DevicesList()
+    device_list.deviceMetadata.append(device)
+
+    [detail] = get_device_details(device_list)
+    assert detail["access"] == [
+        {"email": "me@example.com", "has_access": True, "is_owner": True, "this_account": True},
+        {"email": "family@example.com", "has_access": True, "is_owner": False, "this_account": False},
+    ]
+
+
+def test_get_device_details_normalizes_unset_scalar_fields_to_none():
+    # proto3 can't tell "unset" apart from "" on a plain (non-optional)
+    # string field - hardwareInfo.manufacturer etc. are untouched here, so
+    # they're "" at the protobuf level and must come back as None, not "".
+    device = _phone_device("phone-1", "My Phone", last_seen=None)
+    device_list = DeviceUpdate_pb2.DevicesList()
+    device_list.deviceMetadata.append(device)
+
+    [detail] = get_device_details(device_list)
+    assert detail["manufacturer"] is None
+    assert detail["model"] is None
+    assert detail["carrier"] is None
+    assert detail["codename"] is None
+    assert detail["imei"] is None
+    assert detail["image_url"] is None
+    assert detail["access"] == []
+
+
+def test_get_canonic_ids_ignores_the_richer_fields_get_device_details_adds():
+    device = _tag_device("tag-1", "My Tag")
+    device.information.deviceRegistration.manufacturer = "Chipolo"
+    device_list = DeviceUpdate_pb2.DevicesList()
+    device_list.deviceMetadata.append(device)
+
+    assert get_canonic_ids(device_list) == [("My Tag", "tag-1", None)]

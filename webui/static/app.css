@@ -921,6 +921,42 @@ details ul {
   box-shadow: none;
 }
 
+/* Devices page "Device" column - category/photo from Google's own device-
+   list response, plus a <details> toggle for the rest (manufacturer,
+   model, carrier, IMEI, sharing info - see devices/_table.html for why
+   those stay behind a click rather than in the always-visible row). */
+.device-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.device-thumb {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  background: var(--surface-alt);
+}
+
+.device-details {
+  margin-top: 0.3rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.device-details summary {
+  cursor: pointer;
+  color: var(--primary);
+}
+
+.device-details ul {
+  margin: 0.3rem 0 0;
+  padding-left: 1.1rem;
+}
+
 /* Devices page "Actions" column - Locate/Play sound/Stop sound, icon-only
    so three buttons fit one cell without wrapping (see devices/_table.html). */
 .actions-cell {
