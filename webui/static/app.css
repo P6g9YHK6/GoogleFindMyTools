@@ -611,6 +611,12 @@ details ul {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.85rem;
   font-weight: 400;
+  /* Textareas get "normal" from the browser's UA stylesheet, not this
+     div's inherited 1.55 (see body, above) - same class of mismatch
+     font-weight and font-family already needed fixing for, just missed
+     the first two times around. Pinned to match .url-input below exactly;
+     the value itself doesn't matter, only that both agree on it. */
+  line-height: 1.4;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   color: transparent;
@@ -637,6 +643,7 @@ details ul {
   background: transparent;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.85rem;
+  line-height: 1.4;
 }
 
 .endpoints-container {
