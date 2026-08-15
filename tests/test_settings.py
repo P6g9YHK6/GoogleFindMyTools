@@ -548,7 +548,7 @@ def test_edit_as_form_button_reflects_unsaved_yaml_edits_without_persisting(clie
     resp = client.post(f"/settings/devices/{FAKE_CANONIC_ID}/form/preview", data={"yaml_text": yaml_text})
     assert resp.status_code == 200
     assert 'value="Edited From YAML"' in resp.text  # the alias, picked up from the YAML edit
-    assert ">http://not-yet-saved.example/</textarea>" in resp.text  # the not-yet-saved endpoint edit
+    assert ">http://not-yet-saved.example/</div>" in resp.text  # the not-yet-saved endpoint edit
     assert "Edit as YAML" in resp.text
 
     assert config_store.get_device_config(FAKE_CANONIC_ID) == before  # neither edit persisted yet
@@ -588,7 +588,7 @@ def test_save_device_yaml_persists_and_reflects_in_the_form(client):
     )
     resp = client.post(f"/settings/devices/{FAKE_CANONIC_ID}/yaml", data={"yaml_text": yaml_text})
     assert resp.status_code == 200
-    assert ">http://yaml.example</textarea>" in resp.text  # switched back to the form view
+    assert ">http://yaml.example</div>" in resp.text  # switched back to the form view
     assert 'value="Renamed From YAML"' in resp.text
     assert "Edit as YAML" in resp.text
     assert "save-toast" in resp.text
@@ -732,7 +732,7 @@ def test_invalid_cron_is_rejected_without_persisting(client):
     )
     assert bad.status_code == 200
     assert "not a valid cron expression" in bad.text
-    assert ">http://x/</textarea>" in bad.text  # typed value preserved in the error re-render
+    assert ">http://x/</div>" in bad.text  # typed value preserved in the error re-render
 
     from webui.forwarders import config_store
 
