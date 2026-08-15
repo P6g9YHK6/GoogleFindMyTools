@@ -97,7 +97,7 @@ def _stale_duplicate(endpoint_cfg: dict, location: dict, now: float | None = Non
 
 def _dispatch_forward(
     endpoint_cfg: dict, location: dict, device_name: str = "", device_alias: str | None = None,
-    tracker_id: str = "",
+    tracker_id: str = "", device_meta: dict | None = None,
 ) -> str:
     """Sends this endpoint's request, with no distance-skip check - used both
     by the normal scheduled path (after it passes _too_close_to_bother) and
@@ -106,7 +106,7 @@ def _dispatch_forward(
     webui/forwarders/custom.py); Traccar/PhoneTrack are presets that pre-fill
     it, not separate code paths - see webui/forwarders/presets.py."""
     try:
-        ok = forward_to_custom(endpoint_cfg, location, device_name, device_alias, tracker_id)
+        ok = forward_to_custom(endpoint_cfg, location, device_name, device_alias, tracker_id, device_meta)
         return "ok" if ok else "skipped"
     except Exception as e:
         logger.warning("Forwarding failed: %s", e)
@@ -115,7 +115,8 @@ def _dispatch_forward(
 
 def _forward_one(
     endpoint_cfg: dict, location: dict, device_name: str = "", device_alias: str | None = None,
-    tracker_id: str = "", already_seen: bool = False, is_most_recent: bool = True,
+    tracker_id: str = "", device_meta: dict | None = None,
+    already_seen: bool = False, is_most_recent: bool = True,
 ) -> str:
     """already_seen is True when this exact reading (see
     device_location_store._location_key) was already present in an earlier
@@ -136,7 +137,7 @@ def _forward_one(
     if _stale_duplicate(endpoint_cfg, location):
         gap = endpoint_cfg.get("min_update_gap_m") or DEFAULT_MIN_UPDATE_GAP_M
         return f"skipped: not updated in the last {gap:g}m"
-    return _dispatch_forward(endpoint_cfg, location, device_name, device_alias, tracker_id)
+    return _dispatch_forward(endpoint_cfg, location, device_name, device_alias, tracker_id, device_meta)
 
 
 def _serialize_location(location: dict) -> str:

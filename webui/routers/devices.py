@@ -15,50 +15,69 @@ from webui.templating import templates
 
 router = APIRouter()
 
-# Icon + human label per ProtoDecoders.DeviceUpdate_pb2.SpotDeviceType name
-# (Spot/BLE tags only - phones don't carry this, see _device_type_label
+# (emoji, plain label) per ProtoDecoders.DeviceUpdate_pb2.SpotDeviceType name
+# (Spot/BLE tags only - phones don't carry this, see device_type_plain_label
 # below). Kept here rather than in the decoder, which stays presentation-
-# agnostic and just hands back the raw enum name.
+# agnostic and just hands back the raw enum name. The plain label (no
+# emoji) is also what {{type}} resolves to for forwarding templates (see
+# webui/forwarders/custom.py) - an emoji has no business in a URL/header
+# sent to a third-party service, so it's split out rather than stripped
+# back out of the UI string at forward time.
 _DEVICE_TYPE_LABELS = {
-    "DEVICE_TYPE_BEACON": "📡 Beacon",
-    "DEVICE_TYPE_HEADPHONES": "🎧 Headphones",
-    "DEVICE_TYPE_KEYS": "🔑 Keys",
-    "DEVICE_TYPE_WATCH": "⌚ Watch",
-    "DEVICE_TYPE_WALLET": "👛 Wallet",
-    "DEVICE_TYPE_BAG": "🎒 Bag",
-    "DEVICE_TYPE_LAPTOP": "💻 Laptop",
-    "DEVICE_TYPE_CAR": "🚗 Car",
-    "DEVICE_TYPE_REMOTE_CONTROL": "🎮 Remote control",
-    "DEVICE_TYPE_BADGE": "🪪 Badge",
-    "DEVICE_TYPE_BIKE": "🚲 Bike",
-    "DEVICE_TYPE_CAMERA": "📷 Camera",
-    "DEVICE_TYPE_CAT": "🐱 Cat",
-    "DEVICE_TYPE_CHARGER": "🔌 Charger",
-    "DEVICE_TYPE_CLOTHING": "👕 Clothing",
-    "DEVICE_TYPE_DOG": "🐶 Dog",
-    "DEVICE_TYPE_NOTEBOOK": "📓 Notebook",
-    "DEVICE_TYPE_PASSPORT": "🛂 Passport",
-    "DEVICE_TYPE_PHONE": "📱 Phone",
-    "DEVICE_TYPE_SPEAKER": "🔊 Speaker",
-    "DEVICE_TYPE_TABLET": "📱 Tablet",
-    "DEVICE_TYPE_TOY": "🧸 Toy",
-    "DEVICE_TYPE_UMBRELLA": "☂️ Umbrella",
-    "DEVICE_TYPE_STYLUS": "🖊️ Stylus",
-    "DEVICE_TYPE_EARBUDS": "🎧 Earbuds",
+    "DEVICE_TYPE_BEACON": ("📡", "Beacon"),
+    "DEVICE_TYPE_HEADPHONES": ("🎧", "Headphones"),
+    "DEVICE_TYPE_KEYS": ("🔑", "Keys"),
+    "DEVICE_TYPE_WATCH": ("⌚", "Watch"),
+    "DEVICE_TYPE_WALLET": ("👛", "Wallet"),
+    "DEVICE_TYPE_BAG": ("🎒", "Bag"),
+    "DEVICE_TYPE_LAPTOP": ("💻", "Laptop"),
+    "DEVICE_TYPE_CAR": ("🚗", "Car"),
+    "DEVICE_TYPE_REMOTE_CONTROL": ("🎮", "Remote control"),
+    "DEVICE_TYPE_BADGE": ("🪪", "Badge"),
+    "DEVICE_TYPE_BIKE": ("🚲", "Bike"),
+    "DEVICE_TYPE_CAMERA": ("📷", "Camera"),
+    "DEVICE_TYPE_CAT": ("🐱", "Cat"),
+    "DEVICE_TYPE_CHARGER": ("🔌", "Charger"),
+    "DEVICE_TYPE_CLOTHING": ("👕", "Clothing"),
+    "DEVICE_TYPE_DOG": ("🐶", "Dog"),
+    "DEVICE_TYPE_NOTEBOOK": ("📓", "Notebook"),
+    "DEVICE_TYPE_PASSPORT": ("🛂", "Passport"),
+    "DEVICE_TYPE_PHONE": ("📱", "Phone"),
+    "DEVICE_TYPE_SPEAKER": ("🔊", "Speaker"),
+    "DEVICE_TYPE_TABLET": ("📱", "Tablet"),
+    "DEVICE_TYPE_TOY": ("🧸", "Toy"),
+    "DEVICE_TYPE_UMBRELLA": ("☂️", "Umbrella"),
+    "DEVICE_TYPE_STYLUS": ("🖊️", "Stylus"),
+    "DEVICE_TYPE_EARBUDS": ("🎧", "Earbuds"),
 }
 
 
-def _device_type_label(device_type: str | None, is_phone: bool) -> str | None:
+def device_type_plain_label(device_type: str | None, is_phone: bool) -> str | None:
+    """Just "Beacon"/"Phone"/etc, no emoji - what {{type}} resolves to for
+    forwarding templates (see webui/forwarders/custom.py) and what
+    _device_type_label below decorates for the UI."""
     if is_phone:
-        return "📱 Phone"
+        return "Phone"
     if not device_type:
         return None
     if device_type in _DEVICE_TYPE_LABELS:
-        return _DEVICE_TYPE_LABELS[device_type]
+        return _DEVICE_TYPE_LABELS[device_type][1]
     # Unmapped (DEVICE_TYPE_UNKNOWN, or a type added to Google's schema
     # after this list was last updated) - a readable fallback beats a
-    # crash or a blank cell.
-    return "🏷️ " + device_type.removeprefix("DEVICE_TYPE_").replace("_", " ").title()
+    # crash or a blank cell/value.
+    return device_type.removeprefix("DEVICE_TYPE_").replace("_", " ").title()
+
+
+def _device_type_label(device_type: str | None, is_phone: bool) -> str | None:
+    """UI-only decoration of device_type_plain_label above, with an emoji
+    up front - see devices/_table.html's "Device" column."""
+    plain = device_type_plain_label(device_type, is_phone)
+    if plain is None:
+        return None
+    if is_phone:
+        return f"📱 {plain}"
+    emoji = _DEVICE_TYPE_LABELS.get(device_type, ("🏷️",))[0]
+    return f"{emoji} {plain}"
 
 
 def _last_seen_from_persisted_locations(last: dict | None) -> int | None:

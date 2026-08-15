@@ -115,6 +115,64 @@ def test_device_alias_overrides_confusing_google_name(client):
     assert "Garage Tracker" in page.text
 
 
+def test_settings_page_load_syncs_device_metadata_into_forwarding_yaml(client, monkeypatch):
+    """webui/scheduler.py's poll loop never talks to Google's device-list
+    API itself - loading the settings page is what persists manufacturer/
+    model/etc into forwarding.yaml so {{manufacturer}}/{{model}}/{{type}}/
+    etc (see webui/forwarders/custom.py) have anywhere to read real values
+    from at forward time, same as google_name already does for
+    {{device_name}}."""
+    from webui.forwarders import config_store
+    from webui.routers import settings
+
+    config_store.set_device_config(FAKE_CANONIC_ID, {"display_name": "My Tracker", "endpoints": []})
+
+    monkeypatch.setattr(settings, "get_device_details", lambda device_list: [{
+        "name": FAKE_DEVICE_NAME, "canonic_id": FAKE_CANONIC_ID, "last_seen": None,
+        "is_phone": False, "image_url": "https://x/p.png", "device_type": "DEVICE_TYPE_KEYS",
+        "manufacturer": "Chipolo", "model": "ONE Point", "carrier": None, "codename": None,
+        "imei": None, "registered_at": 1700000000,
+        "access": [
+            {"email": "me@example.com", "has_access": True, "is_owner": True, "this_account": True},
+            {"email": "family@example.com", "has_access": True, "is_owner": False, "this_account": False},
+        ],
+    }])
+
+    resp = client.get("/settings")
+    assert resp.status_code == 200
+
+    device_meta = config_store.get_device_config(FAKE_CANONIC_ID)["device_meta"]
+    assert device_meta["manufacturer"] == "Chipolo"
+    assert device_meta["model"] == "ONE Point"
+    assert device_meta["type"] == "Keys"
+    assert device_meta["image_url"] == "https://x/p.png"
+    assert device_meta["registered_at"] == 1700000000
+    assert device_meta["shared_with"] == "family@example.com"  # excludes your own account
+
+
+def test_settings_page_load_does_not_create_a_config_entry_for_an_unsaved_device(client, monkeypatch):
+    """The device_meta sync must follow the same rule google_name's own
+    sync already does - a device that's never been saved must not get a
+    config entry created just from viewing the settings page."""
+    from webui.forwarders import config_store
+    from webui.routers import settings
+
+    # DATA_DIR is shared for the whole test session (see conftest.py) - the
+    # test above this one saves FAKE_CANONIC_ID, so it has to be reset here
+    # to actually exercise the never-saved-at-all path.
+    config_store.save({"devices": {}})
+
+    monkeypatch.setattr(settings, "get_device_details", lambda device_list: [{
+        "name": FAKE_DEVICE_NAME, "canonic_id": FAKE_CANONIC_ID, "last_seen": None,
+        "is_phone": False, "image_url": None, "device_type": None, "manufacturer": "Chipolo", "model": None,
+        "carrier": None, "codename": None, "imei": None, "registered_at": None, "access": [],
+    }])
+
+    resp = client.get("/settings")
+    assert resp.status_code == 200
+    assert config_store.get_device_config(FAKE_CANONIC_ID) is None
+
+
 def test_clearing_the_device_alias_actually_saves_it_as_blank(client):
     """A blank "display_name" post used to be rejected outright: FastAPI
     treats an empty string posted to a required Form(...) field as if the
@@ -453,7 +511,7 @@ def test_send_now_forwards_immediately_bypassing_schedule_and_skip(client, monke
         return [{"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}]
 
     monkeypatch.setattr(scheduler, "locate_device", fake_locate_device)
-    monkeypatch.setattr(scheduler, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="": "ok")
+    monkeypatch.setattr(scheduler, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="", device_meta=None: "ok")
 
     resp = client.post(f"/settings/devices/{FAKE_CANONIC_ID}/endpoints/0/send-now")
     assert resp.status_code == 200

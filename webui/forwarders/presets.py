@@ -164,6 +164,15 @@ BUILTIN_VARIABLES_FROM_FIX: list[tuple[str, str]] = [
     ("accuracy_m", "Google's radius of uncertainty for the fix, in meters"),
     ("google_timestamp", "Unix timestamp (seconds) of when Google recorded this fix - not when it was sent"),
     ("device_name", "This tracker's real name from your Google account (fixed, not editable here)"),
+    ("manufacturer", "This device's manufacturer, from Google's own response (e.g. \"Chipolo\")"),
+    ("model", "This device's model, from Google's own response (e.g. \"ONE Point\")"),
+    ("type", "This device's category from Google's own response - Phone, Beacon, Keys, Wallet, etc."),
+    ("image_url", "URL of Google's own product photo for this device"),
+    ("label_carrier", "Phone-only: mobile carrier name, if Google reported one"),
+    ("label_codename", "Phone-only: the manufacturer's internal codename for the device"),
+    ("label_imei", "Phone-only: the device's IMEI - a real hardware identifier, handle with care"),
+    ("label_registered_at", "Unix timestamp (seconds) of when this device was registered to the account"),
+    ("label_shared_with", "Comma-separated emails of anyone else with access to this device (blank if just you)"),
 ]
 
 BUILTIN_VARIABLES_FROM_APP: list[tuple[str, str]] = [

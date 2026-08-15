@@ -255,6 +255,69 @@ def test_forward_to_custom_substitutes_tracker_id(monkeypatch):
     assert captured["url"] == "https://svc.example/canonic-abc-123/update"
 
 
+def test_build_context_flattens_named_device_meta_fields():
+    from webui.forwarders.custom import build_context
+
+    location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
+    device_meta = {"manufacturer": "Chipolo", "model": "ONE Point", "type": "Beacon", "image_url": "https://x/p.png"}
+    ctx = build_context({}, location, "My Phone", device_meta=device_meta)
+    assert ctx["manufacturer"] == "Chipolo"
+    assert ctx["model"] == "ONE Point"
+    assert ctx["type"] == "Beacon"
+    assert ctx["image_url"] == "https://x/p.png"
+
+
+def test_build_context_prefixes_unnamed_device_meta_fields_with_label():
+    """Anything in device_meta beyond the four named fields becomes
+    {{label_<key>}} generically - so a field added to get_device_details
+    later needs no matching change in build_context to become available."""
+    from webui.forwarders.custom import build_context
+
+    location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
+    device_meta = {"carrier": "Vodafone", "imei": "123456", "a_future_field": "x"}
+    ctx = build_context({}, location, "My Phone", device_meta=device_meta)
+    assert ctx["label_carrier"] == "Vodafone"
+    assert ctx["label_imei"] == "123456"
+    assert ctx["label_a_future_field"] == "x"
+
+
+def test_build_context_device_meta_fields_default_to_blank_when_not_passed():
+    from webui.forwarders.custom import build_context
+
+    location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
+    ctx = build_context({}, location, "My Phone")
+    assert ctx["manufacturer"] == ""
+    assert ctx["model"] == ""
+    assert ctx["type"] == ""
+    assert ctx["image_url"] == ""
+    assert "label_carrier" not in ctx  # nothing to derive a label_* key from
+
+
+def test_forward_to_custom_substitutes_device_meta_fields(monkeypatch):
+    from webui.forwarders import custom
+
+    captured = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            pass
+
+    def fake_request(method, url, **kwargs):
+        captured["url"] = url
+        return FakeResponse()
+
+    monkeypatch.setattr(custom.httpx, "request", fake_request)
+
+    endpoint_cfg = {
+        "method": "GET", "url": "https://svc.example/?mfr={{manufacturer}}&model={{model}}&imei={{label_imei}}",
+        "headers": {}, "body_type": "none", "body": "",
+    }
+    location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
+    device_meta = {"manufacturer": "Chipolo", "model": "ONE Point", "imei": "354935091234567"}
+    custom.forward_to_custom(endpoint_cfg, location, "My Phone", device_meta=device_meta)
+    assert captured["url"] == "https://svc.example/?mfr=Chipolo&model=ONE Point&imei=354935091234567"
+
+
 def test_forward_to_custom_device_name_uses_device_display_name(monkeypatch):
     from webui.forwarders import custom
 

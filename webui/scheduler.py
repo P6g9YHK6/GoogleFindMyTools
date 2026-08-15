@@ -99,6 +99,11 @@ async def _poll_device(canonic_id: str):
         # respectively - see webui/forwarders/custom.py's build_context.
         name = device_cfg.get("display_name", canonic_id)
         google_name = device_cfg.get("google_name") or name
+        # Manufacturer/model/type/etc - see webui/routers/settings.py's
+        # _rows(), which is what actually persists this (same reasoning as
+        # google_name just above: this poll loop never talks to Google's
+        # device-list API itself).
+        device_meta = device_cfg.get("device_meta")
 
         if not is_logged_in():
             # Don't trigger the Google login flow from the background poller -
@@ -153,7 +158,8 @@ async def _poll_device(canonic_id: str):
                 url = endpoints[i].get("url", "")
                 merged = {**endpoints[i], **latest_values_store.get_endpoint_state(canonic_id, url)}
                 status = await asyncio.to_thread(
-                    _forward_one, merged, location, google_name, name, canonic_id, already_seen, is_most_recent,
+                    _forward_one, merged, location, google_name, name, canonic_id, device_meta,
+                    already_seen, is_most_recent,
                 )
                 results[i] = {"status": status, "location": location, "url": url, "merged": merged}
                 log_store.append(
@@ -211,6 +217,7 @@ async def forward_now(canonic_id: str, index: int) -> dict | None:
     # alias, google_name the account's real (fixed) name.
     name = device_cfg.get("display_name", canonic_id)
     google_name = device_cfg.get("google_name") or name
+    device_meta = device_cfg.get("device_meta")
     endpoint_cfg = endpoints[index]
     url = endpoint_cfg.get("url", "")
     merged = {**endpoint_cfg, **latest_values_store.get_endpoint_state(canonic_id, url)}
@@ -225,7 +232,7 @@ async def forward_now(canonic_id: str, index: int) -> dict | None:
     for location in locations:
         endpoint_location = location
         status = await asyncio.to_thread(
-            _dispatch_forward, endpoint_cfg, endpoint_location, google_name, name, canonic_id,
+            _dispatch_forward, endpoint_cfg, endpoint_location, google_name, name, canonic_id, device_meta,
         )
         log_store.append(
             canonic_id=canonic_id,

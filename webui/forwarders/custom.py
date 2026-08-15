@@ -43,9 +43,17 @@ def _render(template: str, ctx: dict) -> str:
     return _TOKEN_RE.sub(repl, template)
 
 
+# The device_meta fields with a dedicated, hand-picked template name - see
+# the device_meta paragraph in build_context's docstring below. Anything
+# else present in device_meta gets a generic "label_<key>" name instead,
+# so a field added to get_device_details later needs no change here to
+# become available as a variable.
+_NAMED_DEVICE_META_KEYS = ("manufacturer", "model", "type", "image_url")
+
+
 def build_context(
     endpoint_cfg: dict, location: dict, device_name: str, device_alias: str | None = None,
-    tracker_id: str = "",
+    tracker_id: str = "", device_meta: dict | None = None,
 ) -> dict:
     """Every {{variable}} available to this endpoint's templates - the
     location fix, this endpoint's own alias, and (for endpoints saved before
@@ -64,7 +72,16 @@ def build_context(
     tracker_id is this app's own internal id for the tracker (its
     canonic_id) - see BUILTIN_VARIABLES_FROM_APP in presets.py, which has
     offered it as a chip since that variable existed but, until now, this
-    function never actually set it."""
+    function never actually set it.
+
+    device_meta is the rest of what ProtoDecoders.decoder.get_device_details
+    knows about the device (manufacturer, model, its category, a product
+    photo URL, and phone-only hardware/sharing info), synced into
+    forwarding.yaml by webui/routers/settings.py's _rows() the same way
+    google_name already is - see that function's own comment for why this
+    can't just be fetched fresh here instead. _NAMED_DEVICE_META_KEYS above
+    get their own {{name}}; everything else in the dict becomes
+    {{label_<key>}}, generically - see the loop below."""
     ctx = {
         "latitude": location.get("latitude"),
         "longitude": location.get("longitude"),
@@ -88,6 +105,12 @@ def build_context(
         "endpoint_alias": endpoint_cfg.get("alias") or "",
         "tracker_id": tracker_id or "",
     }
+    meta = device_meta or {}
+    for key in _NAMED_DEVICE_META_KEYS:
+        ctx[key] = meta.get(key) or ""
+    for key, value in meta.items():
+        if key not in _NAMED_DEVICE_META_KEYS:
+            ctx[f"label_{key}"] = value if value is not None else ""
     # No UI writes "variables" anymore (see webui/forwarders/presets.py's
     # module docstring) - this merge only still matters for an endpoint
     # saved before that change, so its {{device_id}}-style tokens keep
@@ -98,7 +121,7 @@ def build_context(
 
 def forward_to_custom(
     endpoint_cfg: dict, location: dict, device_name: str = "", device_alias: str | None = None,
-    tracker_id: str = "",
+    tracker_id: str = "", device_meta: dict | None = None,
 ) -> bool:
     if location.get("is_semantic") or location.get("latitude") is None:
         return False
@@ -107,7 +130,7 @@ def forward_to_custom(
     if not url_template:
         return False
 
-    ctx = build_context(endpoint_cfg, location, device_name, device_alias, tracker_id)
+    ctx = build_context(endpoint_cfg, location, device_name, device_alias, tracker_id, device_meta)
     # Query params live in the URL itself now (a literal "?key=value"), not
     # a separate table - _render() already substitutes {{var}} tokens
     # anywhere in this string, querystring included, so passing the
@@ -148,12 +171,12 @@ def forward_to_custom(
 
 def preview_request(
     endpoint_cfg: dict, location: dict, device_name: str = "", device_alias: str | None = None,
-    tracker_id: str = "",
+    tracker_id: str = "", device_meta: dict | None = None,
 ) -> dict:
     """Non-sending dry-run of the above, for the "Send now" confirmation /
     debugging - not currently wired into a route, kept alongside
     forward_to_custom so the two can't drift apart on how templating works."""
-    ctx = build_context(endpoint_cfg, location, device_name, device_alias, tracker_id)
+    ctx = build_context(endpoint_cfg, location, device_name, device_alias, tracker_id, device_meta)
     url = _render((endpoint_cfg.get("url") or "").strip(), ctx)
     headers = {k: _render(v, ctx) for k, v in (endpoint_cfg.get("headers") or {}).items()}
     body_type = endpoint_cfg.get("body_type") or "none"

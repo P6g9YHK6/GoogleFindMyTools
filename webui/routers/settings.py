@@ -19,6 +19,7 @@ from webui.forwarders import (
     policy,
 )
 from webui.forwarders import blank_endpoint as new_blank_endpoint
+from webui.routers.devices import device_type_plain_label
 from webui.templating import templates
 
 router = APIRouter()
@@ -39,6 +40,30 @@ _TEMPLATE_CONTEXT = {
     "builtin_variables_from_app": BUILTIN_VARIABLES_FROM_APP,
     "cron_presets": scheduler.CRON_PRESETS, "cron_preset_values": {value for _, value in scheduler.CRON_PRESETS},
 }
+
+
+def _device_meta_from_detail(detail: dict) -> dict:
+    """The subset of get_device_details' per-device dict worth persisting
+    into forwarding.yaml so the poll loop can read it at forward time (see
+    webui/forwarders/custom.py's device_meta handling, and the google_name
+    sync just below for why persisting it here at all is necessary -
+    webui/scheduler.py never talks to Google's device-list API itself).
+    shared_with mirrors webui/routers/devices.py's own computation, but
+    joined into a comma-separated string rather than a list - this ends up
+    substituted directly into request text (a URL, header, or body), which
+    a Python list never could be."""
+    shared_with = ", ".join(a["email"] for a in detail["access"] if not a["this_account"])
+    return {
+        "manufacturer": detail["manufacturer"] or "",
+        "model": detail["model"] or "",
+        "type": device_type_plain_label(detail["device_type"], detail["is_phone"]) or "",
+        "image_url": detail["image_url"] or "",
+        "carrier": detail["carrier"] or "",
+        "codename": detail["codename"] or "",
+        "imei": detail["imei"] or "",
+        "registered_at": detail["registered_at"] or "",
+        "shared_with": shared_with,
+    }
 
 
 async def _rows(overrides: dict[str, dict] | None = None, saved_id: str | None = None) -> list[dict]:
@@ -70,18 +95,23 @@ async def _rows(overrides: dict[str, dict] | None = None, saved_id: str | None =
             # falls back to google_name on its own for display purposes
             # (the heading etc.), so nothing here loses that.
             device_cfg = {"display_name": "", "endpoints": []}
-        elif device_cfg.get("google_name") != google_name:
-            # Keep the account's real name in sync on local disk too (only
-            # for devices actually saved already - this must never be what
-            # creates a config entry for a device the user hasn't added).
-            # webui/scheduler.py's poll loop never talks to Google's API
-            # itself, so this is the only place {{device_name}} (see
-            # webui/forwarders/custom.py) has anywhere to read the real name
-            # from at forward time - {{device_alias}} instead reads
-            # display_name, the separate local nickname set below.
-            device_cfg = dict(device_cfg, google_name=google_name)
-            config_store.set_device_config(canonic_id, device_cfg)
-            devices[canonic_id] = device_cfg
+        else:
+            device_meta = _device_meta_from_detail(detail)
+            if device_cfg.get("google_name") != google_name or device_cfg.get("device_meta") != device_meta:
+                # Keep the account's real name (and the rest of its device
+                # metadata) in sync on local disk too (only for devices
+                # actually saved already - this must never be what creates a
+                # config entry for a device the user hasn't added).
+                # webui/scheduler.py's poll loop never talks to Google's API
+                # itself, so this is the only place {{device_name}}/
+                # {{manufacturer}}/{{model}}/etc (see
+                # webui/forwarders/custom.py) have anywhere to read their
+                # real values from at forward time - {{device_alias}}
+                # instead reads display_name, the separate local nickname
+                # set below.
+                device_cfg = dict(device_cfg, google_name=google_name, device_meta=device_meta)
+                config_store.set_device_config(canonic_id, device_cfg)
+                devices[canonic_id] = device_cfg
         save_error = None
         if overrides and canonic_id in overrides:
             device_cfg = overrides[canonic_id]["config"]

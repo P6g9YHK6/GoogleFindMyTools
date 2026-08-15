@@ -18,6 +18,17 @@
     // "right now" by definition, so the preview computes it fresh below
     // instead of hardcoding a value that would just go stale.
     google_timestamp: "1723137600", tracker_id: "a1b2c3d4e5",
+    // manufacturer/model/type/image_url and the label_* variables (see
+    // BUILTIN_VARIABLES_FROM_FIX in presets.py) all come from Google's own
+    // device-list response, synced into forwarding.yaml at settings-page
+    // load time (webui/routers/settings.py's _rows) rather than fetched
+    // live here - same reasoning as tracker_id just above, a plausible
+    // fixed sample stands in for the real per-device value this preview
+    // has no way to know client-side.
+    manufacturer: "Chipolo", model: "ONE Point", type: "Beacon",
+    image_url: "https://example.com/device-photo.png",
+    label_carrier: "Vodafone", label_codename: "gauguin", label_imei: "354935091234567",
+    label_registered_at: "1723000000", label_shared_with: "family@example.com",
   };
 
   let PRESETS = {};
