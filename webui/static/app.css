@@ -581,12 +581,19 @@ details ul {
 }
 
 /* URL field token highlighting - a same-size, same-font backdrop sitting
-   behind the real (transparent-background) textarea, showing through as a
-   tinted rounded box under each {{var}} token. Its own text is fully
-   transparent (only the tint shows) so it never has to render pixel-
-   perfect glyphs, just line up the same wrapping as the real textarea on
-   top of it - which is why every box-model property below (border,
-   padding, font) is copied from .url-input/textarea rather than derived.
+   behind the real textarea, rendering the actual visible characters (the
+   real textarea's own text is transparent - see .url-highlight .url-input
+   below - so this backdrop is what you're actually reading). Plain text
+   renders in the normal text color; a {{var}} token renders via the same
+   .tok-resolved/.tok-unresolved classes the request preview below already
+   colors (green when it resolves to something, amber pill when it
+   doesn't) - no separate rule needed here, the base ones already apply.
+   That's a straight text color, not a background tint behind separately-
+   rendered real text, which needed the two layers' box models to line up
+   to the pixel and still didn't reliably. Every box-model property below
+   (border, padding, font) is still copied from .url-input/textarea rather
+   than derived, so the two layers wrap identically and the (invisible)
+   real characters sit exactly on top of their colored stand-ins.
 
    Both this and .url-highlight .url-input below are pinned to the same
    monospace stack the YAML editor already uses (see .yaml-editor), not the
@@ -619,28 +626,33 @@ details ul {
   line-height: 1.4;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  color: transparent;
+  color: var(--text);
   background: var(--surface);
   pointer-events: none;
 }
 
-.url-highlight-backdrop .tok-resolved,
+/* The base .tok-unresolved (see the request preview's own styling further
+   down) adds padding/background/border-radius around the token - fine
+   there, but it'd add real width here that the real (invisible) textarea's
+   plain text underneath doesn't have, sliding every character after the
+   token out of alignment with its twin. Color only in this backdrop; the
+   pill is a preview-only affordance. */
 .url-highlight-backdrop .tok-unresolved {
-  border-radius: 3px;
-  color: transparent;
-}
-
-.url-highlight-backdrop .tok-resolved {
-  background: color-mix(in srgb, var(--success) 30%, transparent);
-}
-
-.url-highlight-backdrop .tok-unresolved {
-  background: color-mix(in srgb, var(--warning) 30%, transparent);
+  background: none;
+  border-radius: 0;
+  padding: 0;
 }
 
 .url-highlight .url-input {
   position: relative;
   background: transparent;
+  /* The backdrop behind this renders the actual visible characters now
+     (see .url-highlight-backdrop above) - this textarea still needs to be
+     the real, focusable, selectable input underneath, just an invisible
+     one. caret-color is set independently of (transparent) text color, so
+     the blinking cursor still shows. */
+  color: transparent;
+  caret-color: var(--text);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.85rem;
   line-height: 1.4;
