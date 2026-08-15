@@ -255,6 +255,28 @@ def test_endpoint_method_headers_and_body_are_saved(client):
     assert saved["body"] == '{"lat": {{latitude}}}'
 
 
+def test_endpoint_headers_body_type_and_body_are_omitted_when_left_blank(client):
+    """None of these three is required for an endpoint to make sense (no
+    custom headers, no request body is a normal, common config) - the saved
+    YAML shouldn't carry a "headers: {}"/"body_type: none"/"body: ''" for
+    every endpoint that never used them, only the ones that actually did."""
+    resp = _post_form(
+        client,
+        f"/settings/devices/{FAKE_CANONIC_ID}",
+        display_name="My Tracker",
+        ep_order=["0"],
+        **{"ep-0-url": "http://x/", "ep-0-cron": "*/5 * * * *"},
+    )
+    assert resp.status_code == 200
+
+    from webui.forwarders import config_store
+
+    saved = config_store.get_device_config(FAKE_CANONIC_ID)["endpoints"][0]
+    assert "headers" not in saved
+    assert "body_type" not in saved
+    assert "body" not in saved
+
+
 def test_skip_if_close_toggle_and_threshold_are_saved(client):
     resp = _post_form(
         client,

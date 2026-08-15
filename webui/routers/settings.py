@@ -420,10 +420,28 @@ def _parse_endpoints_form(form, existing_endpoints: list[dict]) -> tuple[list[di
         entry = {
             "method": (field("method", "GET").strip().upper() or "GET"),
             "url": url,
-            "headers": _parse_kv_rows(field_list("header_key"), field_list("header_value")),
-            "body_type": field("body_type", "none").strip() or "none",
-            "body": field("body"),
         }
+
+        # Each of these is genuinely optional (an endpoint with no custom
+        # headers, no request body, or no alias is a normal, common config)
+        # - only write the key when there's actually something in it, same
+        # as the skip_if_close/skip_if_stale/alias fields below already do.
+        # Every reader already treats "key missing" the same as "key present
+        # but empty" (config_store.py's migrations, custom.py's headers/
+        # body_type/body lookups, and _endpoint_fields.html's own field
+        # defaults all already fall back with `or {}`/`or "none"`/`or ''`),
+        # so this is safe to do without touching any of them.
+        headers = _parse_kv_rows(field_list("header_key"), field_list("header_value"))
+        if headers:
+            entry["headers"] = headers
+
+        body_type = field("body_type", "none").strip() or "none"
+        if body_type != "none":
+            entry["body_type"] = body_type
+
+        body = field("body")
+        if body:
+            entry["body"] = body
 
         alias = field("alias").strip()
         if alias:
