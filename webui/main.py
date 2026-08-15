@@ -1,12 +1,15 @@
 import logging
+import os
 import pathlib
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from webui import browser_provisioning, log_capture, notify, scheduler, settings_store, ws
+from webui import auth_state, browser_provisioning, config, log_capture, notify, scheduler, settings_store, ws
 from webui.auth_middleware import BasicAuthMiddleware
+from webui.forwarders import config_store
 from webui.routers import auth, devices, locate, logs, metrics, register, settings, sound, vnc_proxy
 
 # Every module across the app (webui.*, Auth.*, NovaApi.*, ...) logs through
@@ -49,10 +52,28 @@ app.include_router(vnc_proxy.router)
 
 @app.get("/health")
 async def health():
-    """Liveness probe for Docker's HEALTHCHECK (see docker/web/healthcheck.py)
-    - just confirms the app is up and answering, no real work done. Exempt
-    from BasicAuthMiddleware (see webui/auth_middleware.py) since the
+    """Readiness probe for Docker's HEALTHCHECK (see docker/web/healthcheck.py)
+    - beyond just confirming the app is up and answering, checks a handful
+    of ways it can keep answering fine while silently broken underneath:
+    a device's polling task crashed (webui/scheduler.py), forwarding.yaml
+    or auth.yaml failed to load (webui/forwarders/config_store.py,
+    Auth/token_cache.py), or the data directory stopped being writable.
+    Every check here is in-memory/stat-only - no blocking I/O, no network
+    calls - so this stays safe to poll every 30s. Exempt from
+    BasicAuthMiddleware (see webui/auth_middleware.py) since the
     container's own healthcheck can't practically carry credentials."""
+    problems = []
+    if dead := scheduler.dead_tasks():
+        problems.append(f"{len(dead)} device polling task(s) crashed")
+    if not config_store.last_load_ok():
+        problems.append("forwarding.yaml failed to load")
+    if not auth_state.auth_store_ok():
+        problems.append("auth.yaml failed to load")
+    if not os.access(config.DATA_DIR, os.W_OK):
+        problems.append(f"{config.DATA_DIR} is not writable")
+
+    if problems:
+        return JSONResponse({"status": "unhealthy", "problems": problems}, status_code=503)
     return {"status": "ok"}
 
 

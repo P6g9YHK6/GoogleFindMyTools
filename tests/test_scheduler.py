@@ -386,3 +386,68 @@ async def test_poll_device_only_forwards_the_most_recent_reading_in_a_batch(monk
     statuses = [e["status"] for e in entries if e["canonic_id"] == canonic_id]
     assert statuses.count("ok") == 1
     assert any(s == "skipped: not the most recent reading in this batch" for s in statuses)
+
+
+async def test_dead_tasks_reports_a_task_that_crashed():
+    async def boom():
+        raise ValueError("boom")
+
+    task = asyncio.create_task(boom())
+    await asyncio.sleep(0)  # let it run to completion (the crash) before checking
+    scheduler._tasks["crashed-device"] = task
+    try:
+        assert scheduler.dead_tasks() == ["crashed-device"]
+    finally:
+        del scheduler._tasks["crashed-device"]
+
+
+async def test_dead_tasks_ignores_a_task_that_exited_normally():
+    """A device losing its endpoints (or every cron in it going invalid) is
+    _poll_device returning on purpose - not a crash, see webui/scheduler.py."""
+    async def finish():
+        return None
+
+    task = asyncio.create_task(finish())
+    await asyncio.sleep(0)
+    scheduler._tasks["finished-device"] = task
+    try:
+        assert scheduler.dead_tasks() == []
+    finally:
+        del scheduler._tasks["finished-device"]
+
+
+async def test_dead_tasks_ignores_a_cancelled_task():
+    """stop_all()/restart_device() cancelling a task on purpose isn't a crash."""
+    async def spin():
+        await asyncio.sleep(10)
+
+    task = asyncio.create_task(spin())
+    await asyncio.sleep(0)
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+    scheduler._tasks["cancelled-device"] = task
+    try:
+        assert scheduler.dead_tasks() == []
+    finally:
+        del scheduler._tasks["cancelled-device"]
+
+
+async def test_dead_tasks_ignores_a_still_running_task():
+    async def spin():
+        await asyncio.sleep(10)
+
+    task = asyncio.create_task(spin())
+    await asyncio.sleep(0)
+    scheduler._tasks["running-device"] = task
+    try:
+        assert scheduler.dead_tasks() == []
+    finally:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        del scheduler._tasks["running-device"]

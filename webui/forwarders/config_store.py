@@ -1,4 +1,5 @@
 import json
+import logging
 import threading
 
 import yaml
@@ -7,11 +8,27 @@ from webui import config
 from webui.forwarders import latest_values_store
 from webui.forwarders.presets import PRESETS
 
+logger = logging.getLogger("webui.forwarders.config_store")
+
 _lock = threading.Lock()
+
+# Whether the most recent load() actually read forwarding.yaml successfully -
+# a corrupt/unreadable file silently falls back to _empty() below, which
+# looks identical to a fresh install with zero devices configured from
+# outside this module. See last_load_ok()/webui/main.py's /health.
+_last_load_ok = True
 
 
 def _empty():
     return {"devices": {}}
+
+
+def last_load_ok() -> bool:
+    """Whether forwarding.yaml's most recent read actually succeeded, for
+    /health (see webui/main.py) - load() below silently falls back to "0
+    devices configured" on a corrupt/unreadable file, which is otherwise
+    indistinguishable from a legitimately empty one."""
+    return _last_load_ok
 
 
 def _seconds_to_cron(seconds) -> str:
@@ -175,18 +192,27 @@ def _migrate_from_legacy_json() -> dict | None:
 
 
 def load() -> dict:
+    global _last_load_ok
     with _lock:
         config.DATA_DIR.mkdir(parents=True, exist_ok=True)
         if not config.FORWARDING_CONFIG_PATH.exists():
+            _last_load_ok = True
             return _migrate_from_legacy_json() or _empty()
         try:
             with open(config.FORWARDING_CONFIG_PATH) as f:
                 data = yaml.safe_load(f)
-        except (yaml.YAMLError, OSError):
+        except (yaml.YAMLError, OSError) as e:
+            logger.error("Failed to read %s: %s", config.FORWARDING_CONFIG_PATH, e)
+            _last_load_ok = False
             return _empty()
-        if not isinstance(data, dict):
+        if data is None:
+            data = {}  # an empty file is a legitimate "no devices yet" state, not a failure
+        elif not isinstance(data, dict):
+            logger.error("%s did not parse to a mapping", config.FORWARDING_CONFIG_PATH)
+            _last_load_ok = False
             return _empty()
         data.setdefault("devices", {})
+        _last_load_ok = True
         return data
 
 

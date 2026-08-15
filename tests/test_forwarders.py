@@ -339,6 +339,52 @@ def test_config_store_round_trip(tmp_path, monkeypatch):
     assert "dev-1" in config_store.all_devices()
 
 
+def test_config_store_last_load_ok_false_for_corrupt_yaml(tmp_path, monkeypatch):
+    from webui import config
+    from webui.forwarders import config_store
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding.yaml")
+
+    assert config_store.load() == config_store._empty()
+    assert config_store.last_load_ok() is True  # no file yet - a fresh install, not a failure
+
+    config.FORWARDING_CONFIG_PATH.write_text("not: valid: yaml: [")
+    assert config_store.load() == config_store._empty()
+    assert config_store.last_load_ok() is False
+
+    config.FORWARDING_CONFIG_PATH.write_text("devices: {}\n")
+    config_store.load()
+    assert config_store.last_load_ok() is True  # flips back once the file's readable again
+
+
+def test_config_store_last_load_ok_false_for_a_non_mapping_document(tmp_path, monkeypatch):
+    from webui import config
+    from webui.forwarders import config_store
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding.yaml")
+    config.FORWARDING_CONFIG_PATH.write_text("- just\n- a\n- list\n")
+
+    assert config_store.load() == config_store._empty()
+    assert config_store.last_load_ok() is False
+
+
+def test_config_store_last_load_ok_true_for_a_genuinely_empty_file(tmp_path, monkeypatch):
+    """An empty forwarding.yaml (0 bytes) is a legitimate "no devices yet"
+    state, not a failure - only content that fails to parse as a mapping
+    counts as last_load_ok() going false."""
+    from webui import config
+    from webui.forwarders import config_store
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding.yaml")
+    config.FORWARDING_CONFIG_PATH.write_text("")
+
+    assert config_store.load() == {"devices": {}}
+    assert config_store.last_load_ok() is True
+
+
 def test_config_store_migrates_legacy_single_destination_shape(tmp_path, monkeypatch):
     from webui import config
     from webui.forwarders import config_store

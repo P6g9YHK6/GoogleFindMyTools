@@ -264,3 +264,16 @@ def stop_all():
     for task in _tasks.values():
         task.cancel()
     _tasks.clear()
+
+
+def dead_tasks() -> list[str]:
+    """canonic_ids whose polling task crashed - ended via an unhandled
+    exception rather than a normal return (a device with no endpoints, or
+    every endpoint's cron invalid, exits _poll_device on purpose and isn't
+    a failure) or a cancel from stop_all()/restart_device(). A crashed task
+    never restarts itself - only a fresh start_all() (a container restart)
+    respawns it. See webui/main.py's /health."""
+    return [
+        canonic_id for canonic_id, task in _tasks.items()
+        if task.done() and not task.cancelled() and task.exception() is not None
+    ]

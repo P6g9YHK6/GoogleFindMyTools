@@ -28,6 +28,19 @@ _ENC_PREFIX = "gfmtenc1:"
 
 _warned_unencrypted = False
 
+# Whether the most recent _load() actually read auth.yaml successfully - a
+# corrupt/unreadable file silently falls back to {} below, indistinguishable
+# from a legitimately empty/never-logged-in store from outside this module.
+# See last_load_ok()/webui/auth_state.py's auth_store_ok().
+_last_load_ok = True
+
+
+def last_load_ok() -> bool:
+    """Whether auth.yaml's most recent read actually succeeded, for the web
+    UI's /health (see webui/main.py) - _load() below silently treats a
+    corrupt file the same as an empty/never-logged-in one."""
+    return _last_load_ok
+
 
 def _encryption_key() -> bytes | None:
     """Every value in auth.yaml is encrypted with this key when set (any
@@ -124,18 +137,29 @@ def set_cached_value(name: str, value):
 
 
 def _load(strict: bool = False) -> dict:
+    global _last_load_ok
     secrets_file = _auth_store_path()
     if os.path.exists(secrets_file):
         with open(secrets_file) as file:
             try:
                 data = yaml.safe_load(file)
             except yaml.YAMLError:
+                _last_load_ok = False
                 if strict:
                     # A write is about to happen - refuse rather than silently
                     # start from {} and clobber whatever's actually in there.
                     raise Exception("Could not read secrets file. Aborting.") from None
+                logger.error("Could not read %s", secrets_file)
                 return {}
-        return data if isinstance(data, dict) else {}
+        if data is None:
+            data = {}  # an empty file is a legitimate "never logged in" state, not a failure
+        elif not isinstance(data, dict):
+            logger.error("%s did not parse to a mapping", secrets_file)
+            _last_load_ok = False
+            return {}
+        _last_load_ok = True
+        return data
+    _last_load_ok = True
     return _migrate_from_legacy_json() or {}
 
 

@@ -75,6 +75,31 @@ def test_set_cached_value_refuses_to_clobber_an_unparseable_file(secrets_dir):
         token_cache.set_cached_value("username", "alice")
 
 
+def test_last_load_ok_false_for_corrupt_yaml(secrets_dir):
+    assert token_cache.get_cached_value("username") is None
+    assert token_cache.last_load_ok() is True  # no file yet - a fresh install, not a failure
+
+    (secrets_dir / "auth.yaml").write_text("not: valid: yaml: [")
+    assert token_cache.get_cached_value("username") is None
+    assert token_cache.last_load_ok() is False
+
+    (secrets_dir / "auth.yaml").write_text("username: alice\n")  # fixed by hand, like an operator would
+    assert token_cache.get_cached_value("username") == "alice"
+    assert token_cache.last_load_ok() is True
+
+
+def test_last_load_ok_false_for_a_non_mapping_document(secrets_dir):
+    (secrets_dir / "auth.yaml").write_text("- just\n- a\n- list\n")
+    assert token_cache.get_cached_value("username") is None
+    assert token_cache.last_load_ok() is False
+
+
+def test_last_load_ok_true_for_a_genuinely_empty_file(secrets_dir):
+    (secrets_dir / "auth.yaml").write_text("")
+    assert token_cache.get_cached_value("username") is None
+    assert token_cache.last_load_ok() is True
+
+
 def test_values_are_plain_text_without_an_encryption_key(secrets_dir, monkeypatch):
     monkeypatch.delenv("SECRETS_ENCRYPTION_KEY", raising=False)
     token_cache.set_cached_value("username", "alice")
