@@ -115,6 +115,38 @@ def test_device_alias_overrides_confusing_google_name(client):
     assert "Garage Tracker" in page.text
 
 
+def test_clearing_the_device_alias_actually_saves_it_as_blank(client):
+    """A blank "display_name" post used to be rejected outright: FastAPI
+    treats an empty string posted to a required Form(...) field as if the
+    field were missing, so the save 422'd before update_device_settings's
+    body ever ran, and htmx (which doesn't swap on an error response) left
+    the page showing no error at all - the alias just silently never
+    cleared. Form("") fixes that; this locks in that a blank alias is a
+    real, persistable state, not just the freshly-loaded-page default
+    already covered above."""
+    _post_form(
+        client,
+        f"/settings/devices/{FAKE_CANONIC_ID}",
+        display_name="Garage Tracker",
+        ep_order=["0"],
+        **{"ep-0-endpoint_type": "traccar", "ep-0-url": "http://x/", "ep-0-cron": "*/5 * * * *"},
+    )
+
+    resp = _post_form(
+        client,
+        f"/settings/devices/{FAKE_CANONIC_ID}",
+        display_name="",
+        ep_order=["0"],
+        **{"ep-0-endpoint_type": "traccar", "ep-0-url": "http://x/", "ep-0-cron": "*/5 * * * *"},
+    )
+    assert resp.status_code == 200
+    assert 'name="display_name" value=""' in resp.text
+
+    from webui.forwarders import config_store
+
+    assert config_store.get_device_config(FAKE_CANONIC_ID)["display_name"] == ""
+
+
 def test_device_alias_field_is_blank_by_default_not_prefilled_with_google_name(client):
     """Before any alias is ever saved, the "Device alias" input must start
     empty - not pre-filled with the Google account name as if that had been

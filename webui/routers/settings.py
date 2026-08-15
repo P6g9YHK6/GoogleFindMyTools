@@ -194,7 +194,7 @@ async def device_yaml_route(request: Request, canonic_id: str):
 
 
 @router.post("/settings/devices/{canonic_id}/yaml/preview")
-async def device_yaml_preview_route(request: Request, canonic_id: str, display_name: str = Form(...)):
+async def device_yaml_preview_route(request: Request, canonic_id: str, display_name: str = Form("")):
     """The "Edit as YAML" button's actual target: converts the form's
     current field values - including whatever's been typed but not yet
     saved - into YAML, entirely in memory. Switching views this way never
@@ -467,7 +467,7 @@ def _parse_endpoints_form(form, existing_endpoints: list[dict]) -> tuple[list[di
 async def update_device_settings(
     request: Request,
     canonic_id: str,
-    display_name: str = Form(...),
+    display_name: str = Form(""),
 ):
     if not is_logged_in():
         return templates.TemplateResponse(request, "_not_signed_in.html", {})
