@@ -153,7 +153,7 @@ async def _poll_device(canonic_id: str):
                 url = endpoints[i].get("url", "")
                 merged = {**endpoints[i], **latest_values_store.get_endpoint_state(canonic_id, url)}
                 status = await asyncio.to_thread(
-                    _forward_one, merged, location, google_name, name, already_seen, is_most_recent,
+                    _forward_one, merged, location, google_name, name, canonic_id, already_seen, is_most_recent,
                 )
                 results[i] = {"status": status, "location": location, "url": url, "merged": merged}
                 log_store.append(
@@ -224,7 +224,9 @@ async def forward_now(canonic_id: str, index: int) -> dict | None:
     status = "no location"
     for location in locations:
         endpoint_location = location
-        status = await asyncio.to_thread(_dispatch_forward, endpoint_cfg, endpoint_location, google_name, name)
+        status = await asyncio.to_thread(
+            _dispatch_forward, endpoint_cfg, endpoint_location, google_name, name, canonic_id,
+        )
         log_store.append(
             canonic_id=canonic_id,
             device_name=name,

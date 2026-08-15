@@ -45,6 +45,7 @@ def _render(template: str, ctx: dict) -> str:
 
 def build_context(
     endpoint_cfg: dict, location: dict, device_name: str, device_alias: str | None = None,
+    tracker_id: str = "",
 ) -> dict:
     """Every {{variable}} available to this endpoint's templates - the
     location fix, this endpoint's own alias, and (for endpoints saved before
@@ -58,7 +59,12 @@ def build_context(
     tests) still get sensible identical values for both, same as before
     device_alias existed as its own concept. Neither is overridable per
     endpoint - see webui/scheduler.py for where the two are actually told
-    apart (device_cfg's "google_name" vs "display_name")."""
+    apart (device_cfg's "google_name" vs "display_name").
+
+    tracker_id is this app's own internal id for the tracker (its
+    canonic_id) - see BUILTIN_VARIABLES_FROM_APP in presets.py, which has
+    offered it as a chip since that variable existed but, until now, this
+    function never actually set it."""
     ctx = {
         "latitude": location.get("latitude"),
         "longitude": location.get("longitude"),
@@ -80,6 +86,7 @@ def build_context(
         "device_name": device_name or "",
         "device_alias": (device_alias if device_alias is not None else device_name) or "",
         "endpoint_alias": endpoint_cfg.get("alias") or "",
+        "tracker_id": tracker_id or "",
     }
     # No UI writes "variables" anymore (see webui/forwarders/presets.py's
     # module docstring) - this merge only still matters for an endpoint
@@ -91,6 +98,7 @@ def build_context(
 
 def forward_to_custom(
     endpoint_cfg: dict, location: dict, device_name: str = "", device_alias: str | None = None,
+    tracker_id: str = "",
 ) -> bool:
     if location.get("is_semantic") or location.get("latitude") is None:
         return False
@@ -99,7 +107,7 @@ def forward_to_custom(
     if not url_template:
         return False
 
-    ctx = build_context(endpoint_cfg, location, device_name, device_alias)
+    ctx = build_context(endpoint_cfg, location, device_name, device_alias, tracker_id)
     # Query params live in the URL itself now (a literal "?key=value"), not
     # a separate table - _render() already substitutes {{var}} tokens
     # anywhere in this string, querystring included, so passing the
@@ -140,11 +148,12 @@ def forward_to_custom(
 
 def preview_request(
     endpoint_cfg: dict, location: dict, device_name: str = "", device_alias: str | None = None,
+    tracker_id: str = "",
 ) -> dict:
     """Non-sending dry-run of the above, for the "Send now" confirmation /
     debugging - not currently wired into a route, kept alongside
     forward_to_custom so the two can't drift apart on how templating works."""
-    ctx = build_context(endpoint_cfg, location, device_name, device_alias)
+    ctx = build_context(endpoint_cfg, location, device_name, device_alias, tracker_id)
     url = _render((endpoint_cfg.get("url") or "").strip(), ctx)
     headers = {k: _render(v, ctx) for k, v in (endpoint_cfg.get("headers") or {}).items()}
     body_type = endpoint_cfg.get("body_type") or "none"

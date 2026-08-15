@@ -136,7 +136,7 @@ async def test_poll_device_records_last_sent_position_on_success(monkeypatch, tm
     # _poll_device calls policy._forward_one, which resolves _dispatch_forward
     # in policy's own module globals - patching scheduler's re-exported name
     # wouldn't reach it (see tests/conftest.py's "patch where it's looked up").
-    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None: "ok")
+    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="": "ok")
 
     tick_done = asyncio.Event()
 
@@ -191,6 +191,65 @@ async def test_poll_device_records_last_sent_position_on_success(monkeypatch, tm
     assert state["last_sent_lon"] == 34.5
 
 
+async def test_poll_device_passes_its_own_canonic_id_as_tracker_id(monkeypatch, tmp_path):
+    """{{tracker_id}} (see presets.py's BUILTIN_VARIABLES_FROM_APP) resolves
+    to this app's own internal id for the tracker - the polled device's own
+    canonic_id, threaded through _forward_one/_dispatch_forward the same
+    way device_name/device_alias already are."""
+    from webui import config
+    from webui.forwarders import config_store
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding_config.json")
+    monkeypatch.setattr(config, "FORWARD_LOG_PATH", tmp_path / "forward_log.json")
+    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+    monkeypatch.setattr(config, "LATEST_VALUES_PATH", tmp_path / "latest_values.yaml")
+    monkeypatch.setattr(scheduler, "is_logged_in", lambda: True)
+
+    captured = {}
+
+    def fake_dispatch(cfg, loc, name="", alias=None, tracker_id=""):
+        captured["tracker_id"] = tracker_id
+        return "ok"
+
+    monkeypatch.setattr(policy, "_dispatch_forward", fake_dispatch)
+
+    tick_done = asyncio.Event()
+
+    async def locate_then_signal(canonic_id, name):
+        tick_done.set()
+        return [{"is_semantic": False, "latitude": 12.5, "longitude": 34.5, "time": 1}]
+
+    monkeypatch.setattr(scheduler, "locate_device", locate_then_signal)
+
+    orig_sleep = asyncio.sleep
+
+    async def fast_sleep(_secs):
+        await orig_sleep(0)
+
+    monkeypatch.setattr(asyncio, "sleep", fast_sleep)
+
+    canonic_id = "tracker-id-device"
+    config_store.set_device_config(canonic_id, {
+        "display_name": "Test",
+        "endpoints": [_traccar_endpoint(cron="* * * * *")],
+    })
+
+    task = asyncio.create_task(scheduler._poll_device(canonic_id))
+    try:
+        await asyncio.wait_for(tick_done.wait(), timeout=5)
+    finally:
+        monkeypatch.setattr(asyncio, "sleep", orig_sleep)
+    await orig_sleep(0.5)
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+
+    assert captured["tracker_id"] == canonic_id
+
+
 async def test_poll_device_persists_last_location_for_the_devices_page(monkeypatch, tmp_path):
     """A cron tick must update the Devices page's persisted "last locate
     result" the same as a manual click does - not just the per-endpoint
@@ -204,7 +263,7 @@ async def test_poll_device_persists_last_location_for_the_devices_page(monkeypat
     monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
     monkeypatch.setattr(config, "LATEST_VALUES_PATH", tmp_path / "latest_values.yaml")
     monkeypatch.setattr(scheduler, "is_logged_in", lambda: True)
-    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None: "ok")
+    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="": "ok")
 
     tick_done = asyncio.Event()
     fix = {"is_semantic": False, "latitude": 12.5, "longitude": 34.5, "time": 1}
@@ -265,7 +324,7 @@ async def test_poll_device_skips_forwarding_a_reading_google_already_reported(mo
     monkeypatch.setattr(scheduler, "is_logged_in", lambda: True)
 
     dispatched = []
-    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None: dispatched.append(loc) or "ok")
+    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="": dispatched.append(loc) or "ok")
 
     same_fix = {"is_semantic": False, "latitude": 12.5, "longitude": 34.5, "time": 1}
     ticks_done = [asyncio.Event(), asyncio.Event()]
@@ -334,7 +393,7 @@ async def test_poll_device_only_forwards_the_most_recent_reading_in_a_batch(monk
     monkeypatch.setattr(scheduler, "is_logged_in", lambda: True)
 
     dispatched = []
-    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None: dispatched.append(loc) or "ok")
+    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="": dispatched.append(loc) or "ok")
 
     older_fix = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 100}
     newer_fix = {"is_semantic": False, "latitude": 3.0, "longitude": 4.0, "time": 200}

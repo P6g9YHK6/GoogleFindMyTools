@@ -210,6 +210,51 @@ def test_forward_to_custom_device_alias_falls_back_to_device_name(monkeypatch):
     assert captured["url"] == "https://nc.local/x/My Phone/My Phone"
 
 
+def test_build_context_includes_tracker_id():
+    from webui.forwarders.custom import build_context
+
+    location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
+    ctx = build_context({}, location, "My Phone", tracker_id="abc-123")
+    assert ctx["tracker_id"] == "abc-123"
+
+
+def test_build_context_tracker_id_defaults_to_blank_when_not_passed():
+    from webui.forwarders.custom import build_context
+
+    location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
+    ctx = build_context({}, location, "My Phone")
+    assert ctx["tracker_id"] == ""
+
+
+def test_forward_to_custom_substitutes_tracker_id(monkeypatch):
+    """{{tracker_id}} used to be offered as a Variables chip (see
+    presets.py's BUILTIN_VARIABLES_FROM_APP) without build_context() ever
+    actually setting it - a request built with it in the URL silently went
+    out to the literal string "{{tracker_id}}" forever, with no error or
+    log anywhere."""
+    from webui.forwarders import custom
+
+    captured = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            pass
+
+    def fake_request(method, url, **kwargs):
+        captured["url"] = url
+        return FakeResponse()
+
+    monkeypatch.setattr(custom.httpx, "request", fake_request)
+
+    endpoint_cfg = {
+        "method": "GET", "url": "https://svc.example/{{tracker_id}}/update",
+        "headers": {}, "body_type": "none", "body": "",
+    }
+    location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
+    custom.forward_to_custom(endpoint_cfg, location, "My Phone", tracker_id="canonic-abc-123")
+    assert captured["url"] == "https://svc.example/canonic-abc-123/update"
+
+
 def test_forward_to_custom_device_name_uses_device_display_name(monkeypatch):
     from webui.forwarders import custom
 

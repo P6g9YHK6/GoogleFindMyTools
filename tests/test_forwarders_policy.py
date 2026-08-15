@@ -177,7 +177,7 @@ def test_stale_duplicate_requires_the_toggle_and_a_prior_send():
 
 def test_forward_one_reports_stale_duplicate_skip_without_dispatching(monkeypatch):
     dispatched = []
-    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None: dispatched.append(loc) or "ok")
+    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="": dispatched.append(loc) or "ok")
 
     now = 1_000_000.0
     stale_time = now - policy.FRESH_FIX_AGE_S - 1
@@ -206,7 +206,7 @@ def test_skip_already_seen_defaults_on_but_can_be_opted_out_per_endpoint():
 
 def test_forward_one_reports_already_seen_skip_without_dispatching(monkeypatch):
     dispatched = []
-    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None: dispatched.append(loc) or "ok")
+    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="": dispatched.append(loc) or "ok")
 
     endpoint_cfg = _traccar_endpoint()
     location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
@@ -222,7 +222,7 @@ def test_forward_one_reports_already_seen_skip_without_dispatching(monkeypatch):
 
 def test_forward_one_forwards_an_already_seen_reading_when_the_endpoint_opted_out(monkeypatch):
     dispatched = []
-    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None: dispatched.append(loc) or "ok")
+    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="": dispatched.append(loc) or "ok")
 
     endpoint_cfg = _traccar_endpoint(skip_if_already_seen=False)
     location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
@@ -246,7 +246,7 @@ def test_skip_not_most_recent_defaults_on_but_can_be_opted_out_per_endpoint():
 
 def test_forward_one_reports_not_most_recent_skip_without_dispatching(monkeypatch):
     dispatched = []
-    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None: dispatched.append(loc) or "ok")
+    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="": dispatched.append(loc) or "ok")
 
     endpoint_cfg = _traccar_endpoint()
     location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
@@ -262,7 +262,7 @@ def test_forward_one_reports_not_most_recent_skip_without_dispatching(monkeypatc
 
 def test_forward_one_forwards_an_older_reading_when_the_endpoint_opted_out_of_most_recent_only(monkeypatch):
     dispatched = []
-    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None: dispatched.append(loc) or "ok")
+    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="": dispatched.append(loc) or "ok")
 
     endpoint_cfg = _traccar_endpoint(only_most_recent=False)
     location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
@@ -274,7 +274,7 @@ def test_forward_one_forwards_an_older_reading_when_the_endpoint_opted_out_of_mo
 
 def test_forward_one_reports_distance_skip_without_dispatching(monkeypatch):
     dispatched = []
-    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None: dispatched.append(loc) or "ok")
+    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="": dispatched.append(loc) or "ok")
 
     endpoint_cfg = _traccar_endpoint(skip_if_close=True, min_movement_m=100, last_sent_lat=45.0, last_sent_lon=9.0)
 
