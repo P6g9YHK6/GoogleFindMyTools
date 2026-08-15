@@ -75,14 +75,22 @@
       </div>
       <div class="url-row-field">
         <label>URL
-          {# The backdrop mirrors the textarea's own text behind it, live -
-             endpoint_fields.js's updateUrlHighlight() renders it through
-             the same renderTemplate() the Preview block below uses, so a
-             {{var}} token gets the identical green/amber resolved/
-             unresolved tint here, right where you're typing it. #}
-          <div class="url-highlight">
-            <div class="url-highlight-backdrop" aria-hidden="true"></div>
-            <textarea name="ep-{{ idx }}-url" class="url-input url-autosize templatable" rows="1">{{ endpoint.url or '' }}</textarea>
+          {# A contenteditable div, not a textarea - a textarea can only
+             render its whole value in one uniform color, and coloring a
+             {{var}} token green/amber (resolved/unresolved) plus the
+             scheme and host needs per-substring color. endpoint_fields.js
+             re-renders this element's own content through
+             renderUrlTemplate() (same renderTemplate() the Preview block
+             above uses, plus scheme/host spans) on every edit, preserving
+             the caret across the redraw - so what's on screen is always
+             exactly what you typed, just colored, never a stand-in for it.
+             The div itself carries no name (contenteditable fields aren't
+             form-associated, so it wouldn't submit anyway) - the hidden
+             input below it is kept in sync and is what actually saves. #}
+          <div class="url-field-wrap">
+            <div class="url-input url-autosize templatable" contenteditable="true" spellcheck="false"
+                 autocapitalize="off" autocorrect="off" role="textbox" aria-multiline="true">{{ endpoint.url or '' }}</div>
+            <input type="hidden" name="ep-{{ idx }}-url" class="url-input-value" value="{{ endpoint.url or '' }}">
           </div>
         </label>
       </div>
