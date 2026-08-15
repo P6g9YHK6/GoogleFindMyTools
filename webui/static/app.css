@@ -916,7 +916,10 @@ details ul {
 }
 
 .btn-icon {
-  background: transparent;
+  /* Background at 80% opacity, but the border stays fully opaque - a
+     color-mix on the border too would fade it out along with the fill and
+     leave the button's edge looking washed out against the table row. */
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
   color: var(--text-muted);
   border: 1px solid var(--border);
   box-shadow: none;
