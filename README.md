@@ -89,6 +89,7 @@ On first run this walks you through the same Google sign-in as the web UI, stori
 
 ## TODO
 
+- Investigate google built-in alias, item category and icons gathering.
 - Finish the live data scraper: battery level, wifi, wifi signal strength, force a phone update.
 - ESP32 firmware builder in the web UI.
 - AirTag support, with the help of a reverse-engineered locate app: [AirtagAlex](https://github.com/icepick3000/AirtagAlex/blob/main/AirtagAlex.sh), [demo video](https://www.youtube.com/watch?v=9VQ-_ztG9aM).
