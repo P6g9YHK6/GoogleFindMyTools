@@ -556,15 +556,50 @@ details ul {
 
 /* Forwarding settings: endpoints - also reused by the Apprise URL list and
    both YAML editors (see webui/templates/auth/_app_settings*.html and
-   settings/_device_yaml.html), which is why this is a <textarea> everywhere
-   it's used, not an <input>. overflow-wrap only kicks in where wrapping is
-   allowed in the first place, so it's a no-op on .yaml-editor's own
-   `white-space: pre` (intentional there - YAML is indentation-sensitive)
-   and only actually wraps a long unbroken URL/token instead of overflowing. */
+   settings/_device_yaml.html), which is why every one of those stays a
+   plain <textarea>. The endpoint editor's own URL field is the one
+   exception - it's a contenteditable <div> instead (see the comment in
+   _endpoint_fields.html for why), so it needs its own look and :focus ring
+   repeated here rather than picked up for free from the site-wide
+   input/select/textarea rule above, which only targets those tags.
+   overflow-wrap only kicks in where wrapping is allowed in the first
+   place, so it's a no-op on .yaml-editor's own `white-space: pre`
+   (intentional there - YAML is indentation-sensitive) and only actually
+   wraps a long unbroken URL/token instead of overflowing. */
 .url-input {
+  display: block;
   width: 100%;
   overflow-wrap: anywhere;
   resize: vertical;
+  font-family: inherit;
+  font-size: 0.92rem;
+  font-weight: 400;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.65rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.url-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 22%, transparent);
+}
+
+/* Only the endpoint URL field is contenteditable (the Apprise/YAML reuses
+   above stay real textareas, which already get this from the site-wide
+   rule) - pinned to the same monospace stack the YAML editor uses, not
+   the page's regular proportional font, and white-space/cursor set
+   explicitly since a div doesn't default to either the way a textarea
+   does. */
+.url-input[contenteditable] {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  cursor: text;
 }
 
 /* The endpoint editor's own URL field (not the Apprise/YAML reuses above,
@@ -578,84 +613,6 @@ details ul {
   resize: none;
   overflow: hidden;
   min-height: 2.3rem;
-}
-
-/* URL field token highlighting - a same-size, same-font backdrop sitting
-   behind the real textarea, rendering the actual visible characters (the
-   real textarea's own text is transparent - see .url-highlight .url-input
-   below - so this backdrop is what you're actually reading). Plain text
-   renders in the normal text color; a {{var}} token renders via the same
-   .tok-resolved/.tok-unresolved classes the request preview below already
-   colors (green when it resolves to something, amber pill when it
-   doesn't) - no separate rule needed here, the base ones already apply.
-   That's a straight text color, not a background tint behind separately-
-   rendered real text, which needed the two layers' box models to line up
-   to the pixel and still didn't reliably. Every box-model property below
-   (border, padding, font) is still copied from .url-input/textarea rather
-   than derived, so the two layers wrap identically and the (invisible)
-   real characters sit exactly on top of their colored stand-ins.
-
-   Both this and .url-highlight .url-input below are pinned to the same
-   monospace stack the YAML editor already uses (see .yaml-editor), not the
-   page's regular proportional font - a *textarea* and a *div* are
-   different kinds of rendered elements, and proportional fonts are shaped
-   with enough browser-level hinting/kerning variance between the two that
-   even matching font-family/size/weight exactly still isn't reliably
-   pixel-identical (this is why every "highlighted textarea" implementation
-   uses a monospace font - fixed-width glyphs sidestep that whole class of
-   drift instead of chasing it property by property). */
-.url-highlight {
-  position: relative;
-}
-
-.url-highlight-backdrop {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  padding: 0.5rem 0.65rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.85rem;
-  font-weight: 400;
-  /* Textareas get "normal" from the browser's UA stylesheet, not this
-     div's inherited 1.55 (see body, above) - same class of mismatch
-     font-weight and font-family already needed fixing for, just missed
-     the first two times around. Pinned to match .url-input below exactly;
-     the value itself doesn't matter, only that both agree on it. */
-  line-height: 1.4;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  color: var(--text);
-  background: var(--surface);
-  pointer-events: none;
-}
-
-/* The base .tok-unresolved (see the request preview's own styling further
-   down) adds padding/background/border-radius around the token - fine
-   there, but it'd add real width here that the real (invisible) textarea's
-   plain text underneath doesn't have, sliding every character after the
-   token out of alignment with its twin. Color only in this backdrop; the
-   pill is a preview-only affordance. */
-.url-highlight-backdrop .tok-unresolved {
-  background: none;
-  border-radius: 0;
-  padding: 0;
-}
-
-.url-highlight .url-input {
-  position: relative;
-  background: transparent;
-  /* The backdrop behind this renders the actual visible characters now
-     (see .url-highlight-backdrop above) - this textarea still needs to be
-     the real, focusable, selectable input underneath, just an invisible
-     one. caret-color is set independently of (transparent) text color, so
-     the blinking cursor still shows. */
-  color: transparent;
-  caret-color: var(--text);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.85rem;
-  line-height: 1.4;
 }
 
 .endpoints-container {
@@ -1092,6 +1049,14 @@ details ul {
   border-radius: 3px;
   padding: 0 2px;
 }
+
+/* URL scheme/host coloring - only used in the endpoint URL field
+   (endpoint_fields.js's renderUrlTemplate()), not the request preview
+   below, so the protocol and fqdn are readable at a glance while typing.
+   Not a correct/wrong state like the two above, so no background pill,
+   just a distinct, calmer text color. */
+.tok-scheme { color: var(--primary); }
+.tok-host { color: var(--text-muted); font-weight: 600; }
 
 /* Toggle + the field(s) it gates - hidden entirely, not just greyed out,
    when the checkbox is off, with a left rule tying them to their toggle. */
