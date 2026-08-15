@@ -909,6 +909,30 @@ details ul {
   box-shadow: none;
 }
 
+/* Devices page "Actions" column - Locate/Play sound/Stop sound, icon-only
+   so three buttons fit one cell without wrapping (see devices/_table.html). */
+.actions-cell {
+  white-space: nowrap;
+}
+
+.btn-icon {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  box-shadow: none;
+  padding: 0.4rem 0.55rem;
+  font-size: 0.95rem;
+  line-height: 1;
+  min-width: 2.1rem;
+  min-height: 2.1rem;
+  margin-right: 0.3rem;
+}
+
+.btn-icon:hover:not(:disabled) {
+  background: var(--surface-alt);
+  box-shadow: none;
+}
+
 .btn-add {
   background: var(--surface);
   color: var(--primary);
@@ -1072,6 +1096,42 @@ details ul {
   to { opacity: 0; }
 }
 
+/* Devices page "Actions" column feedback (see devices/_table.html and
+   devices/_sound_status.html) - a spinner while Locate/Play sound/Stop
+   sound is in flight, then a pass/fail glyph in its place. */
+.action-spinner {
+  display: inline-block;
+  width: 0.9rem;
+  height: 0.9rem;
+  margin-left: 0.3rem;
+  vertical-align: middle;
+  border: 2px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: action-spin 0.7s linear infinite;
+}
+
+@keyframes action-spin {
+  to { transform: rotate(360deg); }
+}
+
+.action-status {
+  display: inline-block;
+  margin-left: 0.3rem;
+  font-weight: 500;
+  vertical-align: middle;
+}
+
+.action-status--ok {
+  color: var(--success);
+  animation: save-toast-fade 2.4s ease forwards;
+  animation-delay: 1s;
+}
+
+.action-status--error {
+  color: var(--danger);
+}
+
 .unsaved-banner {
   font-size: 0.8rem;
   font-weight: 500;
@@ -1088,8 +1148,14 @@ details ul {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .save-toast {
+  .save-toast,
+  .action-status--ok {
     animation: none;
+  }
+
+  .action-spinner {
+    animation: none;
+    opacity: 0.6; /* still visibly "something's happening" without the spin */
   }
 }
 

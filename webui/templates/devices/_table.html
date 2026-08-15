@@ -13,11 +13,28 @@
          webui/routers/settings.py's "Device alias" field) - blank until
          one's actually set, same as that field itself. #}
       <td>{{ device.alias or "-" }}</td>
-      <td>
-        <button hx-post="/devices/{{ device.canonic_id }}/locate?name={{ device.name | urlencode }}"
-                hx-target="#locate-result-{{ loop.index }}" hx-swap="innerHTML">Locate</button>
-        <button hx-post="/devices/{{ device.canonic_id }}/sound/start">Play sound</button>
-        <button hx-post="/devices/{{ device.canonic_id }}/sound/stop">Stop sound</button>
+      <td class="actions-cell">
+        <button type="button" class="btn-icon" title="Locate"
+                hx-post="/devices/{{ device.canonic_id }}/locate?name={{ device.name | urlencode }}"
+                hx-target="#locate-result-{{ loop.index }}" hx-swap="innerHTML"
+                hx-indicator="#action-spinner-{{ device.canonic_id }}">📍</button>
+        <button type="button" class="btn-icon" title="Play sound"
+                hx-post="/devices/{{ device.canonic_id }}/sound/start"
+                hx-target="#sound-status-{{ device.canonic_id }}" hx-swap="innerHTML"
+                hx-indicator="#action-spinner-{{ device.canonic_id }}">🔊</button>
+        <button type="button" class="btn-icon" title="Stop sound"
+                hx-post="/devices/{{ device.canonic_id }}/sound/stop"
+                hx-target="#sound-status-{{ device.canonic_id }}" hx-swap="innerHTML"
+                hx-indicator="#action-spinner-{{ device.canonic_id }}">🔇</button>
+        {# Shared by all three buttons above - htmx shows/hides this
+           automatically while any of their requests is in flight, via its
+           own "htmx-indicator" class (auto-injected opacity rules; see
+           base.html's htmx <script> tag). #}
+        <span id="action-spinner-{{ device.canonic_id }}" class="action-spinner htmx-indicator" aria-hidden="true"></span>
+        {# Only Play sound/Stop sound render into this - Locate already has
+           its own dedicated result cell (see _locate_cell.html) with real
+           location data, not just a pass/fail glyph. #}
+        <span id="sound-status-{{ device.canonic_id }}" class="action-status"></span>
       </td>
       <td id="locate-result-{{ loop.index }}">
         {% set canonic_id = device.canonic_id %}
