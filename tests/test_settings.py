@@ -467,7 +467,7 @@ def test_device_yaml_view_shows_current_config(client):
     assert resp.status_code == 200
     assert "type: custom" not in resp.text  # a preset is never saved - see presets.py
     assert "google_name" not in resp.text  # read-only, fed from Google's own device list
-    assert "display_name" not in resp.text  # that's the "Device alias" field's job, not the YAML's
+    assert "display_name: My Tracker" in resp.text  # editable here too now, same value as the alias field
     assert "url: http://x/" in resp.text
     assert "Edit as form" in resp.text
 
@@ -495,9 +495,9 @@ def test_edit_as_yaml_button_reflects_unsaved_form_edits_without_persisting(clie
         **{"ep-0-url": "http://not-yet-saved.example/", "ep-0-cron": "*/5 * * * *"},
     )
     assert resp.status_code == 200
-    assert "<legend>Not Yet Saved Name" in resp.text  # the heading, not part of the YAML body itself
+    assert "<legend>Not Yet Saved Name" in resp.text  # the heading
     assert "url: http://not-yet-saved.example/" in resp.text
-    assert "display_name" not in resp.text
+    assert "display_name: Not Yet Saved Name" in resp.text  # also carried into the YAML body itself
     assert "Edit as form" in resp.text
 
     assert config_store.get_device_config(FAKE_CANONIC_ID) == before
@@ -505,10 +505,9 @@ def test_edit_as_yaml_button_reflects_unsaved_form_edits_without_persisting(clie
 
 def test_edit_as_form_button_reflects_unsaved_yaml_edits_without_persisting(client):
     """The mirror image of the test above - the YAML view's "Edit as form"
-    button posts the textarea's current (possibly not-yet-saved) endpoints
-    text (see device_form_preview_route). The alias itself was never part
-    of the YAML in the first place (see _to_yaml_doc) - it stays whatever's
-    already saved for this device regardless of what's in the textarea."""
+    button posts the textarea's current (possibly not-yet-saved) text (see
+    device_form_preview_route), display_name included - editing the alias
+    from the YAML side must show up back in the "Device alias" field too."""
     from webui.forwarders import config_store
 
     _post_form(
@@ -520,14 +519,17 @@ def test_edit_as_form_button_reflects_unsaved_yaml_edits_without_persisting(clie
     )
     before = config_store.get_device_config(FAKE_CANONIC_ID)
 
-    yaml_text = "endpoints:\n  - url: http://not-yet-saved.example/\n    cron: '*/5 * * * *'\n"
+    yaml_text = (
+        "display_name: Edited From YAML\n"
+        "endpoints:\n  - url: http://not-yet-saved.example/\n    cron: '*/5 * * * *'\n"
+    )
     resp = client.post(f"/settings/devices/{FAKE_CANONIC_ID}/form/preview", data={"yaml_text": yaml_text})
     assert resp.status_code == 200
-    assert 'value="My Tracker"' in resp.text  # the alias, untouched by the YAML
+    assert 'value="Edited From YAML"' in resp.text  # the alias, picked up from the YAML edit
     assert ">http://not-yet-saved.example/</textarea>" in resp.text  # the not-yet-saved endpoint edit
     assert "Edit as YAML" in resp.text
 
-    assert config_store.get_device_config(FAKE_CANONIC_ID) == before
+    assert config_store.get_device_config(FAKE_CANONIC_ID) == before  # neither edit persisted yet
 
 
 def test_edit_as_form_button_shows_invalid_yaml_error_without_switching(client):
@@ -538,8 +540,9 @@ def test_edit_as_form_button_shows_invalid_yaml_error_without_switching(client):
 
 
 def test_save_device_yaml_persists_and_reflects_in_the_form(client):
-    """The alias itself is untouched by a YAML save - see _to_yaml_doc -
-    so it should still read back as whatever was already saved for it."""
+    """A YAML save persists display_name straight from the textarea too now
+    - editing the alias from either view and saving from that same view is
+    what wins, the same as the form's own alias field always has been."""
     _post_form(
         client,
         f"/settings/devices/{FAKE_CANONIC_ID}",
@@ -549,6 +552,7 @@ def test_save_device_yaml_persists_and_reflects_in_the_form(client):
     )
 
     yaml_text = (
+        "display_name: Renamed From YAML\n"
         "endpoints:\n"
         "  - type: traccar\n"  # ignored on save, never persisted - see _from_yaml_doc
         "    method: GET\n"
@@ -563,18 +567,41 @@ def test_save_device_yaml_persists_and_reflects_in_the_form(client):
     resp = client.post(f"/settings/devices/{FAKE_CANONIC_ID}/yaml", data={"yaml_text": yaml_text})
     assert resp.status_code == 200
     assert ">http://yaml.example</textarea>" in resp.text  # switched back to the form view
+    assert 'value="Renamed From YAML"' in resp.text
     assert "Edit as YAML" in resp.text
     assert "save-toast" in resp.text
 
     from webui.forwarders import config_store
 
     saved = config_store.get_device_config(FAKE_CANONIC_ID)
-    assert saved["display_name"] == "My Tracker"
+    assert saved["display_name"] == "Renamed From YAML"
     assert saved["endpoints"] == [{
         "method": "GET", "url": "http://yaml.example",
         "params": {}, "headers": {}, "body_type": "none", "body": "",
         "variables": {"device_id": "yaml-dev"}, "cron": "*/10 * * * *",
     }]
+
+
+def test_save_device_yaml_without_a_display_name_key_clears_the_alias(client):
+    """Omitting display_name from the YAML entirely (e.g. an older snippet,
+    or a device that never had one) is the same as an explicitly blank
+    alias - _from_yaml_doc defaults it to "", matching endpoints defaulting
+    to an empty list when that key is missing too."""
+    _post_form(
+        client,
+        f"/settings/devices/{FAKE_CANONIC_ID}",
+        display_name="My Tracker",
+        ep_order=["0"],
+        **{"ep-0-url": "http://placeholder/", "ep-0-cron": "*/5 * * * *"},
+    )
+
+    yaml_text = "endpoints:\n  - url: http://yaml.example\n    cron: '*/10 * * * *'\n"
+    resp = client.post(f"/settings/devices/{FAKE_CANONIC_ID}/yaml", data={"yaml_text": yaml_text})
+    assert resp.status_code == 200
+
+    from webui.forwarders import config_store
+
+    assert config_store.get_device_config(FAKE_CANONIC_ID)["display_name"] == ""
 
 
 def test_save_device_yaml_rejects_invalid_yaml_without_persisting(client):

@@ -124,26 +124,29 @@ async def settings_page(request: Request):
     })
 
 
-def _to_yaml_doc(endpoints: list[dict]) -> dict:
-    """The YAML editor's view of a device: just its endpoints - no
-    "display_name" (that's the "Device alias" field's job; editing the same
-    thing a second time here would be redundant and the two could drift),
-    no "google_name" (read-only, fed from Google's own device list,
-    never user-configurable - see _rows above), and no per-endpoint "type"
-    (see _parse_endpoints_form below - always the same generic query-
-    builder shape now, never a saved property, so it would never say
-    anything a human didn't already know)."""
+def _to_yaml_doc(display_name: str, endpoints: list[dict]) -> dict:
+    """The YAML editor's view of a device: its alias and endpoints - no
+    "google_name" (read-only, fed from Google's own device list, never
+    user-configurable - see _rows above), and no per-endpoint "type" (see
+    _parse_endpoints_form below - always the same generic query-builder
+    shape now, never a saved property, so it would never say anything a
+    human didn't already know). "display_name" is the same value the
+    "Device alias" field shows, kept in sync both ways (see
+    device_yaml_preview_route/device_form_preview_route below) - whichever
+    view is actually saved from is what wins, so there's no second copy
+    left to drift out of sync."""
     clean_endpoints = [{k: v for k, v in ep.items() if k != "type"} for ep in endpoints]
-    return {"endpoints": clean_endpoints}
+    return {"display_name": display_name, "endpoints": clean_endpoints}
 
 
-def _from_yaml_doc(yaml_text: str) -> tuple[list[dict], str | None]:
-    """Inverse of _to_yaml_doc: (endpoints, error). Shared by the real save
-    route and the live "switch to form" preview below, so both reject the
-    same malformed input the same way. Cron validity is deliberately not
-    checked here - that's a save-time concern (see the matching check in
-    save_device_yaml_route), not a parse-time one; a live preview should
-    never refuse to just show you what you typed."""
+def _from_yaml_doc(yaml_text: str) -> tuple[list[dict], str, str | None]:
+    """Inverse of _to_yaml_doc: (endpoints, display_name, error). Shared by
+    the real save route and the live "switch to form" preview below, so
+    both reject the same malformed input the same way and both pick up
+    whatever alias is typed directly into the YAML text. Cron validity is
+    deliberately not checked here - that's a save-time concern (see the
+    matching check in save_device_yaml_route), not a parse-time one; a
+    live preview should never refuse to just show you what you typed."""
     try:
         parsed = yaml.safe_load(yaml_text)
         if parsed is None:
@@ -156,11 +159,14 @@ def _from_yaml_doc(yaml_text: str) -> tuple[list[dict], str | None]:
         for i, endpoint in enumerate(parsed["endpoints"]):
             if not isinstance(endpoint, dict):
                 raise ValueError(f"endpoints[{i}] must be a mapping")
+        parsed.setdefault("display_name", "")
+        if not isinstance(parsed["display_name"], str):
+            raise ValueError("\"display_name\" must be a string")
     except (yaml.YAMLError, ValueError) as e:
-        return [], f"Invalid YAML: {e}"
+        return [], "", f"Invalid YAML: {e}"
 
     endpoints = [{k: v for k, v in ep.items() if k != "type"} for ep in parsed["endpoints"]]
-    return endpoints, None
+    return endpoints, parsed["display_name"], None
 
 
 @router.get("/settings/devices/{canonic_id}")
@@ -186,7 +192,8 @@ async def device_yaml_route(request: Request, canonic_id: str):
         return templates.TemplateResponse(request, "_not_signed_in.html", {})
     row = await _row(canonic_id)
     yaml_text = yaml.safe_dump(
-        _to_yaml_doc(row["config"].get("endpoints", [])), sort_keys=False, allow_unicode=True,
+        _to_yaml_doc(row["config"].get("display_name", ""), row["config"].get("endpoints", [])),
+        sort_keys=False, allow_unicode=True,
     )
     return templates.TemplateResponse(request, "settings/_device_yaml.html", {
         "canonic_id": canonic_id, "name": row["name"], "yaml_text": yaml_text,
@@ -207,7 +214,7 @@ async def device_yaml_preview_route(request: Request, canonic_id: str, display_n
     form = await request.form()
     existing = config_store.get_device_config(canonic_id) or {"endpoints": []}
     endpoints, _errors = _parse_endpoints_form(form, existing.get("endpoints", []))
-    yaml_text = yaml.safe_dump(_to_yaml_doc(endpoints), sort_keys=False, allow_unicode=True)
+    yaml_text = yaml.safe_dump(_to_yaml_doc(display_name, endpoints), sort_keys=False, allow_unicode=True)
     # The alias field is blank until one's actually set (see
     # _device_form.html) - fall back the same way row.name/_rows does, so
     # this heading doesn't just go blank for a device with no alias yet.
@@ -221,15 +228,13 @@ async def device_yaml_preview_route(request: Request, canonic_id: str, display_n
 async def device_form_preview_route(request: Request, canonic_id: str, yaml_text: str = Form(...)):
     """The YAML view's "Edit as form" button's actual target - the mirror
     image of device_yaml_preview_route above: parses whatever's currently
-    typed in the YAML textarea back into the form, without saving it."""
+    typed in the YAML textarea - including its display_name - back into
+    the form, without saving it."""
     if not is_logged_in():
         return templates.TemplateResponse(request, "_not_signed_in.html", {})
 
-    # The YAML never carries the alias (see _to_yaml_doc) - that's the
-    # "Device alias" field's job - so whatever's already saved for it just
-    # carries straight through untouched here.
     existing = config_store.get_device_config(canonic_id) or {}
-    endpoints, error = _from_yaml_doc(yaml_text)
+    endpoints, display_name, error = _from_yaml_doc(yaml_text)
     if error:
         name = existing.get("display_name") or existing.get("google_name") or canonic_id
         return templates.TemplateResponse(request, "settings/_device_yaml.html", {
@@ -237,7 +242,7 @@ async def device_form_preview_route(request: Request, canonic_id: str, yaml_text
             "error": error,
         })
 
-    device_cfg = {"display_name": existing.get("display_name", ""), "endpoints": endpoints}
+    device_cfg = {"display_name": display_name, "endpoints": endpoints}
     row = await _row(canonic_id, overrides={canonic_id: {"config": device_cfg, "error": None}})
     return templates.TemplateResponse(request, "settings/_device_form.html", {
         "row": row, **_TEMPLATE_CONTEXT,
@@ -250,7 +255,7 @@ async def save_device_yaml_route(request: Request, canonic_id: str, yaml_text: s
         return templates.TemplateResponse(request, "_not_signed_in.html", {})
 
     row = await _row(canonic_id)
-    endpoints, error = _from_yaml_doc(yaml_text)
+    endpoints, display_name, error = _from_yaml_doc(yaml_text)
     if error:
         return templates.TemplateResponse(request, "settings/_device_yaml.html", {
             "canonic_id": canonic_id, "name": row["name"], "yaml_text": yaml_text,
@@ -272,11 +277,13 @@ async def save_device_yaml_route(request: Request, canonic_id: str, yaml_text: s
             "error": "; ".join(cron_errors),
         })
 
-    # Neither the alias nor google_name are part of what this editor shows
-    # (see _to_yaml_doc) - carry both forward from what's already on disk
-    # instead of losing them.
+    # google_name isn't part of what this editor shows (see _to_yaml_doc) -
+    # carry it forward from what's already on disk instead of losing it.
+    # display_name *is* part of what this editor shows, so whatever was
+    # just typed here is what gets saved, same as the form's own alias
+    # field would.
     existing = config_store.get_device_config(canonic_id)
-    device_cfg = {"display_name": (existing or {}).get("display_name", ""), "endpoints": endpoints}
+    device_cfg = {"display_name": display_name, "endpoints": endpoints}
     if existing and existing.get("google_name"):
         device_cfg["google_name"] = existing["google_name"]
 
