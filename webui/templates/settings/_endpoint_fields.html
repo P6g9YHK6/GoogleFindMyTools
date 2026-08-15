@@ -51,7 +51,6 @@
   {% if is_new %}
     <p class="field-hint preset-hint">{{ (presets.get(endpoint.type) or presets.get('custom')).hint }}</p>
   {% endif %}
-  <p class="field-hint">Optional label for this endpoint block itself, e.g. "Home Traccar" - available as <code>{{ '{{endpoint_alias}}' }}</code> below. Separate from the device alias set at the top of this device's settings, which is <code>{{ '{{device_alias}}' }}</code>.</p>
 
   <div class="endpoint-sections">
   <fieldset class="preview-fieldset">
@@ -88,7 +87,6 @@
         </label>
       </div>
     </div>
-    <p class="field-hint">Query params go directly in the URL - e.g. <code>?lat={{ '{{latitude}}' }}&amp;lon={{ '{{longitude}}' }}</code></p>
 
     <div class="kv-section">
       <div class="kv-head"><h3>Headers</h3><button type="button" class="btn-add" data-target="header">+ Add row</button></div>
@@ -165,10 +163,19 @@
 
   <div class="endpoint-col-right">
   <fieldset>
-    <legend>Variables</legend>
-    <p class="field-hint">Click a chip to insert it into whichever field you were last editing (hover a chip for what it means). Location and device values come from the fix being forwarded.</p>
+    <legend>From the location fix</legend>
+    <p class="field-hint">Click a chip to insert it into whichever field you were last editing (hover a chip for what it means).</p>
     <div class="chip-row">
-      {% for name, description in builtin_variables %}
+      {% for name, description in builtin_variables_from_fix %}
+        <button type="button" class="chip" data-var="{{ name }}" title="{{ description }}">{{ '{{' }}{{ name }}{{ '}}' }}</button>
+      {% endfor %}
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>From this app</legend>
+    <div class="chip-row">
+      {% for name, description in builtin_variables_from_app %}
         <button type="button" class="chip" data-var="{{ name }}" title="{{ description }}">{{ '{{' }}{{ name }}{{ '}}' }}</button>
       {% endfor %}
     </div>

@@ -20,7 +20,6 @@
       <input type="text" name="display_name" value="{{ row.config.display_name or '' }}"
              {% if row.google_name %}placeholder="{{ row.google_name }}"{% endif %}>
     </label>
-    <p class="field-hint">Available as <code>{{ '{{device_alias}}' }}</code> in this device's endpoint templates below. <code>{{ '{{device_name}}' }}</code> is separately available there too, always this device's real Google account name{% if row.google_name %} (currently <strong>{{ row.google_name }}</strong>){% endif %}.</p>
 
     {% if row.save_error %}
       <p class="form-error">{{ row.save_error }}</p>

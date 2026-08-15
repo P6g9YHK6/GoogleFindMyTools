@@ -147,24 +147,36 @@ PRESETS: dict[str, dict] = {
 DEFAULT_PRESET_KEY = "custom"
 
 # (variable name, human description) - shown as clickable chips in the
-# Variables panel, and substituted from the location/device context at send
-# time (see custom.build_context). Keep names explicit/unambiguous: e.g.
+# Variables panel, split into two groups there (see webui/routers/
+# settings.py's _TEMPLATE_CONTEXT and settings/_endpoint_fields.html) so
+# it's clear at a glance which ones come straight from Google's own fix/
+# account data versus which are generated or configured locally by this
+# app. Substituted from the location/device context at send time either
+# way (see custom.build_context). Keep names explicit/unambiguous: e.g.
 # "tracker_id" (this app's own internal id) is deliberately not called
 # "device_id", to stay unambiguous next to a service's own per-device id
 # (like Traccar's, which today is baked into the URL as a literal
 # placeholder - see the "traccar" preset above).
-BUILTIN_VARIABLES: list[tuple[str, str]] = [
+BUILTIN_VARIABLES_FROM_FIX: list[tuple[str, str]] = [
     ("latitude", "Latitude of the fix, decimal degrees"),
     ("longitude", "Longitude of the fix, decimal degrees"),
     ("altitude_m", "Altitude in meters, if Google reported one"),
     ("accuracy_m", "Google's radius of uncertainty for the fix, in meters"),
     ("google_timestamp", "Unix timestamp (seconds) of when Google recorded this fix - not when it was sent"),
-    ("current_timestamp", "Unix timestamp (seconds) right now, at send time - not when Google recorded the fix"),
     ("device_name", "This tracker's real name from your Google account (fixed, not editable here)"),
-    ("device_alias", "This tracker's local nickname, set on the Settings page (falls back to device_name until you set one)"),
+]
+
+BUILTIN_VARIABLES_FROM_APP: list[tuple[str, str]] = [
+    ("current_timestamp", "Unix timestamp (seconds) right now, at send time - not when Google recorded the fix"),
+    ("device_alias", "This tracker's local nickname, set on the Settings page (blank if none is set)"),
     ("endpoint_alias", "This endpoint's own alias, as set above"),
     ("tracker_id", "This app's own internal id for the tracker (not a target service's device id)"),
 ]
+
+# Flat combined list - still exported for anything that just needs every
+# variable name/description without caring which group it's in (e.g.
+# custom.build_context's docstring points here as the canonical list).
+BUILTIN_VARIABLES: list[tuple[str, str]] = BUILTIN_VARIABLES_FROM_FIX + BUILTIN_VARIABLES_FROM_APP
 
 
 def blank_endpoint(cron: str) -> dict:

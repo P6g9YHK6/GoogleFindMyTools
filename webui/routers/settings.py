@@ -10,7 +10,14 @@ from webui import scheduler
 from webui.auth_state import is_logged_in
 from webui.deps import run_blocking
 from webui.device_list_cache import device_list_cache
-from webui.forwarders import BUILTIN_VARIABLES, PRESETS, config_store, latest_values_store, policy
+from webui.forwarders import (
+    BUILTIN_VARIABLES_FROM_APP,
+    BUILTIN_VARIABLES_FROM_FIX,
+    PRESETS,
+    config_store,
+    latest_values_store,
+    policy,
+)
 from webui.forwarders import blank_endpoint as new_blank_endpoint
 from webui.templating import templates
 
@@ -27,7 +34,9 @@ router = APIRouter()
 _PRESETS_JSON = json.dumps(PRESETS).replace("</", "<\\/")
 
 _TEMPLATE_CONTEXT = {
-    "presets": PRESETS, "builtin_variables": BUILTIN_VARIABLES, "presets_json": _PRESETS_JSON,
+    "presets": PRESETS, "presets_json": _PRESETS_JSON,
+    "builtin_variables_from_fix": BUILTIN_VARIABLES_FROM_FIX,
+    "builtin_variables_from_app": BUILTIN_VARIABLES_FROM_APP,
     "cron_presets": scheduler.CRON_PRESETS, "cron_preset_values": {value for _, value in scheduler.CRON_PRESETS},
 }
 
