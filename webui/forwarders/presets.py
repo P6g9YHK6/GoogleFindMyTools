@@ -170,11 +170,6 @@ BUILTIN_VARIABLES_FROM_FIX: list[tuple[str, str]] = [
     ("model", "This device's model, from Google's own response (e.g. \"ONE Point\")"),
     ("type", "This device's category from Google's own response - Phone, Beacon, Keys, Wallet, etc."),
     ("image_url", "URL of Google's own product photo for this device"),
-    ("label_carrier", "Phone-only: mobile carrier name, if Google reported one"),
-    ("label_codename", "Phone-only: the manufacturer's internal codename for the device"),
-    ("label_imei", "Phone-only: the device's IMEI - a real hardware identifier, handle with care"),
-    ("label_registered_at", "Unix timestamp (seconds) of when this device was registered to the account"),
-    ("label_shared_with", "Comma-separated emails of anyone else with access to this device (blank if just you)"),
 ]
 
 BUILTIN_VARIABLES_FROM_APP: list[tuple[str, str]] = [
@@ -188,6 +183,46 @@ BUILTIN_VARIABLES_FROM_APP: list[tuple[str, str]] = [
 # variable name/description without caring which group it's in (e.g.
 # custom.build_context's docstring points here as the canonical list).
 BUILTIN_VARIABLES: list[tuple[str, str]] = BUILTIN_VARIABLES_FROM_FIX + BUILTIN_VARIABLES_FROM_APP
+
+# Mirrors custom.py's own private _NAMED_DEVICE_META_KEYS - duplicated
+# rather than imported since that one's private to the send-time renderer;
+# both need to draw the same "these four are always named, everything else
+# becomes label_<key>" line.
+NAMED_DEVICE_META_KEYS = ("manufacturer", "model", "type", "image_url")
+
+# Hand-written descriptions for the phone-only device_meta fields, reused by
+# device_label_variables() below so a chip's tooltip stays in sync with what
+# build_context actually flattens it to. Used to live as unconditional
+# label_* entries in BUILTIN_VARIABLES_FROM_FIX above - moved here since
+# whether one's actually offered as a chip now depends on this device's own
+# last-synced data (a non-phone tracker has none of these).
+_LABEL_DESCRIPTIONS: dict[str, str] = {
+    "carrier": "Phone-only: mobile carrier name, if Google reported one",
+    "codename": "Phone-only: the manufacturer's internal codename for the device",
+    "imei": "Phone-only: the device's IMEI - a real hardware identifier, handle with care",
+    "registered_at": "Unix timestamp (seconds) of when this device was registered to the account",
+    "shared_with": "Comma-separated emails of anyone else with access to this device (blank if just you)",
+}
+
+
+def device_label_variables(device_meta: dict | None) -> list[tuple[str, str]]:
+    """{{label_<key>}} chips actually available for THIS device, based on
+    its last-synced device_meta (see webui/routers/settings.py's
+    _device_meta_from_detail) - unlike the four NAMED_DEVICE_META_KEYS
+    fields above (always shown, even blank), a label_<key> chip is only
+    offered when this device actually has a truthy value for it, so a
+    non-phone tracker doesn't get five chips that would only ever resolve
+    to an empty string. Falls back to a generic description for a
+    device_meta key added later that hasn't been given a hand-written one
+    in _LABEL_DESCRIPTIONS yet - same spirit as custom.py build_context's
+    own "a field added later needs no matching change" comment for the
+    same field."""
+    meta = device_meta or {}
+    return [
+        (f"label_{key}", _LABEL_DESCRIPTIONS.get(key, f"This device's {key.replace('_', ' ')}, from Google's own response"))
+        for key, value in meta.items()
+        if key not in NAMED_DEVICE_META_KEYS and value
+    ]
 
 
 def blank_endpoint(cron: str) -> dict:

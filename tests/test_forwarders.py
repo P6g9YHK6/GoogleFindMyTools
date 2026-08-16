@@ -779,3 +779,39 @@ def test_log_store_caps_entries(tmp_path, monkeypatch):
     entries = log_store.recent_entries()
     assert len(entries) == 5
     assert entries[0]["status"] == "status-9"  # newest first, oldest 5 dropped
+
+
+def test_device_label_variables_only_offers_fields_this_device_actually_has():
+    from webui.forwarders import device_label_variables
+
+    device_meta = {
+        "manufacturer": "Chipolo", "model": "ONE Point", "type": "Keys", "image_url": "https://x/p.png",
+        "carrier": "", "codename": "", "imei": "", "registered_at": "", "shared_with": "",
+    }
+    assert device_label_variables(device_meta) == []  # a non-phone tracker: no label_* chip is a false promise
+
+
+def test_device_label_variables_offers_only_the_truthy_phone_only_fields():
+    from webui.forwarders import device_label_variables
+
+    device_meta = {
+        "manufacturer": "Google", "model": "Pixel", "type": "Phone", "image_url": "",
+        "carrier": "T-Mobile", "codename": "", "imei": "354935091234567", "registered_at": "",
+        "shared_with": "family@example.com",
+    }
+    names = [name for name, _ in device_label_variables(device_meta)]
+    assert names == ["label_carrier", "label_imei", "label_shared_with"]  # blank codename/registered_at excluded
+
+
+def test_device_label_variables_handles_missing_device_meta():
+    from webui.forwarders import device_label_variables
+
+    assert device_label_variables(None) == []
+    assert device_label_variables({}) == []
+
+
+def test_device_label_variables_falls_back_to_a_generic_description():
+    from webui.forwarders import device_label_variables
+
+    names_and_descriptions = device_label_variables({"a_future_field": "x"})
+    assert names_and_descriptions == [("label_a_future_field", "This device's a future field, from Google's own response")]
