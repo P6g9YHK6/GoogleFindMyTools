@@ -529,7 +529,12 @@
     if (chip) {
       const block = chip.closest(".endpoint-block");
       const token = "{{" + chip.dataset.var + "}}";
-      const field = activeField && block.contains(activeField) ? activeField : block.querySelector(".url-input");
+      // The YAML editor's own chip row (_device_yaml.html) isn't inside an
+      // .endpoint-block - there's no per-endpoint structure or live Preview
+      // panel there, just the one .yaml-editor textarea to insert into.
+      const field = block
+        ? (activeField && block.contains(activeField) ? activeField : block.querySelector(".url-input"))
+        : chip.closest(".device-editor")?.querySelector(".yaml-editor");
       if (!field) return;
       if (field.isContentEditable) {
         // The URL field - no selectionStart/value here, insert by
@@ -549,7 +554,7 @@
         field.setSelectionRange(caret, caret);
         if (field.classList.contains("url-autosize")) autosizeUrlField(field);
       }
-      updatePreview(block);
+      if (block) updatePreview(block);
       const row = chip.closest(".device-row");
       if (row) setDirty(row, true);
     }

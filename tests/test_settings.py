@@ -108,6 +108,41 @@ def test_send_now_route_reflects_this_devices_label_chips(client, monkeypatch):
     assert 'data-var="label_carrier"' in resp.text
 
 
+def test_yaml_view_reflects_this_devices_label_chips(client, monkeypatch):
+    _sync_device_meta(client, monkeypatch, is_phone=True, carrier="T-Mobile")
+
+    resp = client.get(f"/settings/devices/{FAKE_CANONIC_ID}/yaml")
+    assert resp.status_code == 200
+    assert 'data-var="label_carrier"' in resp.text
+    assert 'data-var="label_codename"' not in resp.text  # blank for this device - not offered
+
+
+def test_yaml_preview_route_reflects_this_devices_label_chips(client, monkeypatch):
+    _sync_device_meta(client, monkeypatch, is_phone=True, carrier="T-Mobile")
+
+    resp = _post_form(client, f"/settings/devices/{FAKE_CANONIC_ID}/yaml/preview", display_name="Alice's phone")
+    assert resp.status_code == 200
+    assert 'data-var="label_carrier"' in resp.text
+
+
+def test_yaml_view_shows_label_chips_on_a_yaml_parse_error_too(client, monkeypatch):
+    _sync_device_meta(client, monkeypatch, is_phone=True, carrier="T-Mobile")
+
+    resp = _post_form(client, f"/settings/devices/{FAKE_CANONIC_ID}/yaml", yaml_text="not: valid: yaml: [")
+    assert resp.status_code == 200
+    assert "Invalid YAML" in resp.text
+    assert 'data-var="label_carrier"' in resp.text
+
+
+def test_edit_as_form_button_shows_label_chips_on_a_yaml_parse_error(client, monkeypatch):
+    _sync_device_meta(client, monkeypatch, is_phone=True, carrier="T-Mobile")
+
+    resp = _post_form(client, f"/settings/devices/{FAKE_CANONIC_ID}/form/preview", yaml_text="not: valid: yaml: [")
+    assert resp.status_code == 200
+    assert "Invalid YAML" in resp.text
+    assert 'data-var="label_carrier"' in resp.text
+
+
 def test_save_mixed_endpoints_and_drop_blank_block(client):
     resp = _post_form(
         client,

@@ -290,6 +290,7 @@ async def device_yaml_route(request: Request, canonic_id: str):
     )
     return templates.TemplateResponse(request, "settings/_device_yaml.html", {
         "canonic_id": canonic_id, "name": row["name"], "yaml_text": yaml_text,
+        "label_variables": row["label_variables"], **_TEMPLATE_CONTEXT,
     })
 
 
@@ -314,6 +315,7 @@ async def device_yaml_preview_route(request: Request, canonic_id: str, display_n
     name = display_name.strip() or existing.get("google_name") or canonic_id
     return templates.TemplateResponse(request, "settings/_device_yaml.html", {
         "canonic_id": canonic_id, "name": name, "yaml_text": yaml_text,
+        "label_variables": device_label_variables(existing.get("device_meta")), **_TEMPLATE_CONTEXT,
     })
 
 
@@ -332,7 +334,7 @@ async def device_form_preview_route(request: Request, canonic_id: str, yaml_text
         name = existing.get("display_name") or existing.get("google_name") or canonic_id
         return templates.TemplateResponse(request, "settings/_device_yaml.html", {
             "canonic_id": canonic_id, "name": name, "yaml_text": yaml_text,
-            "error": error,
+            "error": error, "label_variables": device_label_variables(existing.get("device_meta")), **_TEMPLATE_CONTEXT,
         })
 
     device_cfg = {"display_name": display_name, "endpoints": endpoints}
@@ -352,7 +354,7 @@ async def save_device_yaml_route(request: Request, canonic_id: str, yaml_text: s
     if error:
         return templates.TemplateResponse(request, "settings/_device_yaml.html", {
             "canonic_id": canonic_id, "name": row["name"], "yaml_text": yaml_text,
-            "error": error,
+            "error": error, "label_variables": row["label_variables"], **_TEMPLATE_CONTEXT,
         })
 
     # The form path (update_device_settings below) has always rejected an
@@ -367,7 +369,7 @@ async def save_device_yaml_route(request: Request, canonic_id: str, yaml_text: s
     if cron_errors:
         return templates.TemplateResponse(request, "settings/_device_yaml.html", {
             "canonic_id": canonic_id, "name": row["name"], "yaml_text": yaml_text,
-            "error": "; ".join(cron_errors),
+            "error": "; ".join(cron_errors), "label_variables": row["label_variables"], **_TEMPLATE_CONTEXT,
         })
 
     # google_name isn't part of what this editor shows (see _to_yaml_doc) -
@@ -386,7 +388,7 @@ async def save_device_yaml_route(request: Request, canonic_id: str, yaml_text: s
     except Exception as e:
         return templates.TemplateResponse(request, "settings/_device_yaml.html", {
             "canonic_id": canonic_id, "name": row["name"], "yaml_text": yaml_text,
-            "error": f"Failed to save: {e}",
+            "error": f"Failed to save: {e}", "label_variables": row["label_variables"], **_TEMPLATE_CONTEXT,
         })
     latest_values_store.prune_to_urls(canonic_id, {ep["url"] for ep in endpoints})
 
