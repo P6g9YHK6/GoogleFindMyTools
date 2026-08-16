@@ -40,7 +40,7 @@ def test_phonetrack_preset_sets_useragent_so_it_does_not_default_to_unknown():
     string leaves it out - baked in here instead. Only "phonetrack" itself
     (not its OsmAnd/GpsLogger/etc siblings) even reads this param - see
     this preset's own hint."""
-    assert "useragent=GFMT_Forwarding_{{type}}" in PRESETS["phonetrack"]["url"]
+    assert "useragent=gfmtForwarding{{type}}" in PRESETS["phonetrack"]["url"]
 
 
 def test_phonetrack_locusmap_and_ulogger_presets_use_time_not_timestamp():

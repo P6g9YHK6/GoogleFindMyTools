@@ -51,7 +51,7 @@ PRESETS: dict[str, dict] = {
         "url": (
             "https://nc.local/apps/phonetrack/logGet/<token>/{{device_alias}}"
             "?lat={{latitude}}&lon={{longitude}}&timestamp={{google_timestamp}}&alt={{altitude_m}}&acc={{accuracy_m}}"
-            "&useragent=GFMT_Forwarding_{{type}}"
+            "&useragent=gfmtForwarding{{type}}"
         ),
         "headers": {},
         "body_type": "none",
