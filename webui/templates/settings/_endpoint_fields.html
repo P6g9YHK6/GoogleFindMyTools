@@ -225,6 +225,20 @@
     </div>
 
     <div class="toggle-group">
+      <label class="checkbox-label">
+        <input type="checkbox" class="skip-toggle" data-controls="accuracy" {% if endpoint.skip_if_inaccurate %}checked{% endif %}>
+        <input type="hidden" name="ep-{{ idx }}-skip_if_inaccurate" value="{{ '1' if endpoint.skip_if_inaccurate else '0' }}">
+        Skip sending if accuracy is worse than
+      </label>
+      <div class="toggle-controlled" {% if not endpoint.skip_if_inaccurate %}hidden{% endif %}>
+        <label>Maximum accuracy radius to send (meters)
+          <input type="number" name="ep-{{ idx }}-max_accuracy_m" min="1" step="1" value="{{ endpoint.max_accuracy_m or 100 }}">
+        </label>
+        <p class="field-hint">Google's own <code>accuracy_m</code> radius of uncertainty for the fix - independent of the status filter above, since a fix can carry a "good" status but still have a wide radius, or vice versa.</p>
+      </div>
+    </div>
+
+    <div class="toggle-group">
       {# skip_if_already_seen defaults to on (unlike the two toggles above,
          which default off) - checked whenever the key is absent or true;
          only an explicit False unchecks it. See policy.py's
@@ -284,20 +298,6 @@
         Only send this tracker's own GPS reports
       </label>
       <p class="field-hint">Off by default: Google can also report crowdsourced fixes from other nearby devices seeing this tracker. Turn this on to only forward the tracker's own reports.</p>
-    </div>
-
-    <div class="toggle-group">
-      <label class="checkbox-label">
-        <input type="checkbox" class="skip-toggle" data-controls="accuracy" {% if endpoint.skip_if_inaccurate %}checked{% endif %}>
-        <input type="hidden" name="ep-{{ idx }}-skip_if_inaccurate" value="{{ '1' if endpoint.skip_if_inaccurate else '0' }}">
-        Skip sending if accuracy is worse than
-      </label>
-      <div class="toggle-controlled" {% if not endpoint.skip_if_inaccurate %}hidden{% endif %}>
-        <label>Maximum accuracy radius to send (meters)
-          <input type="number" name="ep-{{ idx }}-max_accuracy_m" min="1" step="1" value="{{ endpoint.max_accuracy_m or 100 }}">
-        </label>
-        <p class="field-hint">Google's own <code>accuracy_m</code> radius of uncertainty for the fix - independent of the status filter above, since a fix can carry a "good" status but still have a wide radius, or vice versa.</p>
-      </div>
     </div>
   </fieldset>
   </div>
