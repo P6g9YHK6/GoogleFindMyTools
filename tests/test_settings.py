@@ -491,6 +491,44 @@ def test_only_most_recent_can_be_turned_off(client):
     assert saved["only_most_recent"] is False
 
 
+def test_status_checkboxes_default_all_allowed_when_not_submitted(client):
+    """Same on-by-default convention as skip_if_already_seen - not
+    submitting any status_* field at all (a brand-new endpoint) must not be
+    saved as filtering anything out."""
+    resp = _post_form(
+        client,
+        f"/settings/devices/{FAKE_CANONIC_ID}",
+        display_name="My Tracker",
+        ep_order=["0"],
+        **{"ep-0-endpoint_type": "traccar", "ep-0-url": "http://x/", "ep-0-cron": "*/5 * * * *"},
+    )
+    assert resp.status_code == 200
+
+    from webui.forwarders import config_store
+
+    saved = config_store.get_device_config(FAKE_CANONIC_ID)["endpoints"][0]
+    assert "blocked_statuses" not in saved  # absence means all allowed
+
+
+def test_unchecking_a_status_persists_it_as_blocked(client):
+    resp = _post_form(
+        client,
+        f"/settings/devices/{FAKE_CANONIC_ID}",
+        display_name="My Tracker",
+        ep_order=["0"],
+        **{
+            "ep-0-endpoint_type": "traccar", "ep-0-url": "http://x/", "ep-0-cron": "*/5 * * * *",
+            "ep-0-status_AGGREGATED": "0",
+        },
+    )
+    assert resp.status_code == 200
+
+    from webui.forwarders import config_store
+
+    saved = config_store.get_device_config(FAKE_CANONIC_ID)["endpoints"][0]
+    assert saved["blocked_statuses"] == ["AGGREGATED"]
+
+
 def test_send_now_forwards_immediately_bypassing_schedule_and_skip(client, monkeypatch):
     from webui import scheduler
     from webui.forwarders import config_store, latest_values_store

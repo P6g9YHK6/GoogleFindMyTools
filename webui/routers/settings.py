@@ -39,6 +39,7 @@ _TEMPLATE_CONTEXT = {
     "builtin_variables_from_fix": BUILTIN_VARIABLES_FROM_FIX,
     "builtin_variables_from_app": BUILTIN_VARIABLES_FROM_APP,
     "cron_presets": scheduler.CRON_PRESETS, "cron_preset_values": {value for _, value in scheduler.CRON_PRESETS},
+    "status_choices": policy.STATUS_CHOICES,
 }
 
 
@@ -514,6 +515,14 @@ def _parse_endpoints_form(form, existing_endpoints: list[dict]) -> tuple[list[di
         # policy._skip_not_most_recent.
         if field("only_most_recent", "1") != "1":
             entry["only_most_recent"] = False
+
+        # Each status checkbox defaults to checked/allowed (field absent ==
+        # "1"), same on-by-default convention as skip_if_already_seen above.
+        # Only the ones the owner actively unchecked get persisted - see
+        # policy._skip_blocked_status.
+        blocked_statuses = [code for code, _ in policy.STATUS_CHOICES if field(f"status_{code}", "1") != "1"]
+        if blocked_statuses:
+            entry["blocked_statuses"] = blocked_statuses
 
         # Best-effort: carry forward any leftover "variables" (from before
         # the settings UI dropped the "Custom variables" table - there's no

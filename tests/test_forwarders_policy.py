@@ -285,3 +285,35 @@ def test_forward_one_reports_distance_skip_without_dispatching(monkeypatch):
     far_location = {"is_semantic": False, "latitude": 46.0, "longitude": 9.0}
     assert policy._forward_one(endpoint_cfg, far_location) == "ok"
     assert dispatched == [far_location]
+
+
+def test_skip_blocked_status_requires_the_status_to_be_in_the_blocked_list():
+    location = {"is_semantic": False, "status": "AGGREGATED"}
+
+    # no blocked_statuses key at all -> nothing filtered
+    assert policy._skip_blocked_status({}, location) is False
+
+    # blocked_statuses set but this status isn't in it -> don't skip
+    assert policy._skip_blocked_status({"blocked_statuses": ["CROWDSOURCED"]}, location) is False
+
+    # this status is in blocked_statuses -> skip
+    assert policy._skip_blocked_status({"blocked_statuses": ["AGGREGATED"]}, location) is True
+
+    # semantic locations carry no meaningful fix-quality status - never applies to them
+    semantic_location = {"is_semantic": True, "status": "AGGREGATED"}
+    assert policy._skip_blocked_status({"blocked_statuses": ["AGGREGATED"]}, semantic_location) is False
+
+
+def test_forward_one_reports_blocked_status_skip_without_dispatching(monkeypatch):
+    dispatched = []
+    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="", device_meta=None: dispatched.append(loc) or "ok")
+
+    endpoint_cfg = _traccar_endpoint(blocked_statuses=["AGGREGATED"])
+
+    coarse_location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1, "status": "AGGREGATED"}
+    assert policy._forward_one(endpoint_cfg, coarse_location) == "skipped: fix type AGGREGATED is unchecked in this endpoint's filter"
+    assert dispatched == []  # the network dispatch was never reached
+
+    gps_location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1, "status": "LAST_KNOWN"}
+    assert policy._forward_one(endpoint_cfg, gps_location) == "ok"
+    assert dispatched == [gps_location]

@@ -17,6 +17,16 @@ logger = logging.getLogger("webui.forwarders.policy")
 
 DEFAULT_MIN_MOVEMENT_M = 50
 DEFAULT_MIN_UPDATE_GAP_M = 30
+# The three real fix-quality statuses a location can carry (see
+# Common.proto's Status enum) - SEMANTIC isn't offered here since semantic
+# locations have no lat/lon and are already exempt from every gate below via
+# is_semantic. Order matches roughly-best-to-worst, for the settings UI's
+# checkbox list.
+STATUS_CHOICES: list[tuple[str, str]] = [
+    ("LAST_KNOWN", "GPS"),
+    ("CROWDSOURCED", "WiFi/Cellular"),
+    ("AGGREGATED", "Coarse/low-accuracy"),
+]
 # A fix this recent is treated as a genuinely live update rather than Google
 # re-serving the same stale cached report - always sent regardless of the
 # stale-duplicate gate below.
@@ -95,6 +105,17 @@ def _stale_duplicate(endpoint_cfg: dict, location: dict, now: float | None = Non
     return abs(location["time"] - last_fix_time) < gap_s
 
 
+def _skip_blocked_status(endpoint_cfg: dict, location: dict) -> bool:
+    """True if this endpoint's "allow these fix types" checkboxes have this
+    reading's status unchecked. blocked_statuses only holds entries the user
+    actively unchecked - an absent/empty list means nothing is filtered (all
+    of STATUS_CHOICES allowed), same absence-means-off convention as
+    skip_if_close/skip_if_stale above."""
+    if location.get("is_semantic"):
+        return False
+    return location.get("status") in (endpoint_cfg.get("blocked_statuses") or [])
+
+
 def _dispatch_forward(
     endpoint_cfg: dict, location: dict, device_name: str = "", device_alias: str | None = None,
     tracker_id: str = "", device_meta: dict | None = None,
@@ -137,6 +158,8 @@ def _forward_one(
     if _stale_duplicate(endpoint_cfg, location):
         gap = endpoint_cfg.get("min_update_gap_m") or DEFAULT_MIN_UPDATE_GAP_M
         return f"skipped: not updated in the last {gap:g}m"
+    if _skip_blocked_status(endpoint_cfg, location):
+        return f"skipped: fix type {location.get('status')} is unchecked in this endpoint's filter"
     return _dispatch_forward(endpoint_cfg, location, device_name, device_alias, tracker_id, device_meta)
 
 
