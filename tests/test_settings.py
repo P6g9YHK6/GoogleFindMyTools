@@ -568,6 +568,46 @@ def test_skip_if_not_own_report_toggle_is_saved(client):
     assert saved["skip_if_not_own_report"] is True
 
 
+def test_skip_if_inaccurate_toggle_and_threshold_are_saved(client):
+    resp = _post_form(
+        client,
+        f"/settings/devices/{FAKE_CANONIC_ID}",
+        display_name="My Tracker",
+        ep_order=["0"],
+        **{
+            "ep-0-endpoint_type": "traccar", "ep-0-url": "http://x/", "ep-0-cron": "*/5 * * * *",
+            "ep-0-skip_if_inaccurate": "1", "ep-0-max_accuracy_m": "150",
+        },
+    )
+    assert resp.status_code == 200
+    assert "checked" in resp.text
+
+    from webui.forwarders import config_store
+
+    saved = config_store.get_device_config(FAKE_CANONIC_ID)["endpoints"][0]
+    assert saved["skip_if_inaccurate"] is True
+    assert saved["max_accuracy_m"] == 150.0
+
+
+def test_skip_if_inaccurate_defaults_off_when_not_submitted(client):
+    resp = _post_form(
+        client,
+        f"/settings/devices/{FAKE_CANONIC_ID}",
+        display_name="My Tracker",
+        ep_order=["0"],
+        **{
+            "ep-0-endpoint_type": "traccar", "ep-0-url": "http://x/", "ep-0-cron": "*/5 * * * *",
+            "ep-0-skip_if_inaccurate": "0",
+        },
+    )
+    assert resp.status_code == 200
+
+    from webui.forwarders import config_store
+
+    saved = config_store.get_device_config(FAKE_CANONIC_ID)["endpoints"][0]
+    assert "skip_if_inaccurate" not in saved
+
+
 def test_send_now_forwards_immediately_bypassing_schedule_and_skip(client, monkeypatch):
     from webui import scheduler
     from webui.forwarders import config_store, latest_values_store

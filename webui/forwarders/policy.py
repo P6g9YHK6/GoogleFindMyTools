@@ -17,6 +17,7 @@ logger = logging.getLogger("webui.forwarders.policy")
 
 DEFAULT_MIN_MOVEMENT_M = 50
 DEFAULT_MIN_UPDATE_GAP_M = 30
+DEFAULT_MAX_ACCURACY_M = 100
 # The three real fix-quality statuses a location can carry (see
 # Common.proto's Status enum) - SEMANTIC isn't offered here since semantic
 # locations have no lat/lon and are already exempt from every gate below via
@@ -128,6 +129,21 @@ def _skip_not_own_report(endpoint_cfg: dict, location: dict) -> bool:
     return not location.get("is_own_report")
 
 
+def _skip_inaccurate(endpoint_cfg: dict, location: dict) -> bool:
+    """True if this endpoint's "skip if accuracy is worse than" toggle is on
+    and Google's own accuracy_m radius for this fix exceeds the configured
+    threshold - a wider radius means a less precise fix, independent of
+    what status flag it carries (status and accuracy_m are correlated but
+    not the same signal - this gate lets accuracy be filtered on directly,
+    same shape as _too_close_to_bother's min_movement_m above)."""
+    if not endpoint_cfg.get("skip_if_inaccurate"):
+        return False
+    if location.get("is_semantic") or location.get("accuracy") is None:
+        return False
+    threshold = endpoint_cfg.get("max_accuracy_m") or DEFAULT_MAX_ACCURACY_M
+    return location["accuracy"] > threshold
+
+
 def _dispatch_forward(
     endpoint_cfg: dict, location: dict, device_name: str = "", device_alias: str | None = None,
     tracker_id: str = "", device_meta: dict | None = None,
@@ -174,6 +190,9 @@ def _forward_one(
         return f"skipped: fix type {location.get('status')} is unchecked in this endpoint's filter"
     if _skip_not_own_report(endpoint_cfg, location):
         return "skipped: not this tracker's own report (crowdsourced by another device)"
+    if _skip_inaccurate(endpoint_cfg, location):
+        threshold = endpoint_cfg.get("max_accuracy_m") or DEFAULT_MAX_ACCURACY_M
+        return f"skipped: accuracy radius over {threshold:g}m"
     return _dispatch_forward(endpoint_cfg, location, device_name, device_alias, tracker_id, device_meta)
 
 

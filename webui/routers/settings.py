@@ -527,6 +527,13 @@ def _parse_endpoints_form(form, existing_endpoints: list[dict]) -> tuple[list[di
         if field("skip_if_not_own_report", "0") == "1":
             entry["skip_if_not_own_report"] = True
 
+        if field("skip_if_inaccurate", "0") == "1":
+            entry["skip_if_inaccurate"] = True
+            try:
+                entry["max_accuracy_m"] = float(field("max_accuracy_m") or policy.DEFAULT_MAX_ACCURACY_M)
+            except ValueError:
+                entry["max_accuracy_m"] = policy.DEFAULT_MAX_ACCURACY_M
+
         # Best-effort: carry forward any leftover "variables" (from before
         # the settings UI dropped the "Custom variables" table - there's no
         # field left to re-post one, so without this a save would silently

@@ -350,3 +350,42 @@ def test_forward_one_reports_not_own_report_skip_without_dispatching(monkeypatch
     own_location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1, "is_own_report": True}
     assert policy._forward_one(endpoint_cfg, own_location) == "ok"
     assert dispatched == [own_location]
+
+
+def test_skip_inaccurate_requires_the_toggle_and_a_real_accuracy_value():
+    location = {"is_semantic": False, "accuracy": 500}
+
+    # toggle off -> never skip, regardless of accuracy
+    assert policy._skip_inaccurate({"skip_if_inaccurate": False}, location) is False
+
+    # toggle on, over the default threshold -> skip
+    assert policy._skip_inaccurate({"skip_if_inaccurate": True}, location) is True
+
+    # toggle on, under a custom threshold -> don't skip
+    precise_location = {"is_semantic": False, "accuracy": 10}
+    assert policy._skip_inaccurate({"skip_if_inaccurate": True, "max_accuracy_m": 50}, precise_location) is False
+
+    # toggle on, over a custom threshold -> skip
+    assert policy._skip_inaccurate({"skip_if_inaccurate": True, "max_accuracy_m": 50}, location) is True
+
+    # semantic locations carry no accuracy - never applies to them
+    semantic_location = {"is_semantic": True, "accuracy": 500}
+    assert policy._skip_inaccurate({"skip_if_inaccurate": True}, semantic_location) is False
+
+    # no accuracy value at all -> never applies
+    assert policy._skip_inaccurate({"skip_if_inaccurate": True}, {"is_semantic": False, "accuracy": None}) is False
+
+
+def test_forward_one_reports_inaccurate_skip_without_dispatching(monkeypatch):
+    dispatched = []
+    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="", device_meta=None: dispatched.append(loc) or "ok")
+
+    endpoint_cfg = _traccar_endpoint(skip_if_inaccurate=True, max_accuracy_m=100)
+
+    coarse_location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1, "accuracy": 500}
+    assert policy._forward_one(endpoint_cfg, coarse_location) == "skipped: accuracy radius over 100m"
+    assert dispatched == []  # the network dispatch was never reached
+
+    precise_location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1, "accuracy": 10}
+    assert policy._forward_one(endpoint_cfg, precise_location) == "ok"
+    assert dispatched == [precise_location]
