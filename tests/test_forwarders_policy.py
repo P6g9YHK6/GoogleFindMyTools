@@ -317,3 +317,36 @@ def test_forward_one_reports_blocked_status_skip_without_dispatching(monkeypatch
     gps_location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1, "status": "LAST_KNOWN"}
     assert policy._forward_one(endpoint_cfg, gps_location) == "ok"
     assert dispatched == [gps_location]
+
+
+def test_skip_not_own_report_requires_the_toggle():
+    location = {"is_semantic": False, "is_own_report": False}
+
+    # toggle off -> never skip, regardless of who reported it
+    assert policy._skip_not_own_report({"skip_if_not_own_report": False}, location) is False
+
+    # toggle on, crowdsourced (not this tracker's own report) -> skip
+    assert policy._skip_not_own_report({"skip_if_not_own_report": True}, location) is True
+
+    # toggle on, this tracker's own report -> don't skip
+    own_location = {"is_semantic": False, "is_own_report": True}
+    assert policy._skip_not_own_report({"skip_if_not_own_report": True}, own_location) is False
+
+    # semantic locations carry no own_report distinction - never applies to them
+    semantic_location = {"is_semantic": True, "is_own_report": False}
+    assert policy._skip_not_own_report({"skip_if_not_own_report": True}, semantic_location) is False
+
+
+def test_forward_one_reports_not_own_report_skip_without_dispatching(monkeypatch):
+    dispatched = []
+    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="", device_meta=None: dispatched.append(loc) or "ok")
+
+    endpoint_cfg = _traccar_endpoint(skip_if_not_own_report=True)
+
+    crowdsourced_location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1, "is_own_report": False}
+    assert policy._forward_one(endpoint_cfg, crowdsourced_location) == "skipped: not this tracker's own report (crowdsourced by another device)"
+    assert dispatched == []  # the network dispatch was never reached
+
+    own_location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1, "is_own_report": True}
+    assert policy._forward_one(endpoint_cfg, own_location) == "ok"
+    assert dispatched == [own_location]

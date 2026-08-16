@@ -116,6 +116,18 @@ def _skip_blocked_status(endpoint_cfg: dict, location: dict) -> bool:
     return location.get("status") in (endpoint_cfg.get("blocked_statuses") or [])
 
 
+def _skip_not_own_report(endpoint_cfg: dict, location: dict) -> bool:
+    """True if this endpoint's "only send this tracker's own GPS reports"
+    toggle is on and this fix is crowdsourced from a nearby device instead
+    of the tracker's own (see own_report in webui/forwarders/custom.py's
+    build_context)."""
+    if not endpoint_cfg.get("skip_if_not_own_report"):
+        return False
+    if location.get("is_semantic"):
+        return False
+    return not location.get("is_own_report")
+
+
 def _dispatch_forward(
     endpoint_cfg: dict, location: dict, device_name: str = "", device_alias: str | None = None,
     tracker_id: str = "", device_meta: dict | None = None,
@@ -160,6 +172,8 @@ def _forward_one(
         return f"skipped: not updated in the last {gap:g}m"
     if _skip_blocked_status(endpoint_cfg, location):
         return f"skipped: fix type {location.get('status')} is unchecked in this endpoint's filter"
+    if _skip_not_own_report(endpoint_cfg, location):
+        return "skipped: not this tracker's own report (crowdsourced by another device)"
     return _dispatch_forward(endpoint_cfg, location, device_name, device_alias, tracker_id, device_meta)
 
 

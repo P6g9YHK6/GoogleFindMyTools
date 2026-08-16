@@ -258,6 +258,15 @@
       </label>
       {% endfor %}
     </div>
+
+    <div class="toggle-group">
+      <label class="checkbox-label">
+        <input type="checkbox" class="skip-toggle" {% if endpoint.skip_if_not_own_report %}checked{% endif %}>
+        <input type="hidden" name="ep-{{ idx }}-skip_if_not_own_report" value="{{ '1' if endpoint.skip_if_not_own_report else '0' }}">
+        Only send this tracker's own GPS reports
+      </label>
+      <p class="field-hint">Off by default: Google can also report crowdsourced fixes from other nearby devices seeing this tracker. Turn this on to only forward the tracker's own reports.</p>
+    </div>
   </fieldset>
   </div>
   </div>

@@ -529,6 +529,45 @@ def test_unchecking_a_status_persists_it_as_blocked(client):
     assert saved["blocked_statuses"] == ["AGGREGATED"]
 
 
+def test_skip_if_not_own_report_defaults_off_when_not_submitted(client):
+    resp = _post_form(
+        client,
+        f"/settings/devices/{FAKE_CANONIC_ID}",
+        display_name="My Tracker",
+        ep_order=["0"],
+        **{
+            "ep-0-endpoint_type": "traccar", "ep-0-url": "http://x/", "ep-0-cron": "*/5 * * * *",
+            "ep-0-skip_if_not_own_report": "0",
+        },
+    )
+    assert resp.status_code == 200
+
+    from webui.forwarders import config_store
+
+    saved = config_store.get_device_config(FAKE_CANONIC_ID)["endpoints"][0]
+    assert "skip_if_not_own_report" not in saved
+
+
+def test_skip_if_not_own_report_toggle_is_saved(client):
+    resp = _post_form(
+        client,
+        f"/settings/devices/{FAKE_CANONIC_ID}",
+        display_name="My Tracker",
+        ep_order=["0"],
+        **{
+            "ep-0-endpoint_type": "traccar", "ep-0-url": "http://x/", "ep-0-cron": "*/5 * * * *",
+            "ep-0-skip_if_not_own_report": "1",
+        },
+    )
+    assert resp.status_code == 200
+    assert "checked" in resp.text
+
+    from webui.forwarders import config_store
+
+    saved = config_store.get_device_config(FAKE_CANONIC_ID)["endpoints"][0]
+    assert saved["skip_if_not_own_report"] is True
+
+
 def test_send_now_forwards_immediately_bypassing_schedule_and_skip(client, monkeypatch):
     from webui import scheduler
     from webui.forwarders import config_store, latest_values_store

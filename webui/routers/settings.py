@@ -524,6 +524,9 @@ def _parse_endpoints_form(form, existing_endpoints: list[dict]) -> tuple[list[di
         if blocked_statuses:
             entry["blocked_statuses"] = blocked_statuses
 
+        if field("skip_if_not_own_report", "0") == "1":
+            entry["skip_if_not_own_report"] = True
+
         # Best-effort: carry forward any leftover "variables" (from before
         # the settings UI dropped the "Custom variables" table - there's no
         # field left to re-post one, so without this a save would silently
