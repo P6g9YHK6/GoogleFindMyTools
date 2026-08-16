@@ -6,7 +6,7 @@
 
 [![Lint and test](https://github.com/P6g9YHK6/GoogleFindMyToolsWebUi/actions/workflows/test.yml/badge.svg)](https://github.com/P6g9YHK6/GoogleFindMyToolsWebUi/actions/workflows/test.yml)
 
-A self-hosted app that logs into your Google account, keeps polling your Find My Device trackers and Android phones, and forwards each new location to your own Traccar or Nextcloud PhoneTrack server, so you keep your location history on your own infrastructure instead of nowhere. One Docker container, a web UI, nothing else to run.
+A self-hosted app that logs into your Google account, keeps polling your Find My Device / Find Hub trackers and Android phones, and forwards each new location to your own Traccar or Nextcloud PhoneTrack server, so you keep your location history on your own infrastructure instead of nowhere. One Docker container, a web UI, nothing else to run.
 
 It's built on top of [GoogleFindMyTools](https://github.com/leonboe1/GoogleFindMyTools), the original reverse-engineering work that figured out how to talk to Google's Find My Device / Find Hub network at the protocol level (querying trackers, decrypting end-to-end encrypted locations, registering custom ESP32/Zephyr trackers). That original tool is still in here and still works as a set of Python scripts - see [Advanced: running it as a CLI tool](#advanced-running-it-as-a-cli-tool) below. Everything described in the rest of this README is a self-hosted app built around it: a web UI, a scheduler, multi-destination forwarding, and the operational stuff (logging, throttling, auth, encryption at rest) a service you actually leave running needs.
 
