@@ -228,6 +228,40 @@ def test_device_alias_overrides_confusing_google_name(client):
     assert "Garage Tracker" in page.text
 
 
+def test_saving_the_form_does_not_wipe_google_name_when_the_device_drops_off_the_live_list(client, monkeypatch):
+    """Saving the form re-syncs google_name/device_meta from a fresh
+    device-list fetch same as any full page load does (see _rows) - but if
+    this device is temporarily missing from that one fetch (a transient
+    Nova hiccup, not the device actually being gone), that sync has
+    nothing to write back. The save itself must still carry forward
+    whatever was already on disk instead of just persisting
+    {display_name, endpoints} and leaving google_name/device_meta blank -
+    otherwise {{device_name}} would fall back to this device's alias, and
+    every label_* chip would disappear, until some later request happens
+    to see this device again."""
+    from webui.device_list_cache import device_list_cache
+    from webui.forwarders import config_store
+    from webui.routers import settings
+
+    _sync_device_meta(client, monkeypatch, is_phone=True, carrier="T-Mobile")
+    device_list_cache.invalidate()  # or the next fetch below would just serve _sync_device_meta's cached result
+    monkeypatch.setattr(settings, "get_device_details", lambda device_list: [])
+
+    resp = _post_form(
+        client,
+        f"/settings/devices/{FAKE_CANONIC_ID}",
+        display_name="Garage Tracker",
+        ep_order=["0"],
+        **{"ep-0-endpoint_type": "traccar", "ep-0-url": "http://x/", "ep-0-cron": "*/5 * * * *"},
+    )
+    assert resp.status_code == 200
+
+    saved = config_store.get_device_config(FAKE_CANONIC_ID)
+    assert saved["display_name"] == "Garage Tracker"
+    assert saved["google_name"] == FAKE_DEVICE_NAME
+    assert saved["device_meta"]["carrier"] == "T-Mobile"
+
+
 def test_settings_page_load_syncs_device_metadata_into_forwarding_yaml(client, monkeypatch):
     """webui/scheduler.py's poll loop never talks to Google's device-list
     API itself - loading the settings page is what persists manufacturer/
@@ -947,6 +981,31 @@ def test_save_device_yaml_persists_and_reflects_in_the_form(client):
         "params": {}, "headers": {}, "body_type": "none", "body": "",
         "variables": {"device_id": "yaml-dev"}, "cron": "*/10 * * * *",
     }]
+
+
+def test_save_device_yaml_does_not_wipe_device_meta_when_the_device_drops_off_the_live_list(client, monkeypatch):
+    """Same reasoning as the form save's own version of this test - the
+    YAML save's _row() call re-syncs device_meta from a fresh device-list
+    fetch too, and must not lose it just because this device happens to be
+    missing from that one particular fetch."""
+    from webui.device_list_cache import device_list_cache
+    from webui.forwarders import config_store
+    from webui.routers import settings
+
+    _sync_device_meta(client, monkeypatch, is_phone=True, carrier="T-Mobile")
+    device_list_cache.invalidate()  # or the next fetch below would just serve _sync_device_meta's cached result
+    monkeypatch.setattr(settings, "get_device_details", lambda device_list: [])
+
+    resp = client.post(
+        f"/settings/devices/{FAKE_CANONIC_ID}/yaml",
+        data={"yaml_text": "display_name: Renamed From YAML\nendpoints: []\n"},
+    )
+    assert resp.status_code == 200
+
+    saved = config_store.get_device_config(FAKE_CANONIC_ID)
+    assert saved["display_name"] == "Renamed From YAML"
+    assert saved["google_name"] == FAKE_DEVICE_NAME
+    assert saved["device_meta"]["carrier"] == "T-Mobile"
 
 
 def test_save_device_yaml_without_a_display_name_key_clears_the_alias(client):
