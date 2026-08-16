@@ -18,7 +18,7 @@ def test_devices_table_is_sortable(client):
     """Opts into static/tables.js's click-to-sort/drag-to-resize columns."""
     resp = client.get("/devices/table")
     assert resp.status_code == 200
-    assert '<table class="sortable-table">' in resp.text
+    assert '<table class="sortable-table" data-table-id="devices">' in resp.text
 
 
 def test_devices_table_shows_alias_and_endpoint_count(client, tmp_path, monkeypatch):
@@ -39,8 +39,8 @@ def test_devices_table_shows_alias_and_endpoint_count(client, tmp_path, monkeypa
 
     resp = client.get("/devices/table")
     assert resp.status_code == 200
-    assert "<th>Alias</th>" in resp.text
-    assert "<th>Endpoints</th>" in resp.text
+    assert '<th data-col="alias">Alias</th>' in resp.text
+    assert '<th data-col="endpoints">Endpoints</th>' in resp.text
     assert "Garage Tracker" in resp.text
     assert "<td>2</td>" in resp.text
 
@@ -57,7 +57,7 @@ def test_devices_table_last_seen_header_credits_the_find_hub(client):
     own reporting, not e.g. this app's last poll."""
     resp = client.get("/devices/table")
     assert resp.status_code == 200
-    assert "<th>Last seen by find hub</th>" in resp.text
+    assert '<th data-col="last_seen">Last seen by find hub</th>' in resp.text
 
 
 def test_devices_table_shows_last_seen_when_available(client):
@@ -90,7 +90,7 @@ def test_devices_table_prepopulates_from_a_prior_locate_no_click_needed(client, 
     resp = client.get("/devices/table")
     assert resp.status_code == 200
     assert "12.50000, 34.50000" in resp.text
-    assert "<th>Polled at</th>" in resp.text
+    assert '<th data-col="polled_at">Polled at</th>' in resp.text
     from datetime import datetime
 
     assert datetime.fromtimestamp(1700000000).strftime("%Y-%m-%d %H:%M:%S") in resp.text
@@ -159,7 +159,7 @@ def test_devices_table_shows_a_map_links_column_with_every_provider(client, tmp_
 
     resp = client.get("/devices/table")
     assert resp.status_code == 200
-    assert "<th>Map</th>" in resp.text
+    assert '<th data-col="map">Map</th>' in resp.text
     # OSM is the default/primary provider - listed first, not just present
     assert resp.text.index("openstreetmap.org") < resp.text.index("google.com/maps")
     for host in ("openstreetmap.org", "google.com/maps", "maps.apple.com", "bing.com/maps", "waze.com"):

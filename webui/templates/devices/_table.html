@@ -1,8 +1,29 @@
+<div class="table-toolbar">
+  {# Show/hide checkboxes, one per data-col below - static/tables.js reads
+     this menu's checkboxes on load/change and persists the result (see
+     "Devices" and "Logs" table both sharing this markup shape) instead of
+     generating it, matching the rest of this file's hand-written columns. #}
+  <details class="columns-menu">
+    <summary>Columns</summary>
+    <menu>
+      <li><label><input type="checkbox" data-col="name" checked> Name</label></li>
+      <li><label><input type="checkbox" data-col="alias" checked> Alias</label></li>
+      <li><label><input type="checkbox" data-col="device" checked> Device</label></li>
+      <li><label><input type="checkbox" data-col="actions" checked> Actions</label></li>
+      <li><label><input type="checkbox" data-col="locate_result" checked> Last locate result</label></li>
+      <li><label><input type="checkbox" data-col="map" checked> Map</label></li>
+      <li><label><input type="checkbox" data-col="last_seen" checked> Last seen by find hub</label></li>
+      <li><label><input type="checkbox" data-col="endpoints" checked> Endpoints</label></li>
+      <li><label><input type="checkbox" data-col="polled_at" checked> Polled at</label></li>
+      <li><label><input type="checkbox" data-col="next_poll" checked> Next poll</label></li>
+    </menu>
+  </details>
+</div>
 <div class="table-scroll">
-<table class="sortable-table">
+<table class="sortable-table" data-table-id="devices">
   <thead>
     <tr>
-      <th>Name</th><th>Alias</th><th>Device</th><th>Actions</th><th>Last locate result</th><th>Map</th><th>Last seen by find hub</th><th>Endpoints</th><th>Polled at</th><th>Next poll</th>
+      <th data-col="name">Name</th><th data-col="alias">Alias</th><th data-col="device">Device</th><th data-col="actions">Actions</th><th data-col="locate_result">Last locate result</th><th data-col="map">Map</th><th data-col="last_seen">Last seen by find hub</th><th data-col="endpoints">Endpoints</th><th data-col="polled_at">Polled at</th><th data-col="next_poll">Next poll</th>
     </tr>
   </thead>
   <tbody>

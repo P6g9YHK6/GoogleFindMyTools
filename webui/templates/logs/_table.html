@@ -1,7 +1,19 @@
+<div class="table-toolbar">
+  <details class="columns-menu">
+    <summary>Columns</summary>
+    <menu>
+      <li><label><input type="checkbox" data-col="time" checked> Time</label></li>
+      <li><label><input type="checkbox" data-col="type" checked> Type</label></li>
+      <li><label><input type="checkbox" data-col="level" checked> Level</label></li>
+      <li><label><input type="checkbox" data-col="source" checked> Source</label></li>
+      <li><label><input type="checkbox" data-col="detail" checked> Detail</label></li>
+    </menu>
+  </details>
+</div>
 <div class="table-scroll">
-<table class="sortable-table">
+<table class="sortable-table" data-table-id="logs">
   <thead>
-    <tr><th>Time</th><th>Type</th><th>Level</th><th>Source</th><th>Detail</th></tr>
+    <tr><th data-col="time">Time</th><th data-col="type">Type</th><th data-col="level">Level</th><th data-col="source">Source</th><th data-col="detail">Detail</th></tr>
   </thead>
   <tbody>
   {% for entry in entries %}

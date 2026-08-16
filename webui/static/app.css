@@ -395,6 +395,98 @@ body.col-resizing, body.col-resizing * {
   user-select: none;
 }
 
+/* Drag-to-reorder columns (static/tables.js's addDragHandle/moveColumn) -
+   its own handle on the left of each th, separate from the resize handle
+   on the right, so a reorder drag and a resize drag can never be started
+   by the same gesture. */
+.col-drag-handle {
+  display: inline-block;
+  margin-right: 0.3rem;
+  cursor: grab;
+  color: var(--text-muted);
+  touch-action: none;
+}
+
+.col-drag-handle::before {
+  content: "⠿";
+}
+
+.col-dragging {
+  opacity: 0.5;
+}
+
+body.col-reordering, body.col-reordering * {
+  cursor: grabbing !important;
+  user-select: none;
+}
+
+/* "Columns" show/hide menu (devices/_table.html, logs/_table.html) - a
+   native <details>/<summary> disclosure, same pattern as .device-details,
+   so open/close state and outside-click dismissal come for free instead
+   of being hand-rolled. */
+.table-toolbar {
+  margin-bottom: 0.6rem;
+}
+
+.columns-menu {
+  position: relative;
+  display: inline-block;
+}
+
+.columns-menu summary {
+  list-style: none;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.9rem;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+}
+
+.columns-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.columns-menu summary:hover {
+  background: var(--surface-alt);
+}
+
+.columns-menu[open] summary {
+  border-color: var(--primary);
+}
+
+.columns-menu menu {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 0.3rem);
+  left: 0;
+  min-width: 12rem;
+  margin: 0;
+  padding: 0.4rem;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+}
+
+.columns-menu li {
+  padding: 0.15rem 0;
+}
+
+.columns-menu label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 400;
+  cursor: pointer;
+}
+
 tbody tr:last-child td {
   border-bottom: none;
 }
