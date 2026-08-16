@@ -287,28 +287,30 @@ def test_forward_one_reports_distance_skip_without_dispatching(monkeypatch):
     assert dispatched == [far_location]
 
 
-def test_skip_blocked_status_requires_the_status_to_be_in_the_blocked_list():
+def test_skip_blocked_status_requires_filter_by_status_to_be_on():
     location = {"is_semantic": False, "status": "AGGREGATED"}
 
-    # no blocked_statuses key at all -> nothing filtered
+    # no filter_by_status key at all -> the checkboxes are hidden and never
+    # consulted, regardless of what blocked_statuses holds
     assert policy._skip_blocked_status({}, location) is False
+    assert policy._skip_blocked_status({"blocked_statuses": ["AGGREGATED"]}, location) is False
 
-    # blocked_statuses set but this status isn't in it -> don't skip
-    assert policy._skip_blocked_status({"blocked_statuses": ["CROWDSOURCED"]}, location) is False
+    # filter_by_status on, but this status isn't in blocked_statuses -> don't skip
+    assert policy._skip_blocked_status({"filter_by_status": True, "blocked_statuses": ["CROWDSOURCED"]}, location) is False
 
-    # this status is in blocked_statuses -> skip
-    assert policy._skip_blocked_status({"blocked_statuses": ["AGGREGATED"]}, location) is True
+    # filter_by_status on and this status is in blocked_statuses -> skip
+    assert policy._skip_blocked_status({"filter_by_status": True, "blocked_statuses": ["AGGREGATED"]}, location) is True
 
     # semantic locations carry no meaningful fix-quality status - never applies to them
     semantic_location = {"is_semantic": True, "status": "AGGREGATED"}
-    assert policy._skip_blocked_status({"blocked_statuses": ["AGGREGATED"]}, semantic_location) is False
+    assert policy._skip_blocked_status({"filter_by_status": True, "blocked_statuses": ["AGGREGATED"]}, semantic_location) is False
 
 
 def test_forward_one_reports_blocked_status_skip_without_dispatching(monkeypatch):
     dispatched = []
     monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="", device_meta=None: dispatched.append(loc) or "ok")
 
-    endpoint_cfg = _traccar_endpoint(blocked_statuses=["AGGREGATED"])
+    endpoint_cfg = _traccar_endpoint(filter_by_status=True, blocked_statuses=["AGGREGATED"])
 
     coarse_location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1, "status": "AGGREGATED"}
     assert policy._forward_one(endpoint_cfg, coarse_location) == "skipped: fix type AGGREGATED is unchecked in this endpoint's filter"

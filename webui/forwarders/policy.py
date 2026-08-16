@@ -107,12 +107,13 @@ def _stale_duplicate(endpoint_cfg: dict, location: dict, now: float | None = Non
 
 
 def _skip_blocked_status(endpoint_cfg: dict, location: dict) -> bool:
-    """True if this endpoint's "allow these fix types" checkboxes have this
-    reading's status unchecked. blocked_statuses only holds entries the user
-    actively unchecked - an absent/empty list means nothing is filtered (all
-    of STATUS_CHOICES allowed), same absence-means-off convention as
-    skip_if_close/skip_if_stale above."""
-    if location.get("is_semantic"):
+    """True if this endpoint has "filter by report type" turned on and this
+    reading's status is one of the fix types unchecked there. filter_by_status
+    off (the default) means the per-type checkboxes are hidden in the
+    settings UI and never consulted, regardless of what blocked_statuses
+    holds - same absence-means-off convention as skip_if_close/skip_if_stale
+    above."""
+    if location.get("is_semantic") or not endpoint_cfg.get("filter_by_status"):
         return False
     return location.get("status") in (endpoint_cfg.get("blocked_statuses") or [])
 

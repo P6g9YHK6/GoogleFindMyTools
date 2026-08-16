@@ -516,13 +516,16 @@ def _parse_endpoints_form(form, existing_endpoints: list[dict]) -> tuple[list[di
         if field("only_most_recent", "1") != "1":
             entry["only_most_recent"] = False
 
-        # Each status checkbox defaults to checked/allowed (field absent ==
-        # "1"), same on-by-default convention as skip_if_already_seen above.
-        # Only the ones the owner actively unchecked get persisted - see
-        # policy._skip_blocked_status.
-        blocked_statuses = [code for code, _ in policy.STATUS_CHOICES if field(f"status_{code}", "1") != "1"]
-        if blocked_statuses:
-            entry["blocked_statuses"] = blocked_statuses
+        # Off by default, same convention as skip_if_close/skip_if_inaccurate
+        # above - the per-type checkboxes stay collapsed in the settings UI
+        # until this is turned on. Each status checkbox defaults to checked/
+        # allowed (field absent == "1") once it's visible; only the ones the
+        # owner actively unchecked get persisted. See policy._skip_blocked_status.
+        if field("filter_by_status", "0") == "1":
+            entry["filter_by_status"] = True
+            blocked_statuses = [code for code, _ in policy.STATUS_CHOICES if field(f"status_{code}", "1") != "1"]
+            if blocked_statuses:
+                entry["blocked_statuses"] = blocked_statuses
 
         if field("skip_if_not_own_report", "0") == "1":
             entry["skip_if_not_own_report"] = True

@@ -244,19 +244,31 @@
     </div>
 
     <div class="toggle-group">
-      {# Each checkbox defaults to checked/allowed (same on-by-default
-         convention as skip_if_already_seen above) - only the ones the
-         owner actively unchecked end up in endpoint.blocked_statuses. See
-         policy.py's _skip_blocked_status and this form's parsing in
-         settings.py. #}
-      <p class="field-hint">Allow these fix types (unchecking one skips fixes Google flags with that status):</p>
-      {% for code, label in status_choices %}
+      {# filter_by_status defaults off, same convention as skip_if_close/
+         skip_if_inaccurate above - the per-type checkboxes below stay out
+         of the way until this is turned on. Each of those defaults to
+         checked/allowed once visible; only the ones the owner actively
+         unchecked end up in endpoint.blocked_statuses. See policy.py's
+         _skip_blocked_status and this form's parsing in settings.py.
+         The inner checkboxes are "status-choice-toggle", not "skip-toggle"
+         - they share this group with the master checkbox above, and
+         applyToggleVisibility (endpoint_fields.js) would otherwise treat
+         each of them as its own group's visibility switch too. #}
       <label class="checkbox-label">
-        <input type="checkbox" class="skip-toggle" {% if code not in (endpoint.blocked_statuses or []) %}checked{% endif %}>
-        <input type="hidden" name="ep-{{ idx }}-status_{{ code }}" value="{{ '0' if code in (endpoint.blocked_statuses or []) else '1' }}">
-        {{ label }} ({{ code }})
+        <input type="checkbox" class="skip-toggle" {% if endpoint.filter_by_status %}checked{% endif %}>
+        <input type="hidden" name="ep-{{ idx }}-filter_by_status" value="{{ '1' if endpoint.filter_by_status else '0' }}">
+        Filter by report type
       </label>
-      {% endfor %}
+      <div class="toggle-controlled" {% if not endpoint.filter_by_status %}hidden{% endif %}>
+        <p class="field-hint">Allow these fix types (unchecking one skips fixes Google flags with that status):</p>
+        {% for code, label in status_choices %}
+        <label class="checkbox-label">
+          <input type="checkbox" class="status-choice-toggle" {% if code not in (endpoint.blocked_statuses or []) %}checked{% endif %}>
+          <input type="hidden" name="ep-{{ idx }}-status_{{ code }}" value="{{ '0' if code in (endpoint.blocked_statuses or []) else '1' }}">
+          {{ label }} ({{ code }})
+        </label>
+        {% endfor %}
+      </div>
     </div>
 
     <div class="toggle-group">

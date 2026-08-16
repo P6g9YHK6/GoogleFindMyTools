@@ -491,10 +491,10 @@ def test_only_most_recent_can_be_turned_off(client):
     assert saved["only_most_recent"] is False
 
 
-def test_status_checkboxes_default_all_allowed_when_not_submitted(client):
-    """Same on-by-default convention as skip_if_already_seen - not
-    submitting any status_* field at all (a brand-new endpoint) must not be
-    saved as filtering anything out."""
+def test_filter_by_status_defaults_off_when_not_submitted(client):
+    """Off by default, same convention as skip_if_close/skip_if_inaccurate -
+    not submitting the field at all (a brand-new endpoint) must not be saved
+    as filtering anything out, and the per-type checkboxes stay unsaved too."""
     resp = _post_form(
         client,
         f"/settings/devices/{FAKE_CANONIC_ID}",
@@ -507,10 +507,15 @@ def test_status_checkboxes_default_all_allowed_when_not_submitted(client):
     from webui.forwarders import config_store
 
     saved = config_store.get_device_config(FAKE_CANONIC_ID)["endpoints"][0]
-    assert "blocked_statuses" not in saved  # absence means all allowed
+    assert "filter_by_status" not in saved
+    assert "blocked_statuses" not in saved
 
 
-def test_unchecking_a_status_persists_it_as_blocked(client):
+def test_unchecking_a_status_is_a_no_op_while_filter_by_status_is_off(client):
+    """The per-type checkboxes are hidden behind "Filter by report type" in
+    the UI, but the hidden inputs still submit - unchecking one shouldn't
+    silently start filtering unless the owner turns the master toggle on
+    too."""
     resp = _post_form(
         client,
         f"/settings/devices/{FAKE_CANONIC_ID}",
@@ -526,6 +531,27 @@ def test_unchecking_a_status_persists_it_as_blocked(client):
     from webui.forwarders import config_store
 
     saved = config_store.get_device_config(FAKE_CANONIC_ID)["endpoints"][0]
+    assert "blocked_statuses" not in saved
+
+
+def test_enabling_filter_by_status_persists_the_unchecked_statuses(client):
+    resp = _post_form(
+        client,
+        f"/settings/devices/{FAKE_CANONIC_ID}",
+        display_name="My Tracker",
+        ep_order=["0"],
+        **{
+            "ep-0-endpoint_type": "traccar", "ep-0-url": "http://x/", "ep-0-cron": "*/5 * * * *",
+            "ep-0-filter_by_status": "1",
+            "ep-0-status_AGGREGATED": "0",
+        },
+    )
+    assert resp.status_code == 200
+
+    from webui.forwarders import config_store
+
+    saved = config_store.get_device_config(FAKE_CANONIC_ID)["endpoints"][0]
+    assert saved["filter_by_status"] is True
     assert saved["blocked_statuses"] == ["AGGREGATED"]
 
 

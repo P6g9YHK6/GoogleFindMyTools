@@ -410,6 +410,13 @@
         if (hidden) hidden.value = event.target.checked ? "1" : "0";
         applyToggleVisibility(event.target);
         updatePreview(block);
+      } else if (event.target.classList.contains("status-choice-toggle")) {
+        // Same hidden-input sync as skip-toggle above, minus
+        // applyToggleVisibility - these share the "Filter by report type"
+        // toggle's own .toggle-group, and aren't a visibility switch
+        // themselves (see _endpoint_fields.html's status_choices loop).
+        const hidden = event.target.closest("label")?.querySelector("input[type='hidden']");
+        if (hidden) hidden.value = event.target.checked ? "1" : "0";
       } else if (event.target.matches(".body-type-select")) {
         updateBodyVisibility(block);
         updatePreview(block);
