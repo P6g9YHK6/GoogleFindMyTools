@@ -1,6 +1,11 @@
 <form hx-post="/settings/devices/{{ canonic_id }}/yaml" hx-target="closest .device-editor" hx-swap="innerHTML">
   <fieldset>
-    <legend>{{ name }}
+    {# Same rule as _device_form.html's own legend: always the fixed Google
+       account name, with the alias (if any) shown small next to it rather
+       than replacing it - see routers/settings.py for how google_name/
+       alias are derived here. #}
+    <legend>{{ google_name or name }}
+      {% if google_name and alias %}<span class="endpoint-legend-text">({{ alias }})</span>{% endif %}
       {# Posts (not gets) so it carries whatever's currently typed in the
          textarea below - including edits not yet saved - back into the
          form view; see device_form_preview_route in routers/settings.py. #}

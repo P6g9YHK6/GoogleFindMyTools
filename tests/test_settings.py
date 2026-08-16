@@ -208,7 +208,12 @@ def test_save_shows_a_confirmation_toast(client):
     assert "save-toast" in resp.text
 
 
-def test_device_alias_overrides_confusing_google_name(client):
+def test_device_form_legend_always_shows_google_name_with_alias_shown_small(client):
+    """The heading is always the fixed Google account name, never the
+    alias - a heading that flipped to the alias once one was set left no
+    way to tell at a glance which device this actually is on the Google
+    account side. The alias still shows too, in small text right next to
+    it, rather than disappearing."""
     resp = _post_form(
         client,
         f"/settings/devices/{FAKE_CANONIC_ID}",
@@ -217,15 +222,31 @@ def test_device_alias_overrides_confusing_google_name(client):
         **{"ep-0-endpoint_type": "traccar", "ep-0-url": "http://x/", "ep-0-cron": "*/5 * * * *"},
     )
     assert resp.status_code == 200
-    assert "Garage Tracker" in resp.text
-    assert FAKE_DEVICE_NAME in resp.text  # hint pointing back at the underlying Google device name
+    assert f"<legend>{FAKE_DEVICE_NAME}" in resp.text
+    assert '<span class="endpoint-legend-text">(Garage Tracker)</span>' in resp.text
 
     from webui.forwarders import config_store
 
     assert config_store.get_device_config(FAKE_CANONIC_ID)["display_name"] == "Garage Tracker"
 
     page = client.get("/settings")
-    assert "Garage Tracker" in page.text
+    assert f"<legend>{FAKE_DEVICE_NAME}" in page.text
+    assert '<span class="endpoint-legend-text">(Garage Tracker)</span>' in page.text
+
+
+def test_device_form_legend_shows_only_the_google_name_when_no_alias_is_set(client):
+    """No _endpoint_fields.html-style false positive here: that partial
+    renders its own (always-present, often-empty) .endpoint-legend-text
+    span per endpoint, so this checks for the specific "(alias)"
+    parenthetical the device heading adds, not the bare class name."""
+    from webui.forwarders import config_store
+
+    config_store.set_device_config(FAKE_CANONIC_ID, {"display_name": "", "endpoints": [], "google_name": FAKE_DEVICE_NAME})
+
+    resp = client.get(f"/settings/devices/{FAKE_CANONIC_ID}")
+    assert resp.status_code == 200
+    assert f"<legend>{FAKE_DEVICE_NAME}" in resp.text
+    assert '<span class="endpoint-legend-text">(' not in resp.text
 
 
 def test_saving_the_form_does_not_wipe_google_name_when_the_device_drops_off_the_live_list(client, monkeypatch):
@@ -873,6 +894,24 @@ def test_device_yaml_view_shows_current_config(client):
     assert "Edit as form" in resp.text
 
 
+def test_device_yaml_view_legend_always_shows_google_name_with_alias_shown_small(client):
+    """Same rule as the form view's own legend (see _device_form.html) -
+    switching to Edit as YAML must not lose that, or the two views would
+    disagree about which name identifies this device."""
+    _post_form(
+        client,
+        f"/settings/devices/{FAKE_CANONIC_ID}",
+        display_name="Garage Tracker",
+        ep_order=["0"],
+        **{"ep-0-endpoint_type": "traccar", "ep-0-url": "http://x/", "ep-0-cron": "*/5 * * * *"},
+    )
+
+    resp = client.get(f"/settings/devices/{FAKE_CANONIC_ID}/yaml")
+    assert resp.status_code == 200
+    assert f"<legend>{FAKE_DEVICE_NAME}" in resp.text
+    assert '<span class="endpoint-legend-text">(Garage Tracker)</span>' in resp.text
+
+
 def test_device_form_route_switches_back_from_yaml_view(client):
     resp = client.get(f"/settings/devices/{FAKE_CANONIC_ID}")
     assert resp.status_code == 200
@@ -886,6 +925,11 @@ def test_edit_as_yaml_button_reflects_unsaved_form_edits_without_persisting(clie
     YAML it renders, and must not itself write anything to disk."""
     from webui.forwarders import config_store
 
+    # Seeded explicitly (rather than relying on some earlier test in the
+    # file having already synced one) so the heading assertion below isn't
+    # order-dependent - see the same google_name/alias legend rule in
+    # _device_form.html.
+    config_store.set_device_config(FAKE_CANONIC_ID, {"display_name": "", "endpoints": [], "google_name": FAKE_DEVICE_NAME})
     before = config_store.get_device_config(FAKE_CANONIC_ID)
 
     resp = _post_form(
@@ -896,7 +940,8 @@ def test_edit_as_yaml_button_reflects_unsaved_form_edits_without_persisting(clie
         **{"ep-0-url": "http://not-yet-saved.example/", "ep-0-cron": "*/5 * * * *"},
     )
     assert resp.status_code == 200
-    assert "<legend>Not Yet Saved Name" in resp.text  # the heading
+    assert f"<legend>{FAKE_DEVICE_NAME}" in resp.text  # the heading - always the Google name
+    assert "(Not Yet Saved Name)" in resp.text  # the just-typed alias, shown small next to it
     assert "url: http://not-yet-saved.example/" in resp.text
     assert "display_name: Not Yet Saved Name" in resp.text  # also carried into the YAML body itself
     assert "Edit as form" in resp.text

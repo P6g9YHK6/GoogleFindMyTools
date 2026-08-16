@@ -8,7 +8,16 @@
      forwarding.html's single, page-wide #presets-data). #}
   <script type="application/json" class="device-preview-values">{{ row.preview_values_json | safe }}</script>
   <fieldset>
-    <legend>{{ row.name }}
+    {# Always the fixed Google account name, never the alias - the alias
+       has its own field right below (with the Google name as its
+       placeholder when unset), and a heading that flips to the alias once
+       one's set left no way to tell at a glance which device this actually
+       is on the Google account side. The alias still shows too, in small
+       text right next to it, when one's set. Falls back to row.name
+       (itself alias-or-canonic_id) only in _row()'s own fallback case,
+       where google_name is genuinely unknown - see routers/settings.py. #}
+    <legend>{{ row.google_name or row.name }}
+      {% if row.google_name and row.config.display_name %}<span class="endpoint-legend-text">({{ row.config.display_name }})</span>{% endif %}
       {# Posts (not gets) so it carries this form's current field values -
          including anything typed but not yet saved - into the YAML view;
          see device_yaml_preview_route in routers/settings.py. #}

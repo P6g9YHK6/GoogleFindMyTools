@@ -289,7 +289,8 @@ async def device_yaml_route(request: Request, canonic_id: str):
         sort_keys=False, allow_unicode=True,
     )
     return templates.TemplateResponse(request, "settings/_device_yaml.html", {
-        "canonic_id": canonic_id, "name": row["name"], "yaml_text": yaml_text,
+        "canonic_id": canonic_id, "name": row["name"], "google_name": row["google_name"],
+        "alias": row["config"].get("display_name") or "", "yaml_text": yaml_text,
         "label_variables": row["label_variables"], **_TEMPLATE_CONTEXT,
     })
 
@@ -309,12 +310,15 @@ async def device_yaml_preview_route(request: Request, canonic_id: str, display_n
     existing = config_store.get_device_config(canonic_id) or {"endpoints": []}
     endpoints, _errors = _parse_endpoints_form(form, existing.get("endpoints", []))
     yaml_text = yaml.safe_dump(_to_yaml_doc(display_name, endpoints), sort_keys=False, allow_unicode=True)
-    # The alias field is blank until one's actually set (see
-    # _device_form.html) - fall back the same way row.name/_rows does, so
-    # this heading doesn't just go blank for a device with no alias yet.
-    name = display_name.strip() or existing.get("google_name") or canonic_id
+    # The heading is always the fixed Google name (falling back to the
+    # just-typed alias, then canonic_id, only when google_name is itself
+    # unknown) - same rule as _device_form.html's own legend. The alias
+    # shows too, small, next to it - see _device_yaml.html.
+    google_name = existing.get("google_name") or ""
+    name = google_name or display_name.strip() or canonic_id
     return templates.TemplateResponse(request, "settings/_device_yaml.html", {
-        "canonic_id": canonic_id, "name": name, "yaml_text": yaml_text,
+        "canonic_id": canonic_id, "name": name, "google_name": google_name, "alias": display_name.strip(),
+        "yaml_text": yaml_text,
         "label_variables": device_label_variables(existing.get("device_meta")), **_TEMPLATE_CONTEXT,
     })
 
@@ -331,9 +335,11 @@ async def device_form_preview_route(request: Request, canonic_id: str, yaml_text
     existing = config_store.get_device_config(canonic_id) or {}
     endpoints, display_name, error = _from_yaml_doc(yaml_text)
     if error:
-        name = existing.get("display_name") or existing.get("google_name") or canonic_id
+        google_name = existing.get("google_name") or ""
+        name = google_name or existing.get("display_name") or canonic_id
         return templates.TemplateResponse(request, "settings/_device_yaml.html", {
-            "canonic_id": canonic_id, "name": name, "yaml_text": yaml_text,
+            "canonic_id": canonic_id, "name": name, "google_name": google_name,
+            "alias": existing.get("display_name") or "", "yaml_text": yaml_text,
             "error": error, "label_variables": device_label_variables(existing.get("device_meta")), **_TEMPLATE_CONTEXT,
         })
 
@@ -353,7 +359,8 @@ async def save_device_yaml_route(request: Request, canonic_id: str, yaml_text: s
     endpoints, display_name, error = _from_yaml_doc(yaml_text)
     if error:
         return templates.TemplateResponse(request, "settings/_device_yaml.html", {
-            "canonic_id": canonic_id, "name": row["name"], "yaml_text": yaml_text,
+            "canonic_id": canonic_id, "name": row["name"], "google_name": row["google_name"],
+            "alias": row["config"].get("display_name") or "", "yaml_text": yaml_text,
             "error": error, "label_variables": row["label_variables"], **_TEMPLATE_CONTEXT,
         })
 
@@ -368,7 +375,8 @@ async def save_device_yaml_route(request: Request, canonic_id: str, yaml_text: s
     ]
     if cron_errors:
         return templates.TemplateResponse(request, "settings/_device_yaml.html", {
-            "canonic_id": canonic_id, "name": row["name"], "yaml_text": yaml_text,
+            "canonic_id": canonic_id, "name": row["name"], "google_name": row["google_name"],
+            "alias": row["config"].get("display_name") or "", "yaml_text": yaml_text,
             "error": "; ".join(cron_errors), "label_variables": row["label_variables"], **_TEMPLATE_CONTEXT,
         })
 
@@ -393,7 +401,8 @@ async def save_device_yaml_route(request: Request, canonic_id: str, yaml_text: s
         scheduler.restart_device(canonic_id)
     except Exception as e:
         return templates.TemplateResponse(request, "settings/_device_yaml.html", {
-            "canonic_id": canonic_id, "name": row["name"], "yaml_text": yaml_text,
+            "canonic_id": canonic_id, "name": row["name"], "google_name": row["google_name"],
+            "alias": row["config"].get("display_name") or "", "yaml_text": yaml_text,
             "error": f"Failed to save: {e}", "label_variables": row["label_variables"], **_TEMPLATE_CONTEXT,
         })
     latest_values_store.prune_to_urls(canonic_id, {ep["url"] for ep in endpoints})
