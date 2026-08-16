@@ -1229,3 +1229,90 @@ def test_send_now_failure_shows_an_error_instead_of_crashing(client, monkeypatch
     resp = client.post(f"/settings/devices/{FAKE_CANONIC_ID}/endpoints/0/send-now")
     assert resp.status_code == 200
     assert "Send failed" in resp.text
+
+
+def test_preview_values_includes_the_last_real_fix_and_device_meta(tmp_path, monkeypatch):
+    import json
+
+    from webui import config, device_location_store
+    from webui.routers.settings import _preview_values_json_for
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+    device_location_store.set_last_location(
+        FAKE_CANONIC_ID,
+        [{
+            "is_semantic": False, "latitude": 12.5, "longitude": 34.5, "accuracy": 8,
+            "status": "LAST_KNOWN", "is_own_report": False, "time": 1700000000,
+        }],
+        fetched_at=1700000000,
+    )
+    device_meta = {"manufacturer": "Chipolo", "model": "", "type": "", "image_url": "", "carrier": "T-Mobile"}
+
+    values = json.loads(_preview_values_json_for(FAKE_CANONIC_ID, FAKE_DEVICE_NAME, device_meta))
+    assert values["latitude"] == 12.5
+    assert values["longitude"] == 34.5
+    assert values["accuracy_m"] == 8
+    assert values["status"] == "LAST_KNOWN"
+    assert values["own_report"] is False  # a real, known False - not omitted
+    assert values["google_timestamp"] == 1700000000
+    assert values["tracker_id"] == FAKE_CANONIC_ID
+    assert values["manufacturer"] == "Chipolo"
+    assert values["label_carrier"] == "T-Mobile"
+    assert "altitude_m" not in values  # nothing real known - left for the JS placeholder
+    assert "model" not in values
+    assert "device_name" not in values  # already handled client-side, deliberately excluded
+
+
+def test_preview_values_omits_own_report_when_no_location_is_on_file(tmp_path, monkeypatch):
+    import json
+
+    from webui import config
+    from webui.routers.settings import _preview_values_json_for
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+
+    values = json.loads(_preview_values_json_for(FAKE_CANONIC_ID, FAKE_DEVICE_NAME, None))
+    assert "own_report" not in values  # unlike a real False, "no fix at all" must not look like a real value
+    assert "latitude" not in values
+    assert values["tracker_id"] == FAKE_CANONIC_ID  # always real, regardless of any fix
+
+
+def test_preview_values_ignores_a_semantic_only_last_location(tmp_path, monkeypatch):
+    import json
+
+    from webui import config, device_location_store
+    from webui.routers.settings import _preview_values_json_for
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+    device_location_store.set_last_location(
+        FAKE_CANONIC_ID,
+        [{"is_semantic": True, "semantic_name": "Home", "status": "SEMANTIC", "is_own_report": True, "time": 1700000000}],
+        fetched_at=1700000000,
+    )
+
+    values = json.loads(_preview_values_json_for(FAKE_CANONIC_ID, FAKE_DEVICE_NAME, None))
+    assert "latitude" not in values
+    assert "status" not in values
+    assert "own_report" not in values
+
+
+def test_settings_page_embeds_this_devices_real_preview_values(client, tmp_path, monkeypatch):
+    from webui import config, device_location_store
+    from webui.forwarders import config_store
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+    device_location_store.set_last_location(
+        FAKE_CANONIC_ID,
+        [{"is_semantic": False, "latitude": 12.5, "longitude": 34.5, "time": 1700000000}],
+        fetched_at=1700000000,
+    )
+    config_store.set_device_config(FAKE_CANONIC_ID, {"display_name": "My Tracker", "endpoints": []})
+
+    resp = client.get(f"/settings/devices/{FAKE_CANONIC_ID}")
+    assert resp.status_code == 200
+    assert '<script type="application/json" class="device-preview-values">' in resp.text
+    assert '"latitude": 12.5' in resp.text

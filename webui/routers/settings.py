@@ -6,7 +6,7 @@ from fastapi import APIRouter, Form, HTTPException, Request
 
 from NovaApi.ListDevices.nbe_list_devices import request_device_list
 from ProtoDecoders.decoder import get_device_details, parse_device_list_protobuf
-from webui import scheduler
+from webui import device_location_store, scheduler
 from webui.auth_state import is_logged_in
 from webui.deps import run_blocking
 from webui.device_list_cache import device_list_cache
@@ -14,6 +14,7 @@ from webui.forwarders import (
     BUILTIN_VARIABLES_FROM_APP,
     BUILTIN_VARIABLES_FROM_FIX,
     PRESETS,
+    build_context,
     config_store,
     device_label_variables,
     latest_values_store,
@@ -66,6 +67,45 @@ def _device_meta_from_detail(detail: dict) -> dict:
         "registered_at": detail["registered_at"] or "",
         "shared_with": shared_with,
     }
+
+
+def _preview_values_json_for(canonic_id: str, google_name: str, device_meta: dict | None) -> str:
+    """Real values the Preview panel should prefer over its hardcoded
+    placeholders (see SAMPLE_VALUES in endpoint_fields.js), for whatever
+    this device actually has last-reported/synced - built from the same
+    build_context() forward_to_custom uses for real, so this can't drift
+    from what an actual send would substitute. Fields with nothing real
+    known are left out entirely (not set to "" or 0) so the client-side
+    merge falls through to its own placeholder for just those - this must
+    never be all-or-nothing for one device. Embedded into _device_form.html
+    as JSON, same "</" escaping as _PRESETS_JSON above for the same reason."""
+    last = device_location_store.get_last_location(canonic_id)
+    fix = None
+    if last and last.get("locations"):
+        candidates = device_location_store.most_recent_only(last["locations"])
+        if candidates and not candidates[0].get("is_semantic"):
+            fix = candidates[0]
+
+    ctx = build_context({}, fix or {}, google_name or "", tracker_id=canonic_id, device_meta=device_meta)
+    # device_name/device_alias/endpoint_alias/current_timestamp/
+    # fix_timestamp are already handled correctly client-side (see
+    # blockVars() in endpoint_fields.js) - leaving them out here avoids
+    # this fighting that.
+    skip = {"device_name", "device_alias", "endpoint_alias", "current_timestamp", "fix_timestamp"}
+    values = {}
+    for key, value in ctx.items():
+        if key in skip:
+            continue
+        if key == "own_report":
+            # bool(None) is False, same as a real "not this tracker's own
+            # report" - only tell the two apart by whether a real fix was
+            # found at all, not by own_report's own truthiness.
+            if fix is not None:
+                values[key] = value
+            continue
+        if value not in (None, ""):
+            values[key] = value
+    return json.dumps(values).replace("</", "<\\/")
 
 
 async def _rows(overrides: dict[str, dict] | None = None, saved_id: str | None = None) -> list[dict]:
@@ -141,6 +181,7 @@ async def _rows(overrides: dict[str, dict] | None = None, saved_id: str | None =
             "save_error": save_error,
             "saved": canonic_id == saved_id,
             "label_variables": device_label_variables(device_cfg.get("device_meta")),
+            "preview_values_json": _preview_values_json_for(canonic_id, google_name, device_cfg.get("device_meta")),
         })
     return rows
 
@@ -162,6 +203,7 @@ async def _row(canonic_id: str, overrides: dict[str, dict] | None = None, saved:
             "save_error": fallback.get("error"),
             "saved": saved,
             "label_variables": device_label_variables(fallback_config.get("device_meta")),
+            "preview_values_json": _preview_values_json_for(canonic_id, "", fallback_config.get("device_meta")),
         },
     )
 

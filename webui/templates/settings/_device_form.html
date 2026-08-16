@@ -1,4 +1,12 @@
 <form hx-post="/settings/devices/{{ row.canonic_id }}" hx-target="closest .device-editor" hx-swap="innerHTML">
+  {# This device's real last-reported/synced values, for the Preview panel to
+     prefer over its hardcoded placeholders (see SAMPLE_VALUES/blockVars in
+     endpoint_fields.js) - a class, not an id, since _device_form.html
+     renders once per device and the multi-device /settings page has one of
+     these forms per row; endpoint_fields.js looks this up relative to the
+     endpoint block's own enclosing form, not by a page-wide id (contrast
+     forwarding.html's single, page-wide #presets-data). #}
+  <script type="application/json" class="device-preview-values">{{ row.preview_values_json | safe }}</script>
   <fieldset>
     <legend>{{ row.name }}
       {# Posts (not gets) so it carries this form's current field values -

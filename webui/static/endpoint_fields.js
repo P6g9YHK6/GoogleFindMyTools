@@ -14,17 +14,18 @@
 (() => {
   const SAMPLE_VALUES = {
     latitude: "48.8566", longitude: "2.3522", altitude_m: "35", accuracy_m: "12",
+    status: "CROWDSOURCED", own_report: "false",
     // current_timestamp isn't a fixed sample like the rest of these - it's
     // "right now" by definition, so the preview computes it fresh below
     // instead of hardcoding a value that would just go stale.
     google_timestamp: "1723137600", tracker_id: "a1b2c3d4e5",
     // manufacturer/model/type/image_url and the label_* variables (see
-    // BUILTIN_VARIABLES_FROM_FIX in presets.py) all come from Google's own
-    // device-list response, synced into forwarding.yaml at settings-page
-    // load time (webui/routers/settings.py's _rows) rather than fetched
-    // live here - same reasoning as tracker_id just above, a plausible
-    // fixed sample stands in for the real per-device value this preview
-    // has no way to know client-side.
+    // BUILTIN_VARIABLES_FROM_FIX/device_label_variables in presets.py) all
+    // come from Google's own device-list response, synced into
+    // forwarding.yaml at settings-page load time (webui/routers/
+    // settings.py's _rows). blockVars() below prefers this device's real
+    // synced/reported values (see realValuesFor) wherever it actually has
+    // them; everything here is just the fallback for whatever it doesn't.
     manufacturer: "Chipolo", model: "ONE Point", type: "Beacon",
     image_url: "https://example.com/device-photo.png",
     label_carrier: "Vodafone", label_codename: "gauguin", label_imei: "354935091234567",
@@ -268,8 +269,28 @@
     sel.addRange(range);
   }
 
+  // This device's real last-reported/synced values (see
+  // webui/routers/settings.py's _preview_values_json_for), embedded once
+  // per device in _device_form.html as a class (not id, since a device
+  // block can repeat - see that template's own comment) rather than a
+  // page-wide id like #presets-data. Looked up relative to this block's own
+  // enclosing form rather than cached at module load, so it stays correct
+  // across an htmx swap to a different device's form.
+  function realValuesFor(block) {
+    const el = block.closest("form")?.querySelector(".device-preview-values");
+    if (!el) return {};
+    try {
+      return JSON.parse(el.textContent);
+    } catch (e) {
+      return {};
+    }
+  }
+
   function blockVars(block) {
-    const vars = Object.assign({}, SAMPLE_VALUES);
+    // Real values win per-key over the placeholder, wherever this device
+    // actually has them - whatever it doesn't still falls through to
+    // SAMPLE_VALUES, so this is never all-or-nothing for one device.
+    const vars = Object.assign({}, SAMPLE_VALUES, realValuesFor(block));
     vars.current_timestamp = String(Math.floor(Date.now() / 1000));
     // device_name (the fixed Google account name) and device_alias (the
     // local nickname) are genuinely different values now - see
