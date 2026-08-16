@@ -34,6 +34,15 @@ def test_phonetrack_preset_bakes_device_alias_and_query_params_into_the_url():
     assert "lat={{latitude}}" in preset["url"]
 
 
+def test_phonetrack_preset_sets_useragent_so_it_does_not_default_to_unknown():
+    """logGet() (PhoneTrack's LogController.php) defaults its own per-point
+    useragent field to the literal "unknown GET logger" when the query
+    string leaves it out - baked in here instead. Only "phonetrack" itself
+    (not its OsmAnd/GpsLogger/etc siblings) even reads this param - see
+    this preset's own hint."""
+    assert "useragent=GFMT_Forwarding_{{type}}" in PRESETS["phonetrack"]["url"]
+
+
 def test_phonetrack_locusmap_and_ulogger_presets_use_time_not_timestamp():
     # Unlike PhoneTrack's other GET endpoints, these two use ?time= - worth
     # pinning since it looks like a typo next to the others.

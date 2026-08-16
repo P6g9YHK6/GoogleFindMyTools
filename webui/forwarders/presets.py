@@ -40,11 +40,18 @@ PRESETS: dict[str, dict] = {
     },
     "phonetrack": {
         "label": "Nextcloud PhoneTrack",
-        "hint": "Nextcloud PhoneTrack's log endpoint: the device name is part of the URL, the fix is sent as query params.",
+        "hint": (
+            "Nextcloud PhoneTrack's log endpoint: the device name is part of the URL, the fix is sent as query params. "
+            "useragent is PhoneTrack's own per-point field (LogController.php's logGet(), unrelated to the HTTP "
+            "User-Agent header) - its default is the literal string \"unknown GET logger\" when left out, so it's "
+            "filled in here instead. It's a plain string field; PhoneTrack's other log endpoints (OsmAnd, GpsLogger, "
+            "...) don't read a useragent param at all, so this is only ever added here."
+        ),
         "method": "GET",
         "url": (
             "https://nc.local/apps/phonetrack/logGet/<token>/{{device_alias}}"
             "?lat={{latitude}}&lon={{longitude}}&timestamp={{google_timestamp}}&alt={{altitude_m}}&acc={{accuracy_m}}"
+            "&useragent=GFMT_Forwarding_{{type}}"
         ),
         "headers": {},
         "body_type": "none",
