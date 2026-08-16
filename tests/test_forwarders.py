@@ -318,6 +318,54 @@ def test_forward_to_custom_substitutes_device_meta_fields(monkeypatch):
     assert captured["url"] == "https://svc.example/?mfr=Chipolo&model=ONE Point&imei=354935091234567"
 
 
+def test_build_context_exposes_status_and_own_report():
+    from webui.forwarders.custom import build_context
+
+    location = {
+        "is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1,
+        "status": "AGGREGATED", "is_own_report": True,
+    }
+    ctx = build_context({}, location, "My Phone")
+    assert ctx["status"] == "AGGREGATED"
+    assert ctx["own_report"] is True
+
+
+def test_build_context_status_and_own_report_default_when_missing():
+    from webui.forwarders.custom import build_context
+
+    location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
+    ctx = build_context({}, location, "My Phone")
+    assert ctx["status"] == ""
+    assert ctx["own_report"] is False
+
+
+def test_forward_to_custom_substitutes_status_and_own_report(monkeypatch):
+    from webui.forwarders import custom
+
+    captured = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            pass
+
+    def fake_request(method, url, **kwargs):
+        captured["url"] = url
+        return FakeResponse()
+
+    monkeypatch.setattr(custom.httpx, "request", fake_request)
+
+    endpoint_cfg = {
+        "method": "GET", "url": "https://svc.example/?status={{status}}&own={{own_report}}",
+        "headers": {}, "body_type": "none", "body": "",
+    }
+    location = {
+        "is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1,
+        "status": "CROWDSOURCED", "is_own_report": False,
+    }
+    custom.forward_to_custom(endpoint_cfg, location, "My Phone")
+    assert captured["url"] == "https://svc.example/?status=CROWDSOURCED&own=False"
+
+
 def test_forward_to_custom_device_name_uses_device_display_name(monkeypatch):
     from webui.forwarders import custom
 

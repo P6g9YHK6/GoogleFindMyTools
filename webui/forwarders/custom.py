@@ -87,6 +87,14 @@ def build_context(
         "longitude": location.get("longitude"),
         "altitude_m": location.get("altitude"),
         "accuracy_m": location.get("accuracy"),
+        # status is Google's own fix-quality flag (see Common.proto's Status
+        # enum) as the string name decrypt_locations.py already names it -
+        # LAST_KNOWN/CROWDSOURCED/AGGREGATED for a real fix, never SEMANTIC
+        # here since forward_to_custom already bails out on is_semantic
+        # before this is built. own_report tells apart this tracker's own
+        # GPS fix from one crowdsourced by a nearby device.
+        "status": location.get("status") or "",
+        "own_report": bool(location.get("is_own_report")),
         # google_timestamp: when Google recorded this fix. current_timestamp:
         # right now, at send time - always fresh even when Google keeps
         # re-serving the same cached fix (see skip_if_stale in policy.py,

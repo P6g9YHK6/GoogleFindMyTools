@@ -162,6 +162,8 @@ BUILTIN_VARIABLES_FROM_FIX: list[tuple[str, str]] = [
     ("longitude", "Longitude of the fix, decimal degrees"),
     ("altitude_m", "Altitude in meters, if Google reported one"),
     ("accuracy_m", "Google's radius of uncertainty for the fix, in meters"),
+    ("status", "Google's fix-quality flag: LAST_KNOWN, CROWDSOURCED, or AGGREGATED (coarse/low-accuracy)"),
+    ("own_report", "True if this fix came from the tracker's own GPS rather than a nearby device's crowdsourced report"),
     ("google_timestamp", "Unix timestamp (seconds) of when Google recorded this fix - not when it was sent"),
     ("device_name", "This tracker's real name from your Google account (fixed, not editable here)"),
     ("manufacturer", "This device's manufacturer, from Google's own response (e.g. \"Chipolo\")"),
