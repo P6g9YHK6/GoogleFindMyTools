@@ -381,6 +381,12 @@ async def save_device_yaml_route(request: Request, canonic_id: str, yaml_text: s
     device_cfg = {"display_name": display_name, "endpoints": endpoints}
     if existing and existing.get("google_name"):
         device_cfg["google_name"] = existing["google_name"]
+    # device_meta isn't part of what this editor shows either (see
+    # _to_yaml_doc) - same reason as google_name just above: carry it
+    # forward too, or this device's label_* chips go missing until the
+    # next page load's sync happens to run again.
+    if existing and existing.get("device_meta"):
+        device_cfg["device_meta"] = existing["device_meta"]
 
     try:
         config_store.set_device_config(canonic_id, device_cfg)
@@ -630,14 +636,25 @@ async def update_device_settings(
     existing = config_store.get_device_config(canonic_id) or {"endpoints": []}
     endpoints, errors = _parse_endpoints_form(form, existing.get("endpoints", []))
 
+    # google_name/device_meta aren't fields this form ever edits (see _rows'
+    # own Google-sync comment above) - carry them forward from what's
+    # already on disk rather than just building {display_name, endpoints}
+    # and letting them go missing until the next page load's sync happens
+    # to run again. Without this, a plain settings save (e.g. just typing
+    # an alias) wiped google_name too, and {{device_name}} fell back to
+    # that alias instead of staying the fixed Google account name.
+    device_cfg = {"display_name": display_name, "endpoints": endpoints}
+    if existing.get("google_name"):
+        device_cfg["google_name"] = existing["google_name"]
+    if existing.get("device_meta"):
+        device_cfg["device_meta"] = existing["device_meta"]
+
     if errors:
-        device_cfg = {"display_name": display_name, "endpoints": endpoints}
         row = await _row(canonic_id, overrides={canonic_id: {"config": device_cfg, "error": "; ".join(errors)}})
         return templates.TemplateResponse(request, "settings/_device_form.html", {
             "row": row, **_TEMPLATE_CONTEXT,
         })
 
-    device_cfg = {"display_name": display_name, "endpoints": endpoints}
     try:
         config_store.set_device_config(canonic_id, device_cfg)
         scheduler.restart_device(canonic_id)
