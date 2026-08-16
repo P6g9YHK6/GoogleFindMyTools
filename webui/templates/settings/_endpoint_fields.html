@@ -174,7 +174,13 @@
     <legend>From the location fix</legend>
     <p class="field-hint">Click a chip to insert it into whichever field you were last editing (hover a chip for what it means).</p>
     <div class="chip-row">
-      {% for name, description in builtin_variables_from_fix %}
+      {# The label_* chips (carrier/imei/etc) aren't in builtin_variables_from_fix
+         - they're phone-only fields, so unconditionally offering all five
+         regardless of device would just be five tokens that resolve to blank
+         on a non-phone tracker. row.label_variables (see webui/routers/
+         settings.py's device_label_variables) only offers the ones this
+         device actually has a real value for. #}
+      {% for name, description in builtin_variables_from_fix + (row.label_variables if row is defined else []) %}
         <button type="button" class="chip" data-var="{{ name }}" title="{{ description }}">{{ '{{' }}{{ name }}{{ '}}' }}</button>
       {% endfor %}
     </div>

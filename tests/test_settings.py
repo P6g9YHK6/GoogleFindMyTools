@@ -30,6 +30,84 @@ def test_blank_endpoint_route(client):
     assert 'name="ep-__NEW__-url"' in resp.text
 
 
+def _sync_device_meta(client, monkeypatch, **detail_overrides):
+    """Loads /settings once with a stubbed get_device_details so this
+    device's device_meta ends up persisted into forwarding.yaml exactly as
+    given - mirrors test_settings_page_load_syncs_device_metadata_into_
+    forwarding_yaml's own monkeypatch, since a plain config_store.
+    set_device_config(..., device_meta=...) would just get overwritten by
+    the next page load's sync (see webui/routers/settings.py's _rows).
+    The device must already have a saved config entry first - the sync
+    only ever updates an existing one, never creates one (same rule
+    google_name's own sync follows - see
+    test_settings_page_load_does_not_create_a_config_entry_for_an_unsaved_device)."""
+    from webui.forwarders import config_store
+    from webui.routers import settings
+
+    if config_store.get_device_config(FAKE_CANONIC_ID) is None:
+        # At least one endpoint, or _device_form.html's endpoint loop never
+        # runs at all and there's no chip row to assert on either way.
+        config_store.set_device_config(FAKE_CANONIC_ID, {
+            "display_name": "", "endpoints": [{
+                "method": "GET", "url": "http://x/", "headers": {}, "body_type": "none", "body": "",
+                "cron": "0 0 1 1 *",
+            }],
+        })
+
+    detail = {
+        "name": FAKE_DEVICE_NAME, "canonic_id": FAKE_CANONIC_ID, "last_seen": None,
+        "is_phone": False, "image_url": "", "device_type": "DEVICE_TYPE_KEYS",
+        "manufacturer": "", "model": "", "carrier": None, "codename": None,
+        "imei": None, "registered_at": None, "access": [],
+    }
+    detail.update(detail_overrides)
+    monkeypatch.setattr(settings, "get_device_details", lambda device_list: [detail])
+    assert client.get("/settings").status_code == 200
+
+
+def test_settings_page_shows_a_label_chip_only_for_a_field_this_device_has(client, monkeypatch):
+    _sync_device_meta(client, monkeypatch, is_phone=True, carrier="T-Mobile", imei="354935091234567")
+
+    resp = client.get(f"/settings/devices/{FAKE_CANONIC_ID}")
+    assert resp.status_code == 200
+    assert 'data-var="label_carrier"' in resp.text
+    assert 'data-var="label_imei"' in resp.text
+    assert 'data-var="label_codename"' not in resp.text  # blank for this device - not offered
+
+
+def test_settings_page_shows_no_label_chips_for_a_non_phone_device(client, monkeypatch):
+    _sync_device_meta(client, monkeypatch)  # is_phone=False, every phone-only field blank
+
+    resp = client.get(f"/settings/devices/{FAKE_CANONIC_ID}")
+    assert resp.status_code == 200
+    for name in ("label_carrier", "label_codename", "label_imei", "label_registered_at", "label_shared_with"):
+        assert f'data-var="{name}"' not in resp.text
+
+
+def test_blank_endpoint_route_reflects_this_devices_label_chips(client, monkeypatch):
+    _sync_device_meta(client, monkeypatch, is_phone=True, carrier="T-Mobile")
+
+    resp = client.get(f"/settings/devices/{FAKE_CANONIC_ID}/endpoints/blank")
+    assert resp.status_code == 200
+    assert 'data-var="label_carrier"' in resp.text
+
+
+def test_send_now_route_reflects_this_devices_label_chips(client, monkeypatch):
+    from webui import scheduler
+
+    _sync_device_meta(client, monkeypatch, is_phone=True, carrier="T-Mobile")  # sets up endpoint 0 too
+
+    async def fake_locate_device(canonic_id, name, timeout=None):
+        return [{"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}]
+
+    monkeypatch.setattr(scheduler, "locate_device", fake_locate_device)
+    monkeypatch.setattr(scheduler, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="", device_meta=None: "ok")
+
+    resp = client.post(f"/settings/devices/{FAKE_CANONIC_ID}/endpoints/0/send-now")
+    assert resp.status_code == 200
+    assert 'data-var="label_carrier"' in resp.text
+
+
 def test_save_mixed_endpoints_and_drop_blank_block(client):
     resp = _post_form(
         client,

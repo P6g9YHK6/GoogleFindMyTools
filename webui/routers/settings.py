@@ -15,6 +15,7 @@ from webui.forwarders import (
     BUILTIN_VARIABLES_FROM_FIX,
     PRESETS,
     config_store,
+    device_label_variables,
     latest_values_store,
     policy,
 )
@@ -139,6 +140,7 @@ async def _rows(overrides: dict[str, dict] | None = None, saved_id: str | None =
             "config": device_cfg,
             "save_error": save_error,
             "saved": canonic_id == saved_id,
+            "label_variables": device_label_variables(device_cfg.get("device_meta")),
         })
     return rows
 
@@ -149,15 +151,17 @@ async def _row(canonic_id: str, overrides: dict[str, dict] | None = None, saved:
     swap into that one form's slot (see _device_row.html)."""
     rows = await _rows(overrides=overrides, saved_id=canonic_id if saved else None)
     fallback = (overrides or {}).get(canonic_id, {})
+    fallback_config = fallback.get("config", {"endpoints": []})
     return next(
         (r for r in rows if r["canonic_id"] == canonic_id),
         {
-            "name": fallback.get("config", {}).get("display_name", canonic_id),
+            "name": fallback_config.get("display_name", canonic_id),
             "google_name": None,
             "canonic_id": canonic_id,
-            "config": fallback.get("config", {"endpoints": []}),
+            "config": fallback_config,
             "save_error": fallback.get("error"),
             "saved": saved,
+            "label_variables": device_label_variables(fallback_config.get("device_meta")),
         },
     )
 
@@ -372,8 +376,18 @@ async def blank_endpoint_route(request: Request, canonic_id: str):
         return templates.TemplateResponse(request, "_not_signed_in.html", {})
 
     blank = new_blank_endpoint(scheduler.DEFAULT_CRON)
+    # Rendered outside the per-device-row loop (same reason as send_now_route
+    # below), so `row` isn't in scope the normal way either - a bare stub
+    # just carrying label_variables lets the "From the location fix" chip
+    # list still reflect this device's real data on a brand-new block. Safe
+    # against the template's only other row-gated behavior (the "Send now"
+    # button) since that's already conditioned on "not is_new" too, and
+    # is_new is always True here.
+    device_meta = (config_store.get_device_config(canonic_id) or {}).get("device_meta")
     return templates.TemplateResponse(request, "settings/_endpoint_fields.html", {
-        "endpoint": blank, "idx": "__NEW__", "is_new": True, **_TEMPLATE_CONTEXT,
+        "endpoint": blank, "idx": "__NEW__", "is_new": True,
+        "row": {"label_variables": device_label_variables(device_meta)},
+        **_TEMPLATE_CONTEXT,
     })
 
 
@@ -409,10 +423,13 @@ async def send_now_route(request: Request, canonic_id: str, index: int):
     # needs the device id and this endpoint's position) can't rely on `row`/
     # `loop.index0` being in scope the way the normal page render provides them
     # - pass both explicitly instead, so the swapped-in fragment can still be
-    # sent again immediately.
+    # sent again immediately. label_variables is included too so the chip
+    # list still reflects this device's real data after the swap.
+    device_meta = (config_store.get_device_config(canonic_id) or {}).get("device_meta")
     return templates.TemplateResponse(request, "settings/_endpoint_fields.html", {
-        "endpoint": endpoint, "row": {"canonic_id": canonic_id}, "idx": str(index),
-        "send_error": send_error, **_TEMPLATE_CONTEXT,
+        "endpoint": endpoint,
+        "row": {"canonic_id": canonic_id, "label_variables": device_label_variables(device_meta)},
+        "idx": str(index), "send_error": send_error, **_TEMPLATE_CONTEXT,
     })
 
 
