@@ -25,6 +25,12 @@
       <td>
         {{ entry.detail }}
         {% if entry.payload %}<code class="log-payload">{{ entry.payload }}</code>{% endif %}
+        {# What the destination actually answered - a 200 that silently
+           rejects the point (PhoneTrack et al. can do this) looks
+           identical to a real success in Status/Level alone; this is what
+           actually shows the difference. See webui/forwarders/policy.py's
+           _format_response_for_log. #}
+        {% if entry.response %}<code class="log-payload log-response">Response: {{ entry.response }}</code>{% endif %}
       </td>
     </tr>
   {% else %}

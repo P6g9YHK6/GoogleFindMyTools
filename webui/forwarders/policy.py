@@ -147,16 +147,19 @@ def _skip_inaccurate(endpoint_cfg: dict, location: dict) -> bool:
 
 def _dispatch_forward(
     endpoint_cfg: dict, location: dict, device_name: str = "", device_alias: str | None = None,
-    tracker_id: str = "", device_meta: dict | None = None,
+    tracker_id: str = "", device_meta: dict | None = None, response_out: dict | None = None,
 ) -> str:
     """Sends this endpoint's request, with no distance-skip check - used both
     by the normal scheduled path (after it passes _too_close_to_bother) and
     by the "send now" button, which is meant to bypass that check entirely.
     Every endpoint goes through the same generic templated request (see
     webui/forwarders/custom.py); Traccar/PhoneTrack are presets that pre-fill
-    it, not separate code paths - see webui/forwarders/presets.py."""
+    it, not separate code paths - see webui/forwarders/presets.py.
+
+    response_out is just threaded straight through to forward_to_custom - see
+    its own docstring."""
     try:
-        ok = forward_to_custom(endpoint_cfg, location, device_name, device_alias, tracker_id, device_meta)
+        ok = forward_to_custom(endpoint_cfg, location, device_name, device_alias, tracker_id, device_meta, response_out)
         return "ok" if ok else "skipped"
     except Exception as e:
         logger.warning("Forwarding failed: %s", e)
@@ -166,7 +169,7 @@ def _dispatch_forward(
 def _forward_one(
     endpoint_cfg: dict, location: dict, device_name: str = "", device_alias: str | None = None,
     tracker_id: str = "", device_meta: dict | None = None,
-    already_seen: bool = False, is_most_recent: bool = True,
+    already_seen: bool = False, is_most_recent: bool = True, response_out: dict | None = None,
 ) -> str:
     """already_seen is True when this exact reading (see
     device_location_store._location_key) was already present in an earlier
@@ -194,7 +197,7 @@ def _forward_one(
     if _skip_inaccurate(endpoint_cfg, location):
         threshold = endpoint_cfg.get("max_accuracy_m") or DEFAULT_MAX_ACCURACY_M
         return f"skipped: accuracy radius over {threshold:g}m"
-    return _dispatch_forward(endpoint_cfg, location, device_name, device_alias, tracker_id, device_meta)
+    return _dispatch_forward(endpoint_cfg, location, device_name, device_alias, tracker_id, device_meta, response_out)
 
 
 def _serialize_location(location: dict) -> str:
@@ -205,6 +208,18 @@ def _serialize_location(location: dict) -> str:
         return json.dumps(location, default=str)
     except TypeError:
         return str(location)
+
+
+def _format_response_for_log(response_out: dict) -> str:
+    """response_out (see _dispatch_forward/forward_to_custom) as one string
+    for the Forwarding Log's Response column - blank when nothing was ever
+    received (a skip, or a connection-level failure with no response body
+    at all). A destination answering 200 while silently rejecting the point
+    (PhoneTrack et al. can do this) looks identical to a real success in the
+    Status column alone - this is what actually shows the difference."""
+    if not response_out:
+        return ""
+    return f"{response_out.get('status_code', '')}: {response_out.get('body', '')}"
 
 
 def _endpoint_target(endpoint_cfg: dict) -> str:

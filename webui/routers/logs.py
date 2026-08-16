@@ -36,6 +36,12 @@ def _forwarding_entries() -> list[dict]:
             # print a stale value for old log lines or a blank one for new.
             "detail": f"{e['target']}: {e['status']}",
             "payload": e.get("payload", ""),
+            # What the destination actually answered (see webui/forwarders/
+            # policy.py's _format_response_for_log) - a destination can
+            # answer 200 while silently rejecting the point (PhoneTrack et
+            # al.), which the Status column alone can't tell apart from a
+            # real success.
+            "response": e.get("response", ""),
         })
     return entries
 
@@ -52,6 +58,7 @@ def _system_entries() -> list[dict]:
             "source": e["logger"],
             "detail": e["message"],
             "payload": "",
+            "response": "",
         })
     return entries
 
@@ -80,7 +87,7 @@ def _matching_entries(filters: dict) -> list[dict]:
     if query:
         entries = [
             e for e in entries
-            if query in " ".join([e["source"], e["detail"], e["payload"], e["type_label"]]).lower()
+            if query in " ".join([e["source"], e["detail"], e["payload"], e["response"], e["type_label"]]).lower()
         ]
 
     for e in entries:

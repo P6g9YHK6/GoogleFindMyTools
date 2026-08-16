@@ -136,7 +136,7 @@ async def test_poll_device_records_last_sent_position_on_success(monkeypatch, tm
     # _poll_device calls policy._forward_one, which resolves _dispatch_forward
     # in policy's own module globals - patching scheduler's re-exported name
     # wouldn't reach it (see tests/conftest.py's "patch where it's looked up").
-    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="", device_meta=None: "ok")
+    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="", device_meta=None, response_out=None: "ok")
 
     tick_done = asyncio.Event()
 
@@ -211,7 +211,7 @@ async def test_poll_device_passes_its_own_canonic_id_and_device_meta(monkeypatch
 
     captured = {}
 
-    def fake_dispatch(cfg, loc, name="", alias=None, tracker_id="", device_meta=None):
+    def fake_dispatch(cfg, loc, name="", alias=None, tracker_id="", device_meta=None, response_out=None):
         captured["tracker_id"] = tracker_id
         captured["device_meta"] = device_meta
         return "ok"
@@ -269,7 +269,7 @@ async def test_poll_device_persists_last_location_for_the_devices_page(monkeypat
     monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
     monkeypatch.setattr(config, "LATEST_VALUES_PATH", tmp_path / "latest_values.yaml")
     monkeypatch.setattr(scheduler, "is_logged_in", lambda: True)
-    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="", device_meta=None: "ok")
+    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="", device_meta=None, response_out=None: "ok")
 
     tick_done = asyncio.Event()
     fix = {"is_semantic": False, "latitude": 12.5, "longitude": 34.5, "time": 1}
@@ -330,7 +330,7 @@ async def test_poll_device_skips_forwarding_a_reading_google_already_reported(mo
     monkeypatch.setattr(scheduler, "is_logged_in", lambda: True)
 
     dispatched = []
-    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="", device_meta=None: dispatched.append(loc) or "ok")
+    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="", device_meta=None, response_out=None: dispatched.append(loc) or "ok")
 
     same_fix = {"is_semantic": False, "latitude": 12.5, "longitude": 34.5, "time": 1}
     ticks_done = [asyncio.Event(), asyncio.Event()]
@@ -399,7 +399,7 @@ async def test_poll_device_only_forwards_the_most_recent_reading_in_a_batch(monk
     monkeypatch.setattr(scheduler, "is_logged_in", lambda: True)
 
     dispatched = []
-    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="", device_meta=None: dispatched.append(loc) or "ok")
+    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="", device_meta=None, response_out=None: dispatched.append(loc) or "ok")
 
     older_fix = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 100}
     newer_fix = {"is_semantic": False, "latitude": 3.0, "longitude": 4.0, "time": 200}
@@ -451,6 +451,51 @@ async def test_poll_device_only_forwards_the_most_recent_reading_in_a_batch(monk
     statuses = [e["status"] for e in entries if e["canonic_id"] == canonic_id]
     assert statuses.count("ok") == 1
     assert any(s == "skipped: not the most recent reading in this batch" for s in statuses)
+
+
+async def test_forward_now_logs_the_destinations_actual_response_body(monkeypatch, tmp_path):
+    """A destination can answer 200 while silently rejecting the point (see
+    webui/forwarders/policy.py's _format_response_for_log) - the Forwarding
+    Log needs the real response body to tell that apart from an actual
+    success, not just the derived "ok"/"error" status. Goes through the
+    real custom.py path (only httpx itself is mocked) rather than patching
+    _dispatch_forward, since that's the one thing this test needs to prove
+    actually flows all the way through."""
+    from webui import config
+    from webui.forwarders import config_store, custom, log_store
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding_config.json")
+    monkeypatch.setattr(config, "FORWARD_LOG_PATH", tmp_path / "forward_log.json")
+    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+    monkeypatch.setattr(config, "LATEST_VALUES_PATH", tmp_path / "latest_values.yaml")
+
+    class FakeResponse:
+        status_code = 200
+        text = '{"done":1,"friends":[],"pointId":123,"deviceId":19}'
+
+        def raise_for_status(self):
+            pass
+
+    monkeypatch.setattr(custom.httpx, "request", lambda method, url, **kwargs: FakeResponse())
+
+    async def fake_locate_device(canonic_id, name, timeout=None):
+        return [{"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}]
+
+    monkeypatch.setattr(scheduler, "locate_device", fake_locate_device)
+
+    canonic_id = "response-logging-device"
+    config_store.set_device_config(canonic_id, {
+        "display_name": "Test",
+        "endpoints": [_traccar_endpoint(cron="0 0 1 1 *", url="https://nc.local/logGet")],
+    })
+
+    await scheduler.forward_now(canonic_id, 0)
+
+    entries = [e for e in log_store.recent_entries() if e["canonic_id"] == canonic_id]
+    assert len(entries) == 1
+    assert entries[0]["status"] == "ok"
+    assert entries[0]["response"] == '200: {"done":1,"friends":[],"pointId":123,"deviceId":19}'
 
 
 async def test_dead_tasks_reports_a_task_that_crashed():

@@ -94,6 +94,30 @@ def test_logs_search(client):
     assert "push client crashed" not in resp.text
 
 
+def test_logs_page_shows_the_response_body(client):
+    from webui.forwarders import log_store
+
+    log_store.append(
+        "canonic-1", "My Tracker", "phonetrack", "https://nc.local/logGet", "ok",
+        response='200: {"done":1,"pointId":123,"deviceId":19}',
+    )
+
+    resp = client.get("/logs")
+    assert resp.status_code == 200
+    assert "deviceId&#34;:19" in resp.text or '"deviceId":19' in resp.text
+
+
+def test_logs_search_matches_the_response_body(client):
+    from webui.forwarders import log_store
+
+    log_store.append("canonic-1", "My Tracker", "phonetrack", "https://nc.local/logGet", "ok",
+                      response="200: session-not-started")
+
+    resp = client.get("/logs", params={"q": "session-not-started"})
+    assert resp.status_code == 200
+    assert "session-not-started" in resp.text
+
+
 def test_logs_no_matches_message(client):
     _seed_forwarding_entries()
 

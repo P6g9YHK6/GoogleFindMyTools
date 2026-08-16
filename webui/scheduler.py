@@ -12,6 +12,7 @@ from webui.forwarders import config_store, latest_values_store, log_store
 from webui.forwarders.policy import (
     _dispatch_forward,
     _endpoint_target,
+    _format_response_for_log,
     _forward_one,
     _record_forward_result,
     _serialize_location,
@@ -157,9 +158,10 @@ async def _poll_device(canonic_id: str):
             for i in due_indices:
                 url = endpoints[i].get("url", "")
                 merged = {**endpoints[i], **latest_values_store.get_endpoint_state(canonic_id, url)}
+                response_out: dict = {}
                 status = await asyncio.to_thread(
                     _forward_one, merged, location, google_name, name, canonic_id, device_meta,
-                    already_seen, is_most_recent,
+                    already_seen, is_most_recent, response_out,
                 )
                 results[i] = {"status": status, "location": location, "url": url, "merged": merged}
                 log_store.append(
@@ -169,6 +171,7 @@ async def _poll_device(canonic_id: str):
                     target=_endpoint_target(endpoints[i]),
                     status=status,
                     payload=_serialize_location(location),
+                    response=_format_response_for_log(response_out),
                 )
         for i in due_indices:
             if i not in results:
@@ -231,8 +234,10 @@ async def forward_now(canonic_id: str, index: int) -> dict | None:
     status = "no location"
     for location in locations:
         endpoint_location = location
+        response_out: dict = {}
         status = await asyncio.to_thread(
             _dispatch_forward, endpoint_cfg, endpoint_location, google_name, name, canonic_id, device_meta,
+            response_out,
         )
         log_store.append(
             canonic_id=canonic_id,
@@ -241,6 +246,7 @@ async def forward_now(canonic_id: str, index: int) -> dict | None:
             target=_endpoint_target(endpoint_cfg),
             status=status,
             payload=_serialize_location(endpoint_location),
+            response=_format_response_for_log(response_out),
         )
         _record_forward_result(merged, status, endpoint_location, name)
 

@@ -102,6 +102,75 @@ def test_forward_to_custom_renders_templated_url_and_its_query_string(monkeypatc
     assert "params" not in captured["kwargs"]
 
 
+def test_forward_to_custom_fills_response_out_when_given(monkeypatch):
+    from webui.forwarders import custom
+
+    class FakeResponse:
+        status_code = 200
+        text = '{"done":1}'
+
+        def raise_for_status(self):
+            pass
+
+    monkeypatch.setattr(custom.httpx, "request", lambda method, url, **kwargs: FakeResponse())
+
+    endpoint_cfg = {"method": "GET", "url": "http://x/", "headers": {}, "body_type": "none", "body": ""}
+    location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
+
+    response_out = {}
+    assert custom.forward_to_custom(endpoint_cfg, location, "My Phone", response_out=response_out) is True
+    assert response_out == {"status_code": 200, "body": '{"done":1}'}
+
+
+def test_forward_to_custom_captures_the_response_body_before_raising_for_an_http_error(monkeypatch):
+    """A non-2xx response's body is exactly what's most useful for
+    debugging - captured before raise_for_status() turns it into the
+    caller's "error: ..." status, not lost along with the exception."""
+    import httpx
+
+    from webui.forwarders import custom
+
+    class FakeResponse:
+        status_code = 500
+        text = "Internal Server Error"
+
+        def raise_for_status(self):
+            raise httpx.HTTPStatusError("500", request=None, response=self)
+
+    monkeypatch.setattr(custom.httpx, "request", lambda method, url, **kwargs: FakeResponse())
+
+    endpoint_cfg = {"method": "GET", "url": "http://x/", "headers": {}, "body_type": "none", "body": ""}
+    location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
+
+    response_out = {}
+    try:
+        custom.forward_to_custom(endpoint_cfg, location, "My Phone", response_out=response_out)
+    except httpx.HTTPStatusError:
+        pass
+    assert response_out == {"status_code": 500, "body": "Internal Server Error"}
+
+
+def test_forward_to_custom_truncates_a_very_long_response_body(monkeypatch):
+    from webui.forwarders import custom
+
+    class FakeResponse:
+        status_code = 200
+        text = "x" * (custom.MAX_LOGGED_RESPONSE_CHARS + 500)
+
+        def raise_for_status(self):
+            pass
+
+    monkeypatch.setattr(custom.httpx, "request", lambda method, url, **kwargs: FakeResponse())
+
+    endpoint_cfg = {"method": "GET", "url": "http://x/", "headers": {}, "body_type": "none", "body": ""}
+    location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
+
+    response_out = {}
+    custom.forward_to_custom(endpoint_cfg, location, "My Phone", response_out=response_out)
+    assert response_out["body"].endswith("... (truncated)")
+    assert len(response_out["body"]) == custom.MAX_LOGGED_RESPONSE_CHARS + len("... (truncated)")
+
+
 def test_forward_to_custom_leaves_unresolved_variables_visible(monkeypatch):
     from webui.forwarders import custom
 
@@ -733,6 +802,19 @@ def test_log_store_round_trips_the_full_payload(tmp_path, monkeypatch):
     assert entries[0]["payload"] == payload
 
 
+def test_log_store_round_trips_the_response_body(tmp_path, monkeypatch):
+    from webui import config
+    from webui.forwarders import log_store
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "FORWARD_LOG_PATH", tmp_path / "forward.log")
+
+    log_store.append("dev-1", "My Tracker", "traccar", "http://x", "ok", response='200: {"done":1}')
+
+    entries = log_store.recent_entries()
+    assert entries[0]["response"] == '200: {"done":1}'
+
+
 def test_log_store_reads_pre_payload_lines_as_blank(tmp_path, monkeypatch):
     from webui import config
     from webui.forwarders import log_store
@@ -747,6 +829,24 @@ def test_log_store_reads_pre_payload_lines_as_blank(tmp_path, monkeypatch):
     entries = log_store.recent_entries()
     assert entries[0]["status"] == "ok"
     assert entries[0]["payload"] == ""
+    assert entries[0]["response"] == ""
+
+
+def test_log_store_reads_pre_response_lines_as_blank(tmp_path, monkeypatch):
+    from webui import config
+    from webui.forwarders import log_store
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    log_path = tmp_path / "forward.log"
+    monkeypatch.setattr(config, "FORWARD_LOG_PATH", log_path)
+
+    # A line written before the response column existed - 7 fields, not 8.
+    log_path.write_text("1\tdev-1\tMy Tracker\ttraccar\thttp://x\tok\tsome-payload\n")
+
+    entries = log_store.recent_entries()
+    assert entries[0]["status"] == "ok"
+    assert entries[0]["payload"] == "some-payload"
+    assert entries[0]["response"] == ""
 
 
 def test_log_store_sanitizes_embedded_tabs_and_newlines(tmp_path, monkeypatch):
@@ -756,11 +856,16 @@ def test_log_store_sanitizes_embedded_tabs_and_newlines(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
     monkeypatch.setattr(config, "FORWARD_LOG_PATH", tmp_path / "forward.log")
 
-    log_store.append("dev-1", "My\tTracker", "traccar", "http://x", "error: line one\nline two")
+    log_store.append(
+        "dev-1", "My\tTracker", "traccar", "http://x", "error: line one\nline two",
+        response="500: multi\nline\tbody",
+    )
 
     entries = log_store.recent_entries()
     assert "\t" not in entries[0]["device_name"]
     assert "\n" not in entries[0]["status"]
+    assert "\t" not in entries[0]["response"]
+    assert "\n" not in entries[0]["response"]
     # One log line per entry - a literal newline in the status would have split it in two.
     assert config.FORWARD_LOG_PATH.read_text().count("\n") == 1
 

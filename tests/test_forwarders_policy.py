@@ -21,6 +21,14 @@ def test_serialize_location_falls_back_to_str_for_unserializable_values():
     assert "weird-value" in payload
 
 
+def test_format_response_for_log_is_blank_when_nothing_was_received():
+    assert policy._format_response_for_log({}) == ""
+
+
+def test_format_response_for_log_combines_status_and_body():
+    assert policy._format_response_for_log({"status_code": 200, "body": '{"done":1}'}) == '200: {"done":1}'
+
+
 def _traccar_endpoint(**overrides) -> dict:
     endpoint = {
         "type": "traccar", "method": "GET", "url": "http://x/",
@@ -44,6 +52,25 @@ def test_forward_one_dispatches_via_the_generic_custom_forwarder():
     unroutable = _traccar_endpoint(url="http://127.0.0.1:9/")
     status = policy._forward_one(unroutable, location)
     assert status.startswith("error:")
+
+
+def test_forward_one_threads_response_out_through_to_the_real_forwarder(monkeypatch):
+    from webui.forwarders import custom
+
+    class FakeResponse:
+        status_code = 201
+        text = "created"
+
+        def raise_for_status(self):
+            pass
+
+    monkeypatch.setattr(custom.httpx, "request", lambda method, url, **kwargs: FakeResponse())
+
+    location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
+    response_out = {}
+    status = policy._forward_one(_traccar_endpoint(), location, response_out=response_out)
+    assert status == "ok"
+    assert response_out == {"status_code": 201, "body": "created"}
 
 
 def test_endpoint_target_uses_the_method_and_url():
@@ -177,7 +204,7 @@ def test_stale_duplicate_requires_the_toggle_and_a_prior_send():
 
 def test_forward_one_reports_stale_duplicate_skip_without_dispatching(monkeypatch):
     dispatched = []
-    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="", device_meta=None: dispatched.append(loc) or "ok")
+    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="", device_meta=None, response_out=None: dispatched.append(loc) or "ok")
 
     now = 1_000_000.0
     stale_time = now - policy.FRESH_FIX_AGE_S - 1
@@ -206,7 +233,7 @@ def test_skip_already_seen_defaults_on_but_can_be_opted_out_per_endpoint():
 
 def test_forward_one_reports_already_seen_skip_without_dispatching(monkeypatch):
     dispatched = []
-    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="", device_meta=None: dispatched.append(loc) or "ok")
+    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="", device_meta=None, response_out=None: dispatched.append(loc) or "ok")
 
     endpoint_cfg = _traccar_endpoint()
     location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
@@ -222,7 +249,7 @@ def test_forward_one_reports_already_seen_skip_without_dispatching(monkeypatch):
 
 def test_forward_one_forwards_an_already_seen_reading_when_the_endpoint_opted_out(monkeypatch):
     dispatched = []
-    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="", device_meta=None: dispatched.append(loc) or "ok")
+    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="", device_meta=None, response_out=None: dispatched.append(loc) or "ok")
 
     endpoint_cfg = _traccar_endpoint(skip_if_already_seen=False)
     location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
@@ -246,7 +273,7 @@ def test_skip_not_most_recent_defaults_on_but_can_be_opted_out_per_endpoint():
 
 def test_forward_one_reports_not_most_recent_skip_without_dispatching(monkeypatch):
     dispatched = []
-    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="", device_meta=None: dispatched.append(loc) or "ok")
+    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="", device_meta=None, response_out=None: dispatched.append(loc) or "ok")
 
     endpoint_cfg = _traccar_endpoint()
     location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
@@ -262,7 +289,7 @@ def test_forward_one_reports_not_most_recent_skip_without_dispatching(monkeypatc
 
 def test_forward_one_forwards_an_older_reading_when_the_endpoint_opted_out_of_most_recent_only(monkeypatch):
     dispatched = []
-    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="", device_meta=None: dispatched.append(loc) or "ok")
+    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="", device_meta=None, response_out=None: dispatched.append(loc) or "ok")
 
     endpoint_cfg = _traccar_endpoint(only_most_recent=False)
     location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
@@ -274,7 +301,7 @@ def test_forward_one_forwards_an_older_reading_when_the_endpoint_opted_out_of_mo
 
 def test_forward_one_reports_distance_skip_without_dispatching(monkeypatch):
     dispatched = []
-    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="", device_meta=None: dispatched.append(loc) or "ok")
+    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="", device_meta=None, response_out=None: dispatched.append(loc) or "ok")
 
     endpoint_cfg = _traccar_endpoint(skip_if_close=True, min_movement_m=100, last_sent_lat=45.0, last_sent_lon=9.0)
 
@@ -308,7 +335,7 @@ def test_skip_blocked_status_requires_filter_by_status_to_be_on():
 
 def test_forward_one_reports_blocked_status_skip_without_dispatching(monkeypatch):
     dispatched = []
-    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="", device_meta=None: dispatched.append(loc) or "ok")
+    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="", device_meta=None, response_out=None: dispatched.append(loc) or "ok")
 
     endpoint_cfg = _traccar_endpoint(filter_by_status=True, blocked_statuses=["AGGREGATED"])
 
@@ -341,7 +368,7 @@ def test_skip_not_own_report_requires_the_toggle():
 
 def test_forward_one_reports_not_own_report_skip_without_dispatching(monkeypatch):
     dispatched = []
-    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="", device_meta=None: dispatched.append(loc) or "ok")
+    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="", device_meta=None, response_out=None: dispatched.append(loc) or "ok")
 
     endpoint_cfg = _traccar_endpoint(skip_if_not_own_report=True)
 
@@ -380,7 +407,7 @@ def test_skip_inaccurate_requires_the_toggle_and_a_real_accuracy_value():
 
 def test_forward_one_reports_inaccurate_skip_without_dispatching(monkeypatch):
     dispatched = []
-    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="", device_meta=None: dispatched.append(loc) or "ok")
+    monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="", device_meta=None, response_out=None: dispatched.append(loc) or "ok")
 
     endpoint_cfg = _traccar_endpoint(skip_if_inaccurate=True, max_accuracy_m=100)
 

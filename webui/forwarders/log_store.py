@@ -35,16 +35,19 @@ def _format_line(entry: dict) -> str:
         _sanitize(entry["target"]),
         _sanitize(entry["status"]),
         _sanitize(entry.get("payload", "")),
+        _sanitize(entry.get("response", "")),
     ])
 
 
 def _parse_line(line: str) -> dict | None:
-    parts = line.split("\t", 6)
+    parts = line.split("\t", 7)
     if len(parts) == 6:
         parts.append("")  # a line written before the payload column existed
-    if len(parts) != 7:
+    if len(parts) == 7:
+        parts.append("")  # a line written before the response column existed
+    if len(parts) != 8:
         return None
-    time_s, canonic_id, device_name, endpoint_type, target, status, payload = parts
+    time_s, canonic_id, device_name, endpoint_type, target, status, payload, response = parts
     try:
         entry_time = int(time_s)
     except ValueError:
@@ -57,6 +60,7 @@ def _parse_line(line: str) -> dict | None:
         "target": target,
         "status": status,
         "payload": payload,
+        "response": response,
         "level": _level(status),
     }
 
@@ -106,7 +110,10 @@ def _write_all(entries: list[dict]):
             f.write(_format_line(entry) + "\n")
 
 
-def append(canonic_id: str, device_name: str, endpoint_type: str, target: str, status: str, payload: str = ""):
+def append(
+    canonic_id: str, device_name: str, endpoint_type: str, target: str, status: str,
+    payload: str = "", response: str = "",
+):
     with _lock:
         entries = _read_all()
         entries.append({
@@ -117,6 +124,7 @@ def append(canonic_id: str, device_name: str, endpoint_type: str, target: str, s
             "target": target,
             "status": status,
             "payload": payload,
+            "response": response,
         })
         # Keep the log file bounded instead of growing it forever.
         if len(entries) > config.FORWARD_LOG_MAX_ENTRIES:

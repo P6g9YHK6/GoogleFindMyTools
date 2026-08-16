@@ -11,6 +11,11 @@ import httpx
 logger = logging.getLogger("webui.forwarders.custom")
 
 TIMEOUT_S = 10
+# A destination's error page/body can be arbitrarily large (an HTML error
+# page from a misconfigured reverse proxy, say) - bounded here so one bad
+# response can't blow up the forwarding log file (see log_store.py's own
+# FORWARD_LOG_MAX_ENTRIES cap for the same concern applied to entry count).
+MAX_LOGGED_RESPONSE_CHARS = 2000
 _TOKEN_RE = re.compile(r"\{\{(\w+)\}\}")
 
 
@@ -129,8 +134,17 @@ def build_context(
 
 def forward_to_custom(
     endpoint_cfg: dict, location: dict, device_name: str = "", device_alias: str | None = None,
-    tracker_id: str = "", device_meta: dict | None = None,
+    tracker_id: str = "", device_meta: dict | None = None, response_out: dict | None = None,
 ) -> bool:
+    """response_out, if given, is filled in with whatever the destination
+    actually answered ("status_code"/"body", body truncated to
+    MAX_LOGGED_RESPONSE_CHARS) - the return value only ever says whether the
+    request was *sent* (raise_for_status() turns a non-2xx into the caller's
+    "error: ..." status), which isn't enough to debug a destination that
+    itself answers 200 while silently rejecting the point (see the Forwarding
+    Log's "Response" column, webui/forwarders/log_store.py). Left None by
+    every caller that doesn't care (most existing tests included) - the
+    request/response handling itself is unchanged either way."""
     if location.get("is_semantic") or location.get("latitude") is None:
         return False
 
@@ -173,6 +187,14 @@ def forward_to_custom(
         request_kwargs["data"] = form_data
 
     response = httpx.request(method, url, **request_kwargs)
+    if response_out is not None:
+        # Captured before raise_for_status() below - a non-2xx's body is
+        # exactly what's most worth seeing in the log, not just its status.
+        body = response.text
+        if len(body) > MAX_LOGGED_RESPONSE_CHARS:
+            body = body[:MAX_LOGGED_RESPONSE_CHARS] + "... (truncated)"
+        response_out["status_code"] = response.status_code
+        response_out["body"] = body
     response.raise_for_status()
     return True
 
