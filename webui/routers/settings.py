@@ -575,23 +575,16 @@ def _parse_endpoints_form(form, existing_endpoints: list[dict]) -> tuple[list[di
         if field("only_most_recent", "1") != "1":
             entry["only_most_recent"] = False
 
-        # filter_by_status is off by default, same convention as
-        # skip_if_close/skip_if_inaccurate above - the per-type checkboxes
-        # stay collapsed in the settings UI until this is turned on, and
-        # only actually gate forwarding once it is (see
-        # policy._skip_blocked_status). blocked_statuses itself is parsed
-        # unconditionally though, master toggle on or off - it's a plain
-        # "field absent == checked" checkbox group like any other, and
-        # gating its persistence on filter_by_status too would silently
-        # reset every checkbox back to checked the moment the owner
-        # collapses the section (e.g. by bouncing through the YAML view and
-        # back with the master off) even though nothing was ever unchecked
-        # on purpose.
+        # Off by default, same convention as skip_if_close/skip_if_inaccurate
+        # above - the per-type checkboxes stay collapsed in the settings UI
+        # until this is turned on. Each status checkbox defaults to checked/
+        # allowed (field absent == "1") once it's visible; only the ones the
+        # owner actively unchecked get persisted. See policy._skip_blocked_status.
         if field("filter_by_status", "0") == "1":
             entry["filter_by_status"] = True
-        blocked_statuses = [code for code, _ in policy.STATUS_CHOICES if field(f"status_{code}", "1") != "1"]
-        if blocked_statuses:
-            entry["blocked_statuses"] = blocked_statuses
+            blocked_statuses = [code for code, _ in policy.STATUS_CHOICES if field(f"status_{code}", "1") != "1"]
+            if blocked_statuses:
+                entry["blocked_statuses"] = blocked_statuses
 
         if field("skip_if_not_own_report", "0") == "1":
             entry["skip_if_not_own_report"] = True

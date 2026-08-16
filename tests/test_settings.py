@@ -589,14 +589,13 @@ def test_filter_by_status_defaults_off_when_not_submitted(client):
     assert "blocked_statuses" not in saved
 
 
-def test_unchecking_a_status_is_saved_but_not_applied_while_filter_by_status_is_off(client):
+def test_unchecking_a_status_is_a_no_op_while_filter_by_status_is_off(client):
     """The per-type checkboxes are hidden behind "Filter by report type" in
-    the UI, but the hidden inputs still submit and their state is still
-    saved - unchecking one shouldn't silently start filtering unless the
-    owner turns the master toggle on too (see policy._skip_blocked_status),
-    but it also must not be *lost* just because the master happens to be
-    off - see test_status_selection_survives_a_yaml_round_trip_while_filter_
-    by_status_is_off below for why that matters in practice."""
+    the UI, but the hidden inputs still submit - unchecking one shouldn't
+    silently start filtering unless the owner turns the master toggle on
+    too. Same convention as min_movement_m/min_update_gap_m/max_accuracy_m
+    right above this block: a toggle-gated sub-field only persists while
+    its own master is on."""
     resp = _post_form(
         client,
         f"/settings/devices/{FAKE_CANONIC_ID}",
@@ -612,16 +611,16 @@ def test_unchecking_a_status_is_saved_but_not_applied_while_filter_by_status_is_
     from webui.forwarders import config_store
 
     saved = config_store.get_device_config(FAKE_CANONIC_ID)["endpoints"][0]
-    assert "filter_by_status" not in saved  # still off - nothing actually filtered
-    assert saved["blocked_statuses"] == ["AGGREGATED"]  # but the choice itself isn't discarded
+    assert "blocked_statuses" not in saved
 
 
-def test_status_selection_survives_a_yaml_round_trip_while_filter_by_status_is_off(client):
-    """Regression test: bouncing the not-yet-saved form through "Edit as
-    YAML" and back with the master toggle off used to silently reset every
-    per-type checkbox back to checked, because blocked_statuses only used to
-    be parsed at all when filter_by_status was on (see
-    _parse_endpoints_form in settings.py)."""
+def test_status_selection_resets_on_a_yaml_round_trip_while_filter_by_status_is_off(client):
+    """Same reasoning as test_unchecking_a_status_is_a_no_op_while_filter_by_
+    status_is_off above, exercised through the "Edit as YAML" / "Edit as
+    form" live-preview routes: since blocked_statuses is never even parsed
+    while the master toggle is off, an unchecked box doesn't survive the
+    round trip either - it comes back checked, exactly like min_movement_m
+    would come back at its default if skip_if_close were off."""
     import html
     import re
 
@@ -637,11 +636,11 @@ def test_status_selection_survives_a_yaml_round_trip_while_filter_by_status_is_o
     )
     assert yaml_resp.status_code == 200
     yaml_text = html.unescape(re.search(r"<textarea[^>]*>(.*?)</textarea>", yaml_resp.text, re.S).group(1))
-    assert "blocked_statuses" in yaml_text  # the uncheck made it into the YAML...
+    assert "blocked_statuses" not in yaml_text  # the uncheck never made it into the YAML...
 
     form_resp = _post_form(client, f"/settings/devices/{FAKE_CANONIC_ID}/form/preview", yaml_text=yaml_text)
     assert form_resp.status_code == 200
-    assert 'name="ep-0-status_AGGREGATED" value="0"' in form_resp.text  # ...and back out, still unchecked
+    assert 'name="ep-0-status_AGGREGATED" value="1"' in form_resp.text  # ...so it comes back checked
 
 
 def test_enabling_filter_by_status_persists_the_unchecked_statuses(client):

@@ -252,20 +252,14 @@
     <div class="toggle-group">
       {# filter_by_status defaults off, same convention as skip_if_close/
          skip_if_inaccurate above - the per-type checkboxes below stay out
-         of the way, and don't actually gate forwarding, until this is
-         turned on (see policy.py's _skip_blocked_status). Each of those
-         checkboxes defaults to checked/allowed and keeps its own state in
-         endpoint.blocked_statuses regardless of whether the master toggle
-         above is on - unlike min_movement_m/max_accuracy_m higher up,
-         which really do live and die with their own master toggle, these
-         stay saved while collapsed so switching to the YAML view and back
-         (or just leaving the master off) never silently resets a
-         deliberate uncheck back to checked. See this form's parsing in
-         settings.py. The inner checkboxes are "status-choice-toggle", not
-         "skip-toggle" - they share this group with the master checkbox
-         above, and applyToggleVisibility (endpoint_fields.js) would
-         otherwise treat each of them as its own group's visibility switch
-         too. #}
+         of the way until this is turned on. Each of those defaults to
+         checked/allowed once visible; only the ones the owner actively
+         unchecked end up in endpoint.blocked_statuses. See policy.py's
+         _skip_blocked_status and this form's parsing in settings.py.
+         The inner checkboxes are "status-choice-toggle", not "skip-toggle"
+         - they share this group with the master checkbox above, and
+         applyToggleVisibility (endpoint_fields.js) would otherwise treat
+         each of them as its own group's visibility switch too. #}
       <label class="checkbox-label">
         <input type="checkbox" class="skip-toggle" {% if endpoint.filter_by_status %}checked{% endif %}>
         <input type="hidden" name="ep-{{ idx }}-filter_by_status" value="{{ '1' if endpoint.filter_by_status else '0' }}">
