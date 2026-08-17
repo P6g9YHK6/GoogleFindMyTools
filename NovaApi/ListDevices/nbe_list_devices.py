@@ -7,7 +7,7 @@ import binascii
 
 from NovaApi.ExecuteAction.LocateTracker.location_request import get_location_data_for_device
 from NovaApi.nova_request import nova_request
-from NovaApi.scopes import NOVA_LIST_DEVICS_API_SCOPE
+from NovaApi.scopes import NOVA_LIST_DEVICES_API_SCOPE
 from NovaApi.util import generate_random_uuid
 from ProtoDecoders import DeviceUpdate_pb2
 from ProtoDecoders.decoder import get_canonic_ids, parse_device_list_protobuf
@@ -18,7 +18,7 @@ from SpotApi.UploadPrecomputedPublicKeyIds.upload_precomputed_public_key_ids imp
 def request_device_list():
 
     hex_payload = create_device_list_request()
-    result = nova_request(NOVA_LIST_DEVICS_API_SCOPE, hex_payload)
+    result = nova_request(NOVA_LIST_DEVICES_API_SCOPE, hex_payload)
 
     return result
 
