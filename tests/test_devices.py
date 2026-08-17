@@ -26,7 +26,7 @@ def test_devices_table_shows_alias_and_endpoint_count(client, tmp_path, monkeypa
     from webui.forwarders import config_store
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding.yaml")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
     monkeypatch.setattr(config, "FORWARDING_CONFIG_LEGACY_JSON_PATH", tmp_path / "forwarding_config.json")
 
     config_store.set_device_config(FAKE_CANONIC_ID, {
@@ -79,7 +79,7 @@ def test_devices_table_prepopulates_from_a_prior_locate_no_click_needed(client, 
     from webui import config, device_location_store
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
 
     device_location_store.set_last_location(
         FAKE_CANONIC_ID,
@@ -102,7 +102,7 @@ def test_devices_table_shows_only_the_most_recent_reading_by_default(client, tmp
     from webui import config, device_location_store
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
     monkeypatch.setattr(config, "APP_SETTINGS_PATH", tmp_path / "config.yaml")
 
     device_location_store.set_last_location(
@@ -124,7 +124,7 @@ def test_devices_table_shows_the_full_batch_when_most_recent_only_is_off(client,
     from webui import config, device_location_store, settings_store
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
     monkeypatch.setattr(config, "APP_SETTINGS_PATH", tmp_path / "config.yaml")
     settings_store.save({**settings_store.load(), "devices_page_most_recent_only": False})
 
@@ -147,7 +147,7 @@ def test_devices_table_shows_a_map_links_column_with_every_provider(client, tmp_
     from webui import config, device_location_store
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
 
     from NovaApi.ExecuteAction.LocateTracker.decrypt_locations import create_map_links
 
@@ -196,7 +196,7 @@ def test_devices_table_shows_the_next_poll_time_for_a_configured_device(client, 
     from webui.forwarders import config_store
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding.yaml")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
     monkeypatch.setattr(config, "FORWARDING_CONFIG_LEGACY_JSON_PATH", tmp_path / "forwarding_config.json")
 
     config_store.set_device_config(FAKE_CANONIC_ID, {
@@ -215,7 +215,7 @@ def test_devices_table_shows_a_live_countdown_for_a_configured_device(client, tm
     from webui.forwarders import config_store
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding.yaml")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
     monkeypatch.setattr(config, "FORWARDING_CONFIG_LEGACY_JSON_PATH", tmp_path / "forwarding_config.json")
 
     config_store.set_device_config(FAKE_CANONIC_ID, {
@@ -241,7 +241,7 @@ def test_next_poll_str_is_none_with_no_valid_cron(monkeypatch, tmp_path):
     from webui.routers.devices import _next_poll_str
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding.yaml")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
     monkeypatch.setattr(config, "FORWARDING_CONFIG_LEGACY_JSON_PATH", tmp_path / "forwarding_config.json")
 
     assert _next_poll_str(FAKE_CANONIC_ID) is None  # no config at all yet
@@ -258,7 +258,7 @@ def test_devices_table_uses_persisted_location_time_when_proto_has_no_last_seen(
     from webui.routers import devices
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
     monkeypatch.setattr(devices, "get_device_details", lambda device_list: [{
         "name": FAKE_DEVICE_NAME, "canonic_id": FAKE_CANONIC_ID, "last_seen": None,
         "is_phone": False, "image_url": None, "device_type": None, "manufacturer": None, "model": None,

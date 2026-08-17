@@ -75,8 +75,15 @@ GFMT_TLS_VALIDITY_DAYS = int(os.environ.get("GFMT_TLS_VALIDITY_DAYS", "825"))
 # alongside GFMT_SECRETS_DIR under the same volume) instead of always sitting
 # next to this module - see Auth/token_cache.py for the same pattern.
 DATA_DIR = pathlib.Path(os.environ.get("GFMT_DATA_DIR") or (pathlib.Path(__file__).parent / "data"))
+
+# One file, keyed by canonic device ID, backing config_store.py,
+# device_location_store.py and latest_values_store.py - see
+# webui/device_store.py. FORWARDING_CONFIG_PATH/DEVICE_LOCATIONS_PATH/
+# LATEST_VALUES_PATH/their legacy JSON below are the pre-fusion locations -
+# device_store.py reads them once to migrate into DEVICES_PATH, then never
+# again.
+DEVICES_PATH = DATA_DIR / "devices.yaml"
 FORWARDING_CONFIG_PATH = DATA_DIR / "forwarding.yaml"
-# Pre-YAML location - config_store.py reads this once to migrate, then never again.
 FORWARDING_CONFIG_LEGACY_JSON_PATH = DATA_DIR / "forwarding_config.json"
 FORWARD_LOG_PATH = DATA_DIR / "forward.log"
 # Pre-.log location - log_store.py reads this once to migrate, then never again.
@@ -93,15 +100,10 @@ APP_SETTINGS_PATH = DATA_DIR / "config.yaml"
 SYSTEM_LOG_PATH = DATA_DIR / "system.log"
 SYSTEM_LOG_MAX_ENTRIES = int(os.environ.get("SYSTEM_LOG_MAX_ENTRIES", "5000"))
 
-# The last location actually obtained for each device, regardless of whether
-# it came from a manual Locate click or a scheduled poll - see
-# webui/device_location_store.py and the Devices page.
+# Pre-fusion location for device_location_store.py's data - see DEVICES_PATH.
 DEVICE_LOCATIONS_PATH = DATA_DIR / "device_locations.yaml"
 
-# Per-endpoint forwarding runtime state (last status/time, last-sent
-# position, consecutive-failure streak) - kept out of forwarding.yaml so
-# that file stays pure configuration instead of growing a pile of history -
-# see webui/forwarders/latest_values_store.py.
+# Pre-fusion location for latest_values_store.py's data - see DEVICES_PATH.
 LATEST_VALUES_PATH = DATA_DIR / "latest_values.yaml"
 
 # Default location for a generated self-signed cert/key (see webui/tls.py) -

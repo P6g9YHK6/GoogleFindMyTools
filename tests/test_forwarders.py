@@ -568,7 +568,7 @@ def test_config_store_round_trip(tmp_path, monkeypatch):
     from webui.forwarders import config_store
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding.yaml")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
 
     assert config_store.get_device_config("dev-1") is None
     config_store.set_device_config("dev-1", {"display_name": "X", "endpoints": []})
@@ -581,16 +581,16 @@ def test_config_store_last_load_ok_false_for_corrupt_yaml(tmp_path, monkeypatch)
     from webui.forwarders import config_store
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding.yaml")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
 
     assert config_store.load() == config_store._empty()
     assert config_store.last_load_ok() is True  # no file yet - a fresh install, not a failure
 
-    config.FORWARDING_CONFIG_PATH.write_text("not: valid: yaml: [")
+    config.DEVICES_PATH.write_text("not: valid: yaml: [")
     assert config_store.load() == config_store._empty()
     assert config_store.last_load_ok() is False
 
-    config.FORWARDING_CONFIG_PATH.write_text("devices: {}\n")
+    config.DEVICES_PATH.write_text("devices: {}\n")
     config_store.load()
     assert config_store.last_load_ok() is True  # flips back once the file's readable again
 
@@ -600,8 +600,8 @@ def test_config_store_last_load_ok_false_for_a_non_mapping_document(tmp_path, mo
     from webui.forwarders import config_store
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding.yaml")
-    config.FORWARDING_CONFIG_PATH.write_text("- just\n- a\n- list\n")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
+    config.DEVICES_PATH.write_text("- just\n- a\n- list\n")
 
     assert config_store.load() == config_store._empty()
     assert config_store.last_load_ok() is False
@@ -615,8 +615,8 @@ def test_config_store_last_load_ok_true_for_a_genuinely_empty_file(tmp_path, mon
     from webui.forwarders import config_store
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding.yaml")
-    config.FORWARDING_CONFIG_PATH.write_text("")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
+    config.DEVICES_PATH.write_text("")
 
     assert config_store.load() == {"devices": {}}
     assert config_store.last_load_ok() is True
@@ -627,7 +627,7 @@ def test_config_store_migrates_legacy_single_destination_shape(tmp_path, monkeyp
     from webui.forwarders import config_store
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding.yaml")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
 
     legacy = {
         "display_name": "X",
@@ -668,7 +668,7 @@ def test_config_store_migrates_legacy_endpoints_list_shape(tmp_path, monkeypatch
     from webui.forwarders import config_store
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding.yaml")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
 
     legacy = {
         "display_name": "X",
@@ -702,7 +702,7 @@ def test_config_store_folds_leftover_query_params_into_the_url(tmp_path, monkeyp
     from webui.forwarders import config_store
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding.yaml")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
 
     legacy = {
         "display_name": "X",
@@ -741,7 +741,7 @@ def test_config_store_migrates_from_legacy_json(tmp_path, monkeypatch):
     from webui.forwarders import config_store
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding.yaml")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
     legacy_path = tmp_path / "forwarding_config.json"
     monkeypatch.setattr(config, "FORWARDING_CONFIG_LEGACY_JSON_PATH", legacy_path)
 
@@ -750,7 +750,7 @@ def test_config_store_migrates_from_legacy_json(tmp_path, monkeypatch):
     # First read migrates: loads the JSON, and from then on the YAML file is
     # the source of truth. The old JSON file is left alone, not deleted.
     assert config_store.get_device_config("dev-1") == {"display_name": "X", "endpoints": []}
-    assert config.FORWARDING_CONFIG_PATH.exists()
+    assert config.DEVICES_PATH.exists()
     assert legacy_path.exists()
 
     config_store.set_device_config("dev-2", {"display_name": "Y", "endpoints": []})

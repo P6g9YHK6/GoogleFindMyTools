@@ -1408,7 +1408,7 @@ def test_preview_values_includes_the_last_real_fix_and_device_meta(tmp_path, mon
     from webui.routers.settings import _preview_values_json_for
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
     device_location_store.set_last_location(
         FAKE_CANONIC_ID,
         [{
@@ -1441,7 +1441,7 @@ def test_preview_values_omits_own_report_when_no_location_is_on_file(tmp_path, m
     from webui.routers.settings import _preview_values_json_for
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
 
     values = json.loads(_preview_values_json_for(FAKE_CANONIC_ID, FAKE_DEVICE_NAME, None))
     assert "own_report" not in values  # unlike a real False, "no fix at all" must not look like a real value
@@ -1456,7 +1456,7 @@ def test_preview_values_ignores_a_semantic_only_last_location(tmp_path, monkeypa
     from webui.routers.settings import _preview_values_json_for
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
     device_location_store.set_last_location(
         FAKE_CANONIC_ID,
         [{"is_semantic": True, "semantic_name": "Home", "status": "SEMANTIC", "is_own_report": True, "time": 1700000000}],
@@ -1474,7 +1474,7 @@ def test_settings_page_embeds_this_devices_real_preview_values(client, tmp_path,
     from webui.forwarders import config_store
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
     device_location_store.set_last_location(
         FAKE_CANONIC_ID,
         [{"is_semantic": False, "latitude": 12.5, "longitude": 34.5, "time": 1700000000}],

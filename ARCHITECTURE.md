@@ -82,9 +82,8 @@ to Google directly - it always goes through the CLI-tool layer.
 Everything about *where* a location goes, separate from *when* (that's
 `scheduler.py`'s job):
 
-- `config_store.py` - persisted per-device forwarding config
-  (`forwarding.yaml`): which endpoints, their schedules, thresholds, and
-  last-sent state.
+- `config_store.py` - persisted per-device forwarding config: which
+  endpoints, their schedules, thresholds.
 - `policy.py` - the skip-if-close/skip-if-stale gates, the dispatch-and-log
   call every endpoint goes through, and consecutive-failure escalation.
   Everything about *where* a location goes and whether this particular fix
@@ -97,10 +96,17 @@ Everything about *where* a location goes, separate from *when* (that's
   pre-fill the generic builder above, not separate code paths.
 - `log_store.py` - the Forwarding Log: every attempt, its target, status,
   and payload.
-- `latest_values_store.py` - runtime state split out of `forwarding.yaml`:
-  per-endpoint-URL forwarding state, plus (under a reserved pseudo-key that
-  can't collide with a real URL) each device's staleness config/alert-dedup
-  state - see `webui/staleness.py`.
+- `latest_values_store.py` - per-endpoint-URL forwarding runtime state, plus
+  each device's staleness config/alert-dedup state - see
+  `webui/staleness.py`.
+
+`config_store.py`, `webui/device_location_store.py` (the Devices page's last
+known fix per device) and `latest_values_store.py` all persist through the
+shared `webui/device_store.py` - one file (`devices.yaml`), keyed by canonic
+device ID, one sub-key per module (`config`/`location`/`endpoint_state`/
+`staleness`), one lock. They used to be three independent YAML files; see
+that module's docstring for why they were fused and how the pre-fusion files
+get migrated in.
 
 ### `webui/routers/`
 
@@ -119,9 +125,9 @@ state the app already keeps, nothing new persisted).
 
 Everything persisted lives flat in one directory (`GFMT_DATA_DIR`, `/data`
 in the Docker image): `auth.yaml` (credentials, optionally encrypted - see
-`Auth/token_cache.py`), `forwarding.yaml`, `config.yaml`,
-`device_locations.yaml`, `forward.log`, `system.log`. No database - see the
-README's "Everything survives a restart" feature bullet for why.
+`Auth/token_cache.py`), `devices.yaml`, `config.yaml`, `forward.log`,
+`system.log`. No database - see the README's "Everything survives a
+restart" feature bullet for why.
 
 ## Tests
 

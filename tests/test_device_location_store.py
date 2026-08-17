@@ -3,14 +3,14 @@ from webui import config, device_location_store
 
 def test_get_last_location_returns_none_when_nothing_stored(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
 
     assert device_location_store.get_last_location("dev-1") is None
 
 
 def test_set_then_get_round_trips(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
 
     locations = [{"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "map_links": {"OSM": "http://x"}}]
     device_location_store.set_last_location("dev-1", locations, fetched_at=1700000000)
@@ -27,7 +27,7 @@ def test_get_last_location_backfills_map_links_for_a_location_saved_before_that_
     replaced the old single-provider "google_maps_link" has neither field -
     the Devices page's "Map" column must not just stay blank for it forever."""
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
 
     device_location_store.set_last_location(
         "dev-1",
@@ -43,7 +43,7 @@ def test_get_last_location_backfills_map_links_for_a_location_saved_before_that_
 
 def test_get_last_location_leaves_a_semantic_location_alone(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
 
     device_location_store.set_last_location("dev-1", [{"is_semantic": True, "semantic_name": "Home"}], fetched_at=1)
 
@@ -53,7 +53,7 @@ def test_get_last_location_leaves_a_semantic_location_alone(tmp_path, monkeypatc
 
 def test_devices_do_not_clobber_each_other(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
 
     device_location_store.set_last_location("dev-1", [{"latitude": 1.0}], fetched_at=1)
     device_location_store.set_last_location("dev-2", [{"latitude": 2.0}], fetched_at=2)
@@ -64,7 +64,7 @@ def test_devices_do_not_clobber_each_other(tmp_path, monkeypatch):
 
 def test_a_later_call_overwrites_the_prior_one_for_the_same_device(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
 
     device_location_store.set_last_location("dev-1", [{"latitude": 1.0}], fetched_at=1)
     device_location_store.set_last_location("dev-1", [{"latitude": 2.0}], fetched_at=2)
@@ -76,8 +76,8 @@ def test_a_later_call_overwrites_the_prior_one_for_the_same_device(tmp_path, mon
 
 def test_a_corrupt_file_is_treated_as_empty(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    path = tmp_path / "device_locations.yaml"
-    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", path)
+    path = tmp_path / "devices.yaml"
+    monkeypatch.setattr(config, "DEVICES_PATH", path)
     path.write_text("not: valid: yaml: [")
 
     assert device_location_store.get_last_location("dev-1") is None
@@ -89,13 +89,15 @@ def test_set_last_location_backfills_first_seen_for_a_reading_stored_before_that
     missing/null value forever once the same reading reappears; it should
     fall back to the prior snapshot's own fetched_at instead."""
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    path = tmp_path / "device_locations.yaml"
-    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", path)
+    path = tmp_path / "devices.yaml"
+    monkeypatch.setattr(config, "DEVICES_PATH", path)
 
     import yaml
 
     reading = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "status": "REPORTED", "time": 100}
-    path.write_text(yaml.safe_dump({"dev-1": {"locations": [reading], "fetched_at": 500}}))
+    path.write_text(yaml.safe_dump({
+        "devices": {"dev-1": {"location": {"locations": [reading], "fetched_at": 500}}},
+    }))
 
     stamped = device_location_store.set_last_location("dev-1", [reading], fetched_at=1000)
 
@@ -105,7 +107,7 @@ def test_set_last_location_backfills_first_seen_for_a_reading_stored_before_that
 
 def test_set_last_location_stamps_a_new_reading_with_this_fetchs_time(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
 
     stamped = device_location_store.set_last_location(
         "dev-1", [{"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 100}], fetched_at=1000,
@@ -119,7 +121,7 @@ def test_set_last_location_keeps_the_original_first_seen_for_a_reading_google_re
     fresh ones - that reading's first_seen must stay pinned to whenever we
     actually first observed it, not keep sliding forward on every fetch."""
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
 
     reading = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "status": "REPORTED", "time": 100}
     device_location_store.set_last_location("dev-1", [reading], fetched_at=1000)
@@ -135,7 +137,7 @@ def test_set_last_location_only_stamps_a_within_batch_duplicate_once(tmp_path, m
     "new" the second time just because there's no prior fetch to compare
     against yet."""
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
 
     reading = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "status": "REPORTED", "time": 100}
     stamped = device_location_store.set_last_location("dev-1", [reading, dict(reading)], fetched_at=1000)
@@ -146,7 +148,7 @@ def test_set_last_location_only_stamps_a_within_batch_duplicate_once(tmp_path, m
 
 def test_set_last_location_treats_a_different_reading_as_new_even_with_others_unchanged(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
 
     old_reading = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "status": "REPORTED", "time": 100}
     device_location_store.set_last_location("dev-1", [old_reading], fetched_at=1000)
@@ -160,16 +162,16 @@ def test_set_last_location_treats_a_different_reading_as_new_even_with_others_un
 
 def test_get_last_location_backfills_first_seen_for_a_location_saved_before_that_field_existed(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    path = tmp_path / "device_locations.yaml"
-    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", path)
+    path = tmp_path / "devices.yaml"
+    monkeypatch.setattr(config, "DEVICES_PATH", path)
 
     import yaml
 
     path.write_text(yaml.safe_dump({
-        "dev-1": {
+        "devices": {"dev-1": {"location": {
             "locations": [{"is_semantic": False, "latitude": 1.0, "longitude": 2.0}],
             "fetched_at": 1234,
-        },
+        }}},
     }))
 
     loc = device_location_store.get_last_location("dev-1")["locations"][0]

@@ -56,10 +56,8 @@ async def test_poll_device_shares_one_locate_call_across_due_endpoints(monkeypat
     from webui.forwarders import config_store, latest_values_store
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding_config.json")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
     monkeypatch.setattr(config, "FORWARD_LOG_PATH", tmp_path / "forward_log.json")
-    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
-    monkeypatch.setattr(config, "LATEST_VALUES_PATH", tmp_path / "latest_values.yaml")
 
     monkeypatch.setattr(scheduler, "is_logged_in", lambda: True)
 
@@ -128,10 +126,8 @@ async def test_poll_device_records_last_sent_position_on_success(monkeypatch, tm
     from webui.forwarders import config_store, latest_values_store
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding_config.json")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
     monkeypatch.setattr(config, "FORWARD_LOG_PATH", tmp_path / "forward_log.json")
-    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
-    monkeypatch.setattr(config, "LATEST_VALUES_PATH", tmp_path / "latest_values.yaml")
     monkeypatch.setattr(scheduler, "is_logged_in", lambda: True)
     # _poll_device calls policy._forward_one, which resolves _dispatch_forward
     # in policy's own module globals - patching scheduler's re-exported name
@@ -203,10 +199,8 @@ async def test_poll_device_passes_its_own_canonic_id_and_device_meta(monkeypatch
     from webui.forwarders import config_store
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding_config.json")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
     monkeypatch.setattr(config, "FORWARD_LOG_PATH", tmp_path / "forward_log.json")
-    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
-    monkeypatch.setattr(config, "LATEST_VALUES_PATH", tmp_path / "latest_values.yaml")
     monkeypatch.setattr(scheduler, "is_logged_in", lambda: True)
 
     captured = {}
@@ -264,10 +258,8 @@ async def test_poll_device_persists_last_location_for_the_devices_page(monkeypat
     from webui.forwarders import config_store
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding.yaml")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
     monkeypatch.setattr(config, "FORWARD_LOG_PATH", tmp_path / "forward.log")
-    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
-    monkeypatch.setattr(config, "LATEST_VALUES_PATH", tmp_path / "latest_values.yaml")
     monkeypatch.setattr(scheduler, "is_logged_in", lambda: True)
     monkeypatch.setattr(policy, "_dispatch_forward", lambda cfg, loc, name="", alias=None, tracker_id="", device_meta=None, response_out=None: "ok")
 
@@ -323,10 +315,8 @@ async def test_poll_device_skips_forwarding_a_reading_google_already_reported(mo
     from webui.forwarders import config_store, log_store
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding_config.json")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
     monkeypatch.setattr(config, "FORWARD_LOG_PATH", tmp_path / "forward_log.json")
-    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
-    monkeypatch.setattr(config, "LATEST_VALUES_PATH", tmp_path / "latest_values.yaml")
     monkeypatch.setattr(scheduler, "is_logged_in", lambda: True)
 
     dispatched = []
@@ -392,10 +382,8 @@ async def test_poll_device_only_forwards_the_most_recent_reading_in_a_batch(monk
     from webui.forwarders import config_store, log_store
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding_config.json")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
     monkeypatch.setattr(config, "FORWARD_LOG_PATH", tmp_path / "forward_log.json")
-    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
-    monkeypatch.setattr(config, "LATEST_VALUES_PATH", tmp_path / "latest_values.yaml")
     monkeypatch.setattr(scheduler, "is_logged_in", lambda: True)
 
     dispatched = []
@@ -465,10 +453,8 @@ async def test_forward_now_logs_the_destinations_actual_response_body(monkeypatc
     from webui.forwarders import config_store, custom, log_store
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding_config.json")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
     monkeypatch.setattr(config, "FORWARD_LOG_PATH", tmp_path / "forward_log.json")
-    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
-    monkeypatch.setattr(config, "LATEST_VALUES_PATH", tmp_path / "latest_values.yaml")
 
     class FakeResponse:
         status_code = 200

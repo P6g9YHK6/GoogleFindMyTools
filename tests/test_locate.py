@@ -5,7 +5,7 @@ def test_locate_success(client, tmp_path, monkeypatch):
     from webui import config
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
 
     resp = client.post(f"/devices/{FAKE_CANONIC_ID}/locate", params={"name": "My Tracker"})
     assert resp.status_code == 200
@@ -37,7 +37,7 @@ def test_locate_success_persists_the_result_with_a_timestamp(client, tmp_path, m
     from webui import config, device_location_store
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
 
     resp = client.post(f"/devices/{FAKE_CANONIC_ID}/locate", params={"name": "My Tracker"})
     assert resp.status_code == 200
@@ -56,7 +56,7 @@ def test_locate_failure_does_not_clobber_the_last_good_result(client, tmp_path, 
     from webui.routers import locate
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "DEVICE_LOCATIONS_PATH", tmp_path / "device_locations.yaml")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
 
     # A real fix first...
     client.post(f"/devices/{FAKE_CANONIC_ID}/locate", params={"name": "My Tracker"})

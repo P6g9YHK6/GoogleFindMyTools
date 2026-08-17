@@ -1,21 +1,10 @@
-import json
 import logging
-import threading
 
-from webui import config
+from webui import config, device_store
 from webui.forwarders import latest_values_store
 from webui.forwarders.presets import PRESETS
-from webui.yaml_io import read_yaml_dict, write_yaml_dict
 
 logger = logging.getLogger("webui.forwarders.config_store")
-
-_lock = threading.Lock()
-
-# Whether the most recent load() actually read forwarding.yaml successfully -
-# a corrupt/unreadable file silently falls back to _empty() below, which
-# looks identical to a fresh install with zero devices configured from
-# outside this module. See last_load_ok()/webui/main.py's /health.
-_last_load_ok = True
 
 
 def _empty():
@@ -23,11 +12,11 @@ def _empty():
 
 
 def last_load_ok() -> bool:
-    """Whether forwarding.yaml's most recent read actually succeeded, for
-    /health (see webui/main.py) - load() below silently falls back to "0
-    devices configured" on a corrupt/unreadable file, which is otherwise
-    indistinguishable from a legitimately empty one."""
-    return _last_load_ok
+    """Whether devices.yaml's most recent read actually succeeded, for
+    /health (see webui/main.py) - a corrupt/unreadable file silently falls
+    back to "0 devices configured", which is otherwise indistinguishable
+    from a legitimately empty one. See webui/device_store.py."""
+    return device_store.last_load_ok()
 
 
 def _seconds_to_cron(seconds) -> str:
@@ -170,81 +159,70 @@ def normalize_device_config(device_cfg: dict) -> dict:
     return normalized
 
 
-def _migrate_from_legacy_json() -> dict | None:
-    """One-time upgrade path from the pre-YAML forwarding_config.json - read it
-    once, write it straight back out as forwarding.yaml, and leave the old
-    file in place untouched (as a backup, and so a downgrade isn't a hard
-    break). Every load() after that first migration hits the YAML file
-    directly and never looks at the JSON file again."""
-    if not config.FORWARDING_CONFIG_LEGACY_JSON_PATH.exists():
-        return None
-    try:
-        with open(config.FORWARDING_CONFIG_LEGACY_JSON_PATH) as f:
-            data = json.load(f)
-    except (json.JSONDecodeError, OSError):
-        return None
-    if not isinstance(data, dict):
-        return None
-    data.setdefault("devices", {})
-    _save(data)
-    return data
-
-
 # Bumped whenever normalize_device_config's migrations change what "current
-# shape" means. A device saved under an older version gets migrated and
-# written back the first time it's loaded, instead of being re-migrated (and
-# never persisted) on every single load forever.
+# shape" means. A device's config saved under an older version gets migrated
+# and written back the first time it's loaded, instead of being re-migrated
+# (and never persisted) on every single load forever.
 _SCHEMA_VERSION = 1
 
 
 def load() -> dict:
-    global _last_load_ok
-    with _lock:
-        if not config.FORWARDING_CONFIG_PATH.exists():
-            config.DATA_DIR.mkdir(parents=True, exist_ok=True)
-            _last_load_ok = True
-            data = _migrate_from_legacy_json()
-            if data is None:
-                return _empty()
-        else:
-            data, ok = read_yaml_dict(config.FORWARDING_CONFIG_PATH)
-            _last_load_ok = ok
-            if not ok:
-                logger.error("Failed to read or parse %s", config.FORWARDING_CONFIG_PATH)
-                return _empty()
-            data.setdefault("devices", {})
-
-        devices = data["devices"]
-        if devices:
-            normalized = {cid: normalize_device_config(cfg) for cid, cfg in devices.items()}
-            if normalized != devices or data.get("schema_version") != _SCHEMA_VERSION:
-                data = {**data, "devices": normalized, "schema_version": _SCHEMA_VERSION}
-                _save(data)
-        return data
+    """The {"devices": {canonic_id: config_dict}} shape this module used to
+    persist directly, projected from the shared devices.yaml (see
+    webui/device_store.py) - kept for callers/tests that still think in
+    terms of "just the forwarding config"."""
+    devices = device_store.load()["devices"]
+    normalized = {}
+    changed = False
+    for canonic_id, entry in devices.items():
+        if "config" not in entry:
+            continue
+        cfg = normalize_device_config(entry["config"])
+        normalized[canonic_id] = cfg
+        if cfg != entry["config"]:
+            changed = True
+    if changed:
+        for canonic_id, cfg in normalized.items():
+            _set_config(canonic_id, cfg)
+    return {"devices": normalized}
 
 
-def _save(data: dict):
-    write_yaml_dict(config.FORWARDING_CONFIG_PATH, data)
+def _set_config(canonic_id: str, cfg: dict) -> None:
+    device_store.mutate_device(canonic_id, lambda entry: entry.update(config=cfg))
+
+
+def _clear_config(entry: dict) -> None:
+    entry.pop("config", None)
 
 
 def save(data: dict):
-    with _lock:
-        _save(data)
+    """Full-replace of every device's config, same semantics this module
+    always had - a device omitted from data["devices"] loses its config
+    (but keeps its location/endpoint_state/staleness, which aren't this
+    module's concern)."""
+    wanted = data.get("devices", {})
+    current = device_store.load()["devices"]
+    for canonic_id in set(current) | set(wanted):
+        if canonic_id in wanted:
+            _set_config(canonic_id, wanted[canonic_id])
+        elif "config" in current.get(canonic_id, {}):
+            device_store.mutate_device(canonic_id, _clear_config)
 
 
 def get_device_config(canonic_id: str) -> dict | None:
-    device_cfg = load()["devices"].get(canonic_id)
+    entry = device_store.load()["devices"].get(canonic_id) or {}
+    device_cfg = entry.get("config")
     return normalize_device_config(device_cfg) if device_cfg is not None else None
 
 
 def set_device_config(canonic_id: str, device_config: dict):
-    data = load()
-    data["devices"][canonic_id] = device_config
-    save(data)
+    _set_config(canonic_id, device_config)
 
 
 def all_devices() -> dict:
+    devices = device_store.load()["devices"]
     return {
-        canonic_id: normalize_device_config(device_cfg)
-        for canonic_id, device_cfg in load()["devices"].items()
+        canonic_id: normalize_device_config(entry["config"])
+        for canonic_id, entry in devices.items()
+        if "config" in entry
     }

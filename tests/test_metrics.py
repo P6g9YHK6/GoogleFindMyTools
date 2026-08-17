@@ -12,7 +12,7 @@ def _isolated_paths(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
     monkeypatch.setattr(config, "FORWARD_LOG_PATH", tmp_path / "forward.log")
     monkeypatch.setattr(config, "SYSTEM_LOG_PATH", tmp_path / "system.log")
-    monkeypatch.setattr(config, "FORWARDING_CONFIG_PATH", tmp_path / "forwarding.yaml")
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
 
 
 def test_metrics_exposes_prometheus_text_format(client, monkeypatch):
