@@ -401,10 +401,11 @@ def test_build_context_exposes_status_and_own_report():
 
     location = {
         "is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1,
-        "status": "AGGREGATED", "is_own_report": True,
+        "status": "AGGREGATED", "status_id": 3, "is_own_report": True,
     }
     ctx = build_context({}, location, "My Phone")
     assert ctx["status"] == "AGGREGATED"
+    assert ctx["status_id"] == 3
     assert ctx["own_report"] is True
 
 
@@ -414,6 +415,7 @@ def test_build_context_status_and_own_report_default_when_missing():
     location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
     ctx = build_context({}, location, "My Phone")
     assert ctx["status"] == ""
+    assert ctx["status_id"] == ""
     assert ctx["own_report"] is False
 
 
@@ -433,15 +435,16 @@ def test_forward_to_custom_substitutes_status_and_own_report(monkeypatch):
     monkeypatch.setattr(custom.httpx, "request", fake_request)
 
     endpoint_cfg = {
-        "method": "GET", "url": "https://svc.example/?status={{status}}&own={{own_report}}",
+        "method": "GET",
+        "url": "https://svc.example/?status={{status}}&status_id={{status_id}}&own={{own_report}}",
         "headers": {}, "body_type": "none", "body": "",
     }
     location = {
         "is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1,
-        "status": "CROWDSOURCED", "is_own_report": False,
+        "status": "CROWDSOURCED", "status_id": 2, "is_own_report": False,
     }
     custom.forward_to_custom(endpoint_cfg, location, "My Phone")
-    assert captured["url"] == "https://svc.example/?status=CROWDSOURCED&own=False"
+    assert captured["url"] == "https://svc.example/?status=CROWDSOURCED&status_id=2&own=False"
 
 
 def test_forward_to_custom_device_name_uses_device_display_name(monkeypatch):

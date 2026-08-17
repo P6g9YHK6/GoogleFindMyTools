@@ -218,6 +218,7 @@ def decrypt_location_response_locations(device_update_protobuf):
             "is_semantic": is_semantic,
             "semantic_name": loc.name if is_semantic else None,
             "status": Common_pb2.Status.Name(loc.status),
+            "status_id": int(loc.status),
             "accuracy": loc.accuracy,
             "is_own_report": loc.is_own_report,
             "map_links": create_map_links(latitude, longitude) if not is_semantic else None,

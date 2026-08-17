@@ -99,6 +99,11 @@ def build_context(
         # before this is built. own_report tells apart this tracker's own
         # GPS fix from one crowdsourced by a nearby device.
         "status": location.get("status") or "",
+        # status_id is the same flag as status above, but as the raw numeric
+        # enum value (see Common.proto's Status: LAST_KNOWN=1, CROWDSOURCED=2,
+        # AGGREGATED=3) for endpoints that want to key off it without string
+        # matching.
+        "status_id": location.get("status_id") if location.get("status_id") is not None else "",
         "own_report": bool(location.get("is_own_report")),
         # google_timestamp: when Google recorded this fix. current_timestamp:
         # right now, at send time - always fresh even when Google keeps
