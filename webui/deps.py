@@ -7,6 +7,7 @@ from NovaApi.query_throttle import query_throttle
 from SpotApi.CreateBleDevice.create_ble_device import register_esp32
 from webui import config, settings_store
 from webui.device_list_cache import device_list_cache
+from webui.locate_coalescer import locate_coalescer
 
 _locate_semaphore = asyncio.Semaphore(config.LOCATE_CONCURRENCY)
 
@@ -48,8 +49,17 @@ async def run_blocking(func, *args, **kwargs):
 
 
 async def locate_device(canonic_id: str, name: str, timeout: float = config.LOCATE_TIMEOUT_S):
-    async with _locate_semaphore:
-        return await run_blocking(get_location_data_for_device, canonic_id, name, timeout)
+    # Coalesced per canonic_id (see webui/locate_coalescer.py) - if a locate
+    # for this device is already in flight (e.g. a cron poll tick and a
+    # manual click landing at the same moment), this call joins it instead
+    # of starting a second Nova+FCM round trip. The semaphore is acquired
+    # inside the coalesced fetch, so it's only held once per actual fetch,
+    # not once per caller.
+    async def _fetch():
+        async with _locate_semaphore:
+            return await run_blocking(get_location_data_for_device, canonic_id, name, timeout)
+
+    return await locate_coalescer.get_or_fetch(canonic_id, _fetch)
 
 
 async def set_sound(canonic_id: str, should_start: bool):
