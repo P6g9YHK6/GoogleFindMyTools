@@ -34,7 +34,7 @@ def rx_to_ry(Rx: int, curve) -> int:
     return Ry
 
 
-def encrypt_aes_eax(data: bytes, nonce: bytes, key: bytes) -> (bytes, bytes):
+def encrypt_aes_eax(data: bytes, nonce: bytes, key: bytes) -> tuple[bytes, bytes]:
     # Ensure the key is 32 bytes for AES-256
     if len(key) != 32:
         raise ValueError("Key must be 32 bytes long for AES-256")
@@ -60,7 +60,7 @@ def decrypt_aes_eax(data: bytes, tag: bytes, nonce: bytes, key: bytes) -> bytes:
     return cipher.decrypt_and_verify(data, tag)
 
 
-def encrypt(message: bytes, random: bytes, eid: bytes) -> (bytes, bytes):
+def encrypt(message: bytes, random: bytes, eid: bytes) -> tuple[bytes, bytes]:
     # Step 1: Choose a random number s in Fp
     curve = SECP160r1
     s = int.from_bytes(random, byteorder='big', signed=True) % curve.order
