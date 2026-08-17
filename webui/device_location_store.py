@@ -87,11 +87,18 @@ def get_last_location(canonic_id: str) -> dict | None:
     ever been obtained for this device. Each location carries "first_seen" -
     see set_last_location."""
     with _lock:
-        entry = _load_unlocked().get(canonic_id)
+        data = _load_unlocked()
+        entry = data.get(canonic_id)
         if not entry or "locations" not in entry:
             return None
-        locations = [_migrate_location(loc, entry.get("fetched_at")) for loc in entry["locations"]]
-        return {"locations": locations, "fetched_at": entry.get("fetched_at")}
+        migrated = [_migrate_location(loc, entry.get("fetched_at")) for loc in entry["locations"]]
+        # Persist the backfilled shape once instead of re-migrating this same
+        # entry on every future read - see webui/forwarders/config_store.py's
+        # schema_version comment for the same reasoning.
+        if migrated != entry["locations"]:
+            data[canonic_id] = {**entry, "locations": migrated}
+            _save_unlocked(data)
+        return {"locations": migrated, "fetched_at": entry.get("fetched_at")}
 
 
 def set_last_location(canonic_id: str, locations: list[dict], fetched_at: int) -> list[dict]:

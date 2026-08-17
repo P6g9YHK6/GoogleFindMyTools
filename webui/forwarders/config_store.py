@@ -190,19 +190,36 @@ def _migrate_from_legacy_json() -> dict | None:
     return data
 
 
+# Bumped whenever normalize_device_config's migrations change what "current
+# shape" means. A device saved under an older version gets migrated and
+# written back the first time it's loaded, instead of being re-migrated (and
+# never persisted) on every single load forever.
+_SCHEMA_VERSION = 1
+
+
 def load() -> dict:
     global _last_load_ok
     with _lock:
         if not config.FORWARDING_CONFIG_PATH.exists():
             config.DATA_DIR.mkdir(parents=True, exist_ok=True)
             _last_load_ok = True
-            return _migrate_from_legacy_json() or _empty()
-        data, ok = read_yaml_dict(config.FORWARDING_CONFIG_PATH)
-        _last_load_ok = ok
-        if not ok:
-            logger.error("Failed to read or parse %s", config.FORWARDING_CONFIG_PATH)
-            return _empty()
-        data.setdefault("devices", {})
+            data = _migrate_from_legacy_json()
+            if data is None:
+                return _empty()
+        else:
+            data, ok = read_yaml_dict(config.FORWARDING_CONFIG_PATH)
+            _last_load_ok = ok
+            if not ok:
+                logger.error("Failed to read or parse %s", config.FORWARDING_CONFIG_PATH)
+                return _empty()
+            data.setdefault("devices", {})
+
+        devices = data["devices"]
+        if devices:
+            normalized = {cid: normalize_device_config(cfg) for cid, cfg in devices.items()}
+            if normalized != devices or data.get("schema_version") != _SCHEMA_VERSION:
+                data = {**data, "devices": normalized, "schema_version": _SCHEMA_VERSION}
+                _save(data)
         return data
 
 
