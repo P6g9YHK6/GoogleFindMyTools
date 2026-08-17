@@ -138,9 +138,9 @@ def set_cached_value(name: str, value):
 
 def _load(strict: bool = False) -> dict:
     global _last_load_ok
-    secrets_file = _auth_store_path()
-    if os.path.exists(secrets_file):
-        with open(secrets_file) as file:
+    store_path = _auth_store_path()
+    if os.path.exists(store_path):
+        with open(store_path) as file:
             try:
                 data = yaml.safe_load(file)
             except yaml.YAMLError:
@@ -149,12 +149,12 @@ def _load(strict: bool = False) -> dict:
                     # A write is about to happen - refuse rather than silently
                     # start from {} and clobber whatever's actually in there.
                     raise Exception("Could not read secrets file. Aborting.") from None
-                logger.error("Could not read %s", secrets_file)
+                logger.error("Could not read %s", store_path)
                 return {}
         if data is None:
             data = {}  # an empty file is a legitimate "never logged in" state, not a failure
         elif not isinstance(data, dict):
-            logger.error("%s did not parse to a mapping", secrets_file)
+            logger.error("%s did not parse to a mapping", store_path)
             _last_load_ok = False
             return {}
         _last_load_ok = True
