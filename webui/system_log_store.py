@@ -9,6 +9,7 @@ import re
 import threading
 
 from webui import config
+from webui.line_log_io import read_lines, write_lines
 
 _lock = threading.Lock()
 
@@ -41,29 +42,11 @@ def _parse_line(line: str) -> dict | None:
 
 
 def _read_all() -> list[dict]:
-    config.DATA_DIR.mkdir(parents=True, exist_ok=True)
-    if not config.SYSTEM_LOG_PATH.exists():
-        return []
-    entries = []
-    try:
-        with open(config.SYSTEM_LOG_PATH) as f:
-            for line in f:
-                line = line.rstrip("\n")
-                if not line:
-                    continue
-                parsed = _parse_line(line)
-                if parsed is not None:
-                    entries.append(parsed)
-    except OSError:
-        return []
-    return entries
+    return read_lines(config.SYSTEM_LOG_PATH, _parse_line)
 
 
 def _write_all(entries: list[dict]):
-    config.DATA_DIR.mkdir(parents=True, exist_ok=True)
-    with open(config.SYSTEM_LOG_PATH, "w") as f:
-        for entry in entries:
-            f.write(_format_line(entry) + "\n")
+    write_lines(config.SYSTEM_LOG_PATH, entries, _format_line)
 
 
 def append(level: str, logger_name: str, message: str, when: int):
