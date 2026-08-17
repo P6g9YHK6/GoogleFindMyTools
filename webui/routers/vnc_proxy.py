@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 import httpx
 import websockets
@@ -7,6 +8,8 @@ from fastapi.responses import Response
 from websockets.exceptions import ConnectionClosed
 
 from webui import config
+
+logger = logging.getLogger("webui.vnc_proxy")
 
 router = APIRouter(prefix="/vnc")
 
@@ -56,9 +59,9 @@ async def proxy_websocket(websocket: WebSocket):
             for task in pending:
                 task.cancel()
     except Exception:
-        pass
+        logger.debug("VNC relay ended", exc_info=True)
     finally:
         try:
             await websocket.close()
         except Exception:
-            pass
+            logger.debug("VNC websocket close failed", exc_info=True)
