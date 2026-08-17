@@ -30,6 +30,36 @@ STATE_KEYS = (
     "consecutive_failures",
 )
 
+# Per-device (not per-endpoint-URL) staleness config + alert-dedup state -
+# see webui/staleness.py. Stored as a sibling entry under each device's own
+# dict here, under this reserved pseudo-key rather than a real endpoint URL -
+# every real key in that dict is always a literal "http(s)://..." endpoint
+# URL (see get_endpoint_state/set_endpoint_state below), so this can never
+# collide with one. Lives here rather than in forwarding.yaml (see
+# webui/forwarders/config_store.py) for the same reason every other
+# runtime-computed field already does: it's state, not configuration a human
+# typed in, even though (unlike the rest of this file) some of it - the
+# threshold/repeat/message/mute fields - is itself user-editable, just from
+# the Staleness page rather than the Settings page.
+_STALENESS_KEY = "__staleness__"
+
+
+def get_device_staleness(canonic_id: str) -> dict:
+    """Whatever's been recorded for this device's staleness tracking - {} if
+    it's never been configured (i.e. tracking is off, same as an explicit
+    "enabled": False would mean)."""
+    with _lock:
+        return dict((_load_unlocked().get(canonic_id) or {}).get(_STALENESS_KEY) or {})
+
+
+def set_device_staleness(canonic_id: str, state: dict):
+    """Overwrites this device's recorded staleness state wholesale, same
+    convention as set_endpoint_state below."""
+    with _lock:
+        data = _load_unlocked()
+        data.setdefault(canonic_id, {})[_STALENESS_KEY] = state
+        _save_unlocked(data)
+
 
 def _load_unlocked() -> dict:
     config.DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -76,12 +106,18 @@ def prune_to_urls(canonic_id: str, urls: set[str]):
     routers/settings.py) so a removed or rewritten endpoint doesn't leave an
     orphaned entry sitting around forever. Not required for correctness
     (get_endpoint_state on a URL nothing recognizes just returns {}), only
-    hygiene."""
+    hygiene. _STALENESS_KEY is never a real endpoint URL (see
+    get_device_staleness above) - always kept here regardless of `urls`, or
+    every Settings-page save would silently wipe a device's staleness
+    config/state."""
     with _lock:
         data = _load_unlocked()
         if canonic_id not in data:
             return
-        kept = {url: state for url, state in data[canonic_id].items() if url in urls}
+        kept = {
+            url: state for url, state in data[canonic_id].items()
+            if url in urls or url == _STALENESS_KEY
+        }
         if kept == data[canonic_id]:
             return
         if kept:

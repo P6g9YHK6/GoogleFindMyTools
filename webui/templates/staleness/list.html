@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Staleness - GoogleFindMyToolsWebUi{% endblock %}
+{% block content %}
+<h1>Staleness</h1>
+<p>Alerts when a device stops producing newer location fixes - a BLE tag only reports
+   through a nearby phone, so a long gap can mean a dead battery, being out of range of
+   any of your devices, or just sitting still with nothing nearby to relay it. Off by
+   default for every device; turn it on below and set how long is too long.</p>
+
+<div id="staleness-table" hx-get="/staleness/table" hx-trigger="load" hx-swap="innerHTML">
+  Loading...
+</div>
+
+<script>
+  // Auto-opens/closes the "Custom" hours field next to each threshold/repeat
+  // preset select - purely cosmetic (the server-side parse in
+  // webui/routers/staleness.py already accepts either field regardless of
+  // this), same spirit as the cron builder's advanced <details> on the
+  // Settings page, just without needing a live preview round-trip. Delegated
+  // off #staleness-table so it keeps working across every htmx swap of that
+  // fragment (a fresh table load, or a save re-rendering it) with no re-init
+  // step - same pattern as static/app.js's own delegated click handlers.
+  document.getElementById("staleness-table").addEventListener("change", (event) => {
+    if (!event.target.classList.contains("duration-preset")) return;
+    const wrap = event.target.closest(".duration-field");
+    const custom = wrap?.querySelector(".duration-custom");
+    if (!custom) return;
+    custom.hidden = event.target.value !== "";
+  });
+</script>
+{% endblock %}

@@ -207,6 +207,7 @@ def test_save_app_settings_yaml_persists_and_switches_back_to_form(client, tmp_p
             "apprise_urls: json://yaml.example/hook\n"
             "apprise_notify_level: CRITICAL\n"
             "devices_page_most_recent_only: false\n"
+            "staleness_sweep_interval_s: 900\n"
         )
         resp = client.post("/auth/settings/yaml", data={"yaml_text": yaml_text})
         assert resp.status_code == 200

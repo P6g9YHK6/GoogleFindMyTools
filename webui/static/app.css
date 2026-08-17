@@ -1360,6 +1360,27 @@ details ul {
   color: var(--text-muted);
 }
 
+/* Staleness page - a device with tracking off is still listed (so turning
+   it on is one click away), just visually dimmed rather than hidden. */
+.staleness-row--disabled {
+  opacity: 0.6;
+}
+
+.staleness-ago {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.duration-field {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.duration-custom {
+  width: 6rem;
+}
+
 .log-payload {
   display: block;
   max-width: 32rem;

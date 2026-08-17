@@ -55,6 +55,15 @@
     <p class="field-hint">Instead of listing every location from the last pull, show just the one with the latest timestamp (and only that one's map pin). Google can return several readings in one response - most people only want to see the newest.</p>
   </fieldset>
 
+  <fieldset>
+    <legend>Staleness page</legend>
+    <label>How often to re-check every device's last-known fix age
+      <input type="number" name="staleness_sweep_interval_s" min="60" step="60"
+             value="{{ app_settings.staleness_sweep_interval_s }}">
+    </label>
+    <p class="field-hint">Seconds. Independent of any device's own poll schedule - see the <a href="/staleness">Staleness page</a>, where each device's own alert threshold is set.</p>
+  </fieldset>
+
   {% if saved %}
     <p class="endpoint-status">Saved.</p>
   {% endif %}

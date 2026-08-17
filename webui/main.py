@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import pathlib
@@ -7,10 +8,21 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from webui import auth_state, browser_provisioning, config, log_capture, notify, scheduler, settings_store, ws
+from webui import (
+    auth_state,
+    browser_provisioning,
+    config,
+    log_capture,
+    notify,
+    scheduler,
+    settings_store,
+    staleness,
+    ws,
+)
 from webui.auth_middleware import BasicAuthMiddleware
 from webui.forwarders import config_store
 from webui.routers import auth, devices, locate, logs, metrics, register, settings, sound, vnc_proxy
+from webui.routers import staleness as staleness_router
 
 # Every module across the app (webui.*, Auth.*, NovaApi.*, ...) logs through
 # the standard `logging` module and propagates up to root - this is the one
@@ -30,8 +42,13 @@ async def lifespan(app: FastAPI):
     notify.configure_apprise_logging(env=settings_store.apprise_env())
     log_capture.configure_log_capture()
     scheduler.start_all()
+    # Independent of scheduler.start_all() above - see webui/staleness.py's
+    # own docstring for why a device with no forwarding endpoints (never
+    # polled by any of that module's per-device loops) still needs this.
+    staleness_task = asyncio.create_task(staleness.sweep_loop())
     yield
     scheduler.stop_all()
+    staleness_task.cancel()
     await browser_provisioning.on_shutdown()
 
 
@@ -47,6 +64,7 @@ app.include_router(auth.router)
 app.include_router(settings.router)
 app.include_router(logs.router)
 app.include_router(metrics.router)
+app.include_router(staleness_router.router)
 app.include_router(vnc_proxy.router)
 
 

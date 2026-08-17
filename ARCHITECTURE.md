@@ -65,6 +65,12 @@ to Google directly - it always goes through the CLI-tool layer.
 - `notify.py` - optional Apprise push notifications, also attached to the
   root logger, so any WARNING+ anywhere in the app (not just `webui.*`) can
   be pushed out live.
+- `staleness.py` - per-device staleness alerting: is the newest fix on file
+  for a device older than the threshold it's configured with, on its own
+  independent sweep (a device with no forwarding endpoints is never polled
+  by `scheduler.py` at all, so this can't piggyback on that loop). Config
+  and alert-dedup state live in `forwarders/latest_values_store.py`, not
+  here - see that module's own comment for why.
 - `geo.py` - the one pure-math helper (haversine distance), used by the
   scheduler's skip-if-close gate.
 - `ws.py` / `templating.py` - thin shared infrastructure: the WebSocket
@@ -91,18 +97,23 @@ Everything about *where* a location goes, separate from *when* (that's
   pre-fill the generic builder above, not separate code paths.
 - `log_store.py` - the Forwarding Log: every attempt, its target, status,
   and payload.
+- `latest_values_store.py` - runtime state split out of `forwarding.yaml`:
+  per-endpoint-URL forwarding state, plus (under a reserved pseudo-key that
+  can't collide with a real URL) each device's staleness config/alert-dedup
+  state - see `webui/staleness.py`.
 
 ### `webui/routers/`
 
 One module per URL area, thin by design - they call into the modules above
 rather than holding logic themselves: `devices.py` (`/`), `locate.py`
 (manual locate), `sound.py` (play sound), `register.py` (pair a tracker),
-`settings.py` (forwarding config UI), `logs.py` (Forwarding Log + System
-Log pages), `auth.py` (sign in/out, the Config page), `vnc_proxy.py`
-(proxies the embedded browser view through the app's own origin instead of
-exposing noVNC directly), `metrics.py` (`/metrics` - Prometheus text,
-derived on each scrape from state the app already keeps, nothing new
-persisted).
+`settings.py` (forwarding config UI), `staleness.py` (the Staleness page -
+per-device staleness alert config, separate from `settings.py`'s forwarding
+config), `logs.py` (Forwarding Log + System Log pages), `auth.py` (sign
+in/out, the Config page), `vnc_proxy.py` (proxies the embedded browser view
+through the app's own origin instead of exposing noVNC directly),
+`metrics.py` (`/metrics` - Prometheus text, derived on each scrape from
+state the app already keeps, nothing new persisted).
 
 ## Data on disk
 

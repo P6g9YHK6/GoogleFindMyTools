@@ -29,6 +29,12 @@ def _defaults() -> dict:
         # toggle (webui/forwarders/policy.py) - this is purely a display
         # preference, not tied to any endpoint's config.
         "devices_page_most_recent_only": True,
+        # How often webui/staleness.py's independent background sweep
+        # re-checks every device's last-known fix age - separate from any
+        # device's own cron schedule (see that module's own docstring for
+        # why it has to be). Applies live, same as the throttle settings
+        # above - no restart needed.
+        "staleness_sweep_interval_s": 3600,
     }
 
 

@@ -57,6 +57,7 @@ def stub_backend(monkeypatch):
     specifically care about."""
     from webui.device_list_cache import device_list_cache
     from webui.routers import auth, devices, locate, logs, register, settings, sound
+    from webui.routers import staleness as staleness_router
 
     # webui/device_list_cache.py's singleton is a real module-level global
     # like query_throttle above - without this, a value cached by one test
@@ -72,14 +73,14 @@ def stub_backend(monkeypatch):
             "carrier": None, "codename": None, "imei": None, "registered_at": None, "access": [],
         }]
 
-    for mod in (devices, settings, logs):
+    for mod in (devices, settings, logs, staleness_router):
         monkeypatch.setattr(mod, "is_logged_in", lambda: True)
-    for mod in (devices, settings):
+    for mod in (devices, settings, staleness_router):
         monkeypatch.setattr(mod, "request_device_list", lambda: b"")
         monkeypatch.setattr(mod, "parse_device_list_protobuf", lambda hex: None)
-        # Both pages share one device_list_cache slot (see its own
-        # docstring), so both need to fetch the same shape from it even
-        # though settings.py only actually uses name/canonic_id.
+        # All three pages share one device_list_cache slot (see its own
+        # docstring), so all need to fetch the same shape from it even
+        # though settings.py/staleness.py only actually use name/canonic_id.
         monkeypatch.setattr(mod, "get_device_details", fake_get_device_details)
 
     monkeypatch.setattr(devices, "refresh_custom_trackers", lambda device_list: None)

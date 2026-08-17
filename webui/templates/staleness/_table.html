@@ -1,0 +1,93 @@
+{% macro duration_field(base_name, value_s, allow_off) %}
+  <span class="duration-field">
+    <select name="{{ base_name }}_preset" class="duration-preset">
+      {% if allow_off %}
+        <option value="{{ repeat_off }}" {% if value_s is none %}selected{% endif %}>Off (alert once)</option>
+      {% endif %}
+      {% for label, seconds in duration_presets %}
+        <option value="{{ seconds }}" {% if value_s == seconds %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+      <option value="" {% if value_s is not none and value_s not in duration_preset_values %}selected{% endif %}>Custom…</option>
+    </select>
+    <input type="number" name="{{ base_name }}_custom_hours" class="duration-custom" min="0.5" step="0.5"
+           placeholder="hours"
+           value="{% if value_s is not none and value_s not in duration_preset_values %}{{ (value_s / 3600) | round(2) }}{% endif %}"
+           {% if value_s is none or value_s in duration_preset_values %}hidden{% endif %}>
+  </span>
+{% endmacro %}
+
+<div class="table-scroll">
+<table class="sortable-table" data-table-id="staleness">
+  <thead>
+    <tr><th>Device</th><th>Status</th><th>Last update</th><th>Configure</th></tr>
+  </thead>
+  <tbody>
+  {% for row in rows %}
+    {% set status = row.status %}
+    <tr class="{% if not status.enabled %}staleness-row--disabled{% endif %}"
+        data-canonic-id="{{ row.canonic_id }}" data-enabled="{{ '1' if status.enabled else '0' }}"
+        data-muted="{{ '1' if status.muted else '0' }}" data-threshold-s="{{ status.threshold_s or '' }}">
+      <td>{{ row.name }}</td>
+      <td class="staleness-status">
+        {% if not status.enabled %}
+          <span class="log-skipped">Tracking off</span>
+        {% elif status.muted %}
+          <span class="log-skipped">Muted</span>
+        {% elif not status.has_data %}
+          <span class="log-skipped">No data yet</span>
+        {% elif status.is_stale %}
+          <span class="log-error">Stale</span>
+        {% else %}
+          <span class="log-ok">Fresh</span>
+        {% endif %}
+      </td>
+      <td>
+        {{ row.last_fix_str or "-" }}
+        {% if status.last_fix_time %}
+          <br><span class="staleness-ago" data-last-fix-ts="{{ status.last_fix_time }}"></span>
+        {% endif %}
+      </td>
+      <td>
+        <details>
+          <summary>Configure</summary>
+          <form hx-post="/staleness/devices/{{ row.canonic_id }}" hx-target="#staleness-table" hx-swap="innerHTML">
+            <label class="checkbox-label">
+              <input type="checkbox" name="enabled" value="1" {% if row.staleness.enabled %}checked{% endif %}>
+              Alert when this device stops updating
+            </label>
+
+            <label>Alert threshold
+              {{ duration_field("threshold", row.staleness.threshold_s, false) }}
+            </label>
+            <p class="field-hint">Nothing fires until this is set - see the Devices page's "Last locate result" for what counts as an update (this compares against the same fix timestamp Google reports there).</p>
+
+            <label>Repeat while still stale
+              {{ duration_field("repeat", row.staleness.repeat_s, true) }}
+            </label>
+
+            <label>Alert message
+              <textarea name="message_template" rows="2" class="url-input">{{ row.staleness.message_template }}</textarea>
+            </label>
+            <p class="field-hint">{{ '{{device_name}}' }}, {{ '{{device_alias}}' }} and {{ '{{threshold}}' }}/{{ '{{age}}' }} (e.g. "2 days") are available.</p>
+
+            <label class="checkbox-label">
+              <input type="checkbox" name="muted" value="1" {% if row.staleness.muted %}checked{% endif %}>
+              Mute (tracking stays on, but nothing is sent - not the stale alert, not the recovery notice)
+            </label>
+
+            <button type="submit">Save</button>
+          </form>
+        </details>
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="4">No devices found.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+<script>
+  if (window.startStalenessAgoTicker) {
+    window.startStalenessAgoTicker();
+  }
+</script>

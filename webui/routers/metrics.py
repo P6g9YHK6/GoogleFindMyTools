@@ -11,10 +11,10 @@ import time
 
 from fastapi import APIRouter, Response
 
-from webui import config, system_log_store
+from webui import config, staleness, system_log_store
 from webui.auth_state import is_logged_in
 from webui.deps import query_gate
-from webui.forwarders import config_store, log_store
+from webui.forwarders import config_store, latest_values_store, log_store
 
 router = APIRouter()
 
@@ -87,6 +87,25 @@ def _render() -> str:
     for level, count in system_counts.items():
         lines.append(f'gfmt_system_log_entries{{level="{level}"}} {count}')
     lines.append("")
+
+    # Same compute_status() every device row on the Staleness page itself
+    # calls (see webui/routers/staleness.py) - can't disagree with what
+    # that page shows. Only devices with tracking actually turned on are
+    # counted at all; "stale" here always implies "enabled".
+    stale_count = 0
+    for canonic_id in config_store.all_devices():
+        staleness_cfg = latest_values_store.get_device_staleness(canonic_id)
+        if not staleness_cfg.get("enabled"):
+            continue
+        if staleness.compute_status(canonic_id, staleness_cfg)["is_stale"]:
+            stale_count += 1
+
+    lines += [
+        "# HELP gfmt_stale_devices_total Devices currently past their configured staleness threshold.",
+        "# TYPE gfmt_stale_devices_total gauge",
+        f"gfmt_stale_devices_total {stale_count}",
+        "",
+    ]
 
     return "\n".join(lines)
 

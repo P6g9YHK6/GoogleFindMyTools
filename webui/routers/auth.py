@@ -29,6 +29,7 @@ _APP_SETTINGS_SCHEMA = {
     "apprise_urls": str,
     "apprise_notify_level": str,
     "devices_page_most_recent_only": _to_bool,
+    "staleness_sweep_interval_s": int,
 }
 
 router = APIRouter()
@@ -82,6 +83,7 @@ async def save_app_settings(
     # field default here (nothing browser-side to distinguish "off" from
     # "never touched" for a plain, non-htmx form like this one).
     devices_page_most_recent_only: bool = Form(False),
+    staleness_sweep_interval_s: int = Form(3600),
 ):
     app_settings = {
         "query_throttle_max": query_throttle_max,
@@ -90,6 +92,7 @@ async def save_app_settings(
         "apprise_urls": apprise_urls,
         "apprise_notify_level": apprise_notify_level,
         "devices_page_most_recent_only": devices_page_most_recent_only,
+        "staleness_sweep_interval_s": staleness_sweep_interval_s,
     }
     _apply_app_settings(app_settings)
 
