@@ -9,6 +9,9 @@ from webui import device_location_store, settings_store, ws
 from webui.auth_state import is_logged_in
 from webui.deps import locate_device
 from webui.forwarders import config_store, latest_values_store, log_store
+
+# These six are underscore-prefixed but deliberately shared with this module
+# specifically - see policy.py's __all__ comment.
 from webui.forwarders.policy import (
     _dispatch_forward,
     _endpoint_target,

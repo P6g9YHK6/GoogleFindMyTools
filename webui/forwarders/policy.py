@@ -15,6 +15,19 @@ from webui.geo import haversine_distance_m
 
 logger = logging.getLogger("webui.forwarders.policy")
 
+# The subset of this module's underscore-prefixed functions webui/scheduler.py
+# imports directly - still "private" to callers outside this package, but a
+# deliberate, tested seam between "how to forward" (here) and "when" (there).
+# Keep this list in sync with scheduler.py's import block.
+__all__ = [
+    "_dispatch_forward",
+    "_endpoint_target",
+    "_format_response_for_log",
+    "_forward_one",
+    "_record_forward_result",
+    "_serialize_location",
+]
+
 DEFAULT_MIN_MOVEMENT_M = 50
 DEFAULT_MIN_UPDATE_GAP_M = 30
 DEFAULT_MAX_ACCURACY_M = 100
