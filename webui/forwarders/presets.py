@@ -45,13 +45,15 @@ PRESETS: dict[str, dict] = {
             "useragent is PhoneTrack's own per-point field (LogController.php's logGet(), unrelated to the HTTP "
             "User-Agent header) - its default is the literal string \"unknown GET logger\" when left out, so it's "
             "filled in here instead. It's a plain string field; PhoneTrack's other log endpoints (OsmAnd, GpsLogger, "
-            "...) don't read a useragent param at all, so this is only ever added here."
+            "...) don't read a useragent param at all, so this is only ever added here. sat is PhoneTrack's "
+            "satellite-count field, repurposed here to carry Google's numeric status_id (1=LAST_KNOWN, "
+            "2=CROWDSOURCED, 3=AGGREGATED) since PhoneTrack has no dedicated status field of its own."
         ),
         "method": "GET",
         "url": (
             "https://nc.local/apps/phonetrack/logGet/<token>/{{device_alias}}"
             "?lat={{latitude}}&lon={{longitude}}&timestamp={{google_timestamp}}&alt={{altitude_m}}&acc={{accuracy_m}}"
-            "&useragent=gfmtForwarding{{type}}"
+            "&useragent=gfmtForwarding{{type}}&sat={{status_id}}"
         ),
         "headers": {},
         "body_type": "none",
