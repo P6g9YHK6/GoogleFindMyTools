@@ -3,11 +3,7 @@
 #  Copyright © 2024 Leon Böttger. All rights reserved.
 #
 
-import logging
-
 from FMDNCrypto.sha import calculate_truncated_sha256
-
-logger = logging.getLogger(__name__)
 
 
 class FMDNOwnerOperations:
@@ -18,11 +14,11 @@ class FMDNOwnerOperations:
         self.tracking_key = None
 
     def generate_keys(self, identity_key: bytes):
-
-        try:
-            self.recovery_key = calculate_truncated_sha256(identity_key, 0x01)
-            self.ringing_key = calculate_truncated_sha256(identity_key, 0x02)
-            self.tracking_key = calculate_truncated_sha256(identity_key, 0x03)
-
-        except Exception as e:
-            logger.error("Failed to derive owner keys from identity key: %s", e)
+        # Deliberately no try/except here: both callers (create_ble_device.py,
+        # link_generator.py) feed these keys straight into protobuf fields
+        # right after this call with no None-check, so swallowing a failure
+        # here used to just relocate the crash to a confusing TypeError far
+        # from the real cause instead of preventing it. Let it raise.
+        self.recovery_key = calculate_truncated_sha256(identity_key, 0x01)
+        self.ringing_key = calculate_truncated_sha256(identity_key, 0x02)
+        self.tracking_key = calculate_truncated_sha256(identity_key, 0x03)
