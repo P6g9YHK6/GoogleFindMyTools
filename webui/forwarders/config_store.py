@@ -2,11 +2,10 @@ import json
 import logging
 import threading
 
-import yaml
-
 from webui import config
 from webui.forwarders import latest_values_store
 from webui.forwarders.presets import PRESETS
+from webui.yaml_io import read_yaml_dict, write_yaml_dict
 
 logger = logging.getLogger("webui.forwarders.config_store")
 
@@ -194,32 +193,21 @@ def _migrate_from_legacy_json() -> dict | None:
 def load() -> dict:
     global _last_load_ok
     with _lock:
-        config.DATA_DIR.mkdir(parents=True, exist_ok=True)
         if not config.FORWARDING_CONFIG_PATH.exists():
+            config.DATA_DIR.mkdir(parents=True, exist_ok=True)
             _last_load_ok = True
             return _migrate_from_legacy_json() or _empty()
-        try:
-            with open(config.FORWARDING_CONFIG_PATH) as f:
-                data = yaml.safe_load(f)
-        except (yaml.YAMLError, OSError) as e:
-            logger.error("Failed to read %s: %s", config.FORWARDING_CONFIG_PATH, e)
-            _last_load_ok = False
-            return _empty()
-        if data is None:
-            data = {}  # an empty file is a legitimate "no devices yet" state, not a failure
-        elif not isinstance(data, dict):
-            logger.error("%s did not parse to a mapping", config.FORWARDING_CONFIG_PATH)
-            _last_load_ok = False
+        data, ok = read_yaml_dict(config.FORWARDING_CONFIG_PATH)
+        _last_load_ok = ok
+        if not ok:
+            logger.error("Failed to read or parse %s", config.FORWARDING_CONFIG_PATH)
             return _empty()
         data.setdefault("devices", {})
-        _last_load_ok = True
         return data
 
 
 def _save(data: dict):
-    config.DATA_DIR.mkdir(parents=True, exist_ok=True)
-    with open(config.FORWARDING_CONFIG_PATH, "w") as f:
-        yaml.safe_dump(data, f, sort_keys=False, allow_unicode=True)
+    write_yaml_dict(config.FORWARDING_CONFIG_PATH, data)
 
 
 def save(data: dict):

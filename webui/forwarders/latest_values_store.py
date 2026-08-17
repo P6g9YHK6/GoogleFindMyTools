@@ -16,9 +16,8 @@ Same small-persisted-YAML shape as webui/device_location_store.py.
 
 import threading
 
-import yaml
-
 from webui import config
+from webui.yaml_io import read_yaml_dict, write_yaml_dict
 
 _lock = threading.Lock()
 
@@ -62,21 +61,12 @@ def set_device_staleness(canonic_id: str, state: dict):
 
 
 def _load_unlocked() -> dict:
-    config.DATA_DIR.mkdir(parents=True, exist_ok=True)
-    if not config.LATEST_VALUES_PATH.exists():
-        return {}
-    try:
-        with open(config.LATEST_VALUES_PATH) as f:
-            data = yaml.safe_load(f)
-    except (yaml.YAMLError, OSError):
-        return {}
-    return data if isinstance(data, dict) else {}
+    data, _ok = read_yaml_dict(config.LATEST_VALUES_PATH)
+    return data
 
 
 def _save_unlocked(data: dict):
-    config.DATA_DIR.mkdir(parents=True, exist_ok=True)
-    with open(config.LATEST_VALUES_PATH, "w") as f:
-        yaml.safe_dump(data, f, sort_keys=False, allow_unicode=True)
+    write_yaml_dict(config.LATEST_VALUES_PATH, data)
 
 
 def get_endpoint_state(canonic_id: str, url: str) -> dict:

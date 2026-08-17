@@ -8,9 +8,8 @@ present yet changes nothing.
 import os
 import threading
 
-import yaml
-
 from webui import config
+from webui.yaml_io import read_yaml_dict, write_yaml_dict
 
 _lock = threading.Lock()
 
@@ -40,16 +39,9 @@ def _defaults() -> dict:
 
 def load() -> dict:
     with _lock:
-        config.DATA_DIR.mkdir(parents=True, exist_ok=True)
         defaults = _defaults()
-        if not config.APP_SETTINGS_PATH.exists():
-            return defaults
-        try:
-            with open(config.APP_SETTINGS_PATH) as f:
-                data = yaml.safe_load(f)
-        except (yaml.YAMLError, OSError):
-            return defaults
-        if not isinstance(data, dict):
+        data, ok = read_yaml_dict(config.APP_SETTINGS_PATH)
+        if not ok:
             return defaults
         defaults.update(data)
         return defaults
@@ -57,9 +49,7 @@ def load() -> dict:
 
 def save(data: dict):
     with _lock:
-        config.DATA_DIR.mkdir(parents=True, exist_ok=True)
-        with open(config.APP_SETTINGS_PATH, "w") as f:
-            yaml.safe_dump(data, f, sort_keys=False, allow_unicode=True)
+        write_yaml_dict(config.APP_SETTINGS_PATH, data)
 
 
 def apprise_env() -> dict:
