@@ -102,7 +102,7 @@ def stub_backend(monkeypatch):
     monkeypatch.setattr(sound, "set_sound", fake_set_sound)
 
     async def fake_register_tracker():
-        return {"eid_hex": "deadbeef"}
+        return {"eid_hex": "deadbeef", "pair_date": 1700000000}
 
     monkeypatch.setattr(register, "register_tracker", fake_register_tracker)
 

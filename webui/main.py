@@ -21,7 +21,19 @@ from webui import (
 )
 from webui.auth_middleware import BasicAuthMiddleware
 from webui.forwarders import config_store
-from webui.routers import auth, debug_export, devices, locate, logs, metrics, register, settings, sound, vnc_proxy
+from webui.routers import (
+    auth,
+    debug_export,
+    devices,
+    firmware,
+    locate,
+    logs,
+    metrics,
+    register,
+    settings,
+    sound,
+    vnc_proxy,
+)
 from webui.routers import staleness as staleness_router
 
 # Every module across the app (webui.*, Auth.*, NovaApi.*, ...) logs through
@@ -60,6 +72,7 @@ app.include_router(devices.router)
 app.include_router(locate.router)
 app.include_router(sound.router)
 app.include_router(register.router)
+app.include_router(firmware.router)
 app.include_router(auth.router)
 app.include_router(debug_export.router)
 app.include_router(settings.router)
@@ -115,3 +128,13 @@ async def ws_provision(websocket: WebSocket):
             await websocket.receive_text()
     except WebSocketDisconnect:
         await ws.provision_manager.disconnect(websocket)
+
+
+@app.websocket("/ws/firmware")
+async def ws_firmware(websocket: WebSocket):
+    await ws.firmware_manager.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        await ws.firmware_manager.disconnect(websocket)

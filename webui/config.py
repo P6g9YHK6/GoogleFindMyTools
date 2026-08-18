@@ -106,6 +106,18 @@ DEVICE_LOCATIONS_PATH = DATA_DIR / "device_locations.yaml"
 # Pre-fusion location for latest_values_store.py's data - see DEVICES_PATH.
 LATEST_VALUES_PATH = DATA_DIR / "latest_values.yaml"
 
+# Every advertisement key ever produced by /register, so the Firmware page
+# can offer them again later instead of making the user copy-paste one it
+# only ever showed once - see webui/firmware_store.py. Safe to persist: it's
+# the public EID, not the private eik (see SpotApi/CreateBleDevice/create_ble_device.py,
+# which never returns eik at all).
+REGISTERED_TRACKERS_PATH = DATA_DIR / "registered_trackers.yaml"
+
+# Bounds a single `idf.py build` invocation kicked off from the Firmware page
+# - see webui/firmware_build.py. Generous: a cold ESP-IDF build can take
+# several minutes.
+GFMT_FIRMWARE_BUILD_TIMEOUT_S = int(os.environ.get("GFMT_FIRMWARE_BUILD_TIMEOUT_S", "900"))
+
 # Default location for a generated self-signed cert/key (see webui/tls.py) -
 # flat in DATA_DIR like everything else here, so the existing volume mount
 # covers it with no new subfolder. Only used when GFMT_TLS_CERT_PATH/

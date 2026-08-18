@@ -34,3 +34,5 @@ manager = ConnectionManager()
 # Separate channel for browser-provisioning progress (see browser_provisioning.py),
 # kept distinct from device-locate broadcasts above.
 provision_manager = ConnectionManager()
+# Separate channel for firmware build progress (see firmware_build.py).
+firmware_manager = ConnectionManager()

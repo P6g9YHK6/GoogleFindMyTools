@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Firmware - GoogleFindMyToolsWebUi{% endblock %}
+{% block content %}
+<h1>Firmware</h1>
+
+<div class="construction-banner">
+  Under construction: firmware building/flashing is new and hasn't been tested on every setup yet.
+  Expect rough edges - if a build fails, check the server logs and consider building
+  <code>ESP32Firmware/</code> manually instead (see the README in that folder).
+</div>
+
+<h2>ESP32 / ESP32-C3</h2>
+<p>Builds <code>ESP32Firmware/</code> with your tracker's advertisement key (EID) baked in, then lets you
+   flash it straight from this browser over USB. Register a tracker first on the
+   <a href="/register">Register Tracker</a> page if you don't have an EID yet.</p>
+
+<form id="firmware-build-form">
+  <label for="board">Board</label>
+  <select id="board" name="board">
+    <option value="esp32">ESP32 (Dev Module / ESP32-CAM)</option>
+    <option value="esp32c3">ESP32-C3</option>
+  </select>
+
+  <label for="eid_hex">Advertisement key (EID)</label>
+  <input id="eid_hex" name="eid_hex" type="text" pattern="[0-9a-fA-F]{40}" maxlength="40"
+         placeholder="40 hex characters" list="registered-eids" required>
+  <datalist id="registered-eids">
+    {% for entry in registered %}
+    <option value="{{ entry.eid_hex }}">registered {{ entry.pair_date_str }}</option>
+    {% endfor %}
+  </datalist>
+
+  <button id="build-btn" type="submit">Build firmware</button>
+</form>
+
+<div id="firmware-build-panel" style="display:none;">
+  <div id="firmware-bar-track"><div id="firmware-bar-fill"></div></div>
+  <p id="firmware-message"></p>
+  <ul id="firmware-log"></ul>
+</div>
+
+<div id="firmware-result">
+  <a id="firmware-download-link" href="/firmware/build/download" style="display:none;">Download .bin</a>
+  <button id="flash-btn" type="button" style="display:none;" disabled>Flash via WebSerial</button>
+  <p id="firmware-flash-note"></p>
+</div>
+
+<h2>Other Zephyr-supported boards</h2>
+<p>Nordic nRF5x, Silicon EFR32BG22, ST BlueNRG-LP, Quectel BC68-GV, TTGO T-BEAM, and other Zephyr-supported
+   boards aren't built or flashed from this page - flashing those typically needs board-specific tools
+   (J-Link, UF2, <code>west flash</code>). See <a href="/firmware/zephyr-readme">ZephyrFirmware/README.md</a>
+   for build/flash instructions.</p>
+
+<script type="module" src="/static/firmware.js"></script>
+{% endblock %}
