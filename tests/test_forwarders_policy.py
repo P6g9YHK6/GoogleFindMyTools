@@ -351,9 +351,12 @@ def test_skip_blocked_status_requires_filter_by_status_to_be_on():
     # filter_by_status on and this status is in blocked_statuses -> skip
     assert policy._skip_blocked_status({"filter_by_status": True, "blocked_statuses": ["AGGREGATED"]}, location) is True
 
-    # semantic locations carry no meaningful fix-quality status - never applies to them
-    semantic_location = {"is_semantic": True, "status": "AGGREGATED"}
+    # SEMANTIC is a status like any other - filterable via the same mechanism
+    semantic_location = {"is_semantic": True, "status": "SEMANTIC"}
+    # not in blocked_statuses -> allowed through
     assert policy._skip_blocked_status({"filter_by_status": True, "blocked_statuses": ["AGGREGATED"]}, semantic_location) is False
+    # explicitly unchecked -> skipped, like any other status
+    assert policy._skip_blocked_status({"filter_by_status": True, "blocked_statuses": ["SEMANTIC"]}, semantic_location) is True
 
 
 def test_forward_one_reports_blocked_status_skip_without_dispatching(monkeypatch):

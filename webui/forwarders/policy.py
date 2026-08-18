@@ -31,18 +31,16 @@ __all__ = [
 DEFAULT_MIN_MOVEMENT_M = 50
 DEFAULT_MIN_UPDATE_GAP_M = 30
 DEFAULT_MAX_ACCURACY_M = 100
-# The three real fix-quality statuses a location can carry (see
-# Common.proto's Status enum) - SEMANTIC isn't offered here since it's never
-# a meaningful *quality* signal to filter on (unlike these three, it doesn't
-# say anything about how the fix was obtained) - a semantic reading always
-# bypasses this particular gate regardless of blocked_statuses, whether or
-# not it has mapped coordinates (see _skip_blocked_status below and
-# webui/forwarders/semantic_map.py). Order matches roughly-best-to-worst,
-# for the settings UI's checkbox list.
+# The statuses a location can carry (see Common.proto's Status enum) - the
+# three real fix-quality values plus SEMANTIC, a named-location reading
+# rather than a GPS/WiFi/cellular fix (see webui/forwarders/semantic_map.py).
+# Order matches roughly-best-to-worst, for the settings UI's checkbox list,
+# with SEMANTIC last since it isn't a quality tier at all.
 STATUS_CHOICES: list[tuple[str, str]] = [
     ("LAST_KNOWN", "GPS"),
     ("CROWDSOURCED", "WiFi/Cellular"),
     ("AGGREGATED", "Coarse/low-accuracy"),
+    ("SEMANTIC", "Named location"),
 ]
 # A fix this recent is treated as a genuinely live update rather than Google
 # re-serving the same stale cached report - always sent regardless of the
@@ -139,10 +137,11 @@ def _skip_blocked_status(endpoint_cfg: dict, location: dict) -> bool:
     off (the default) means the per-type checkboxes are hidden in the
     settings UI and never consulted, regardless of what blocked_statuses
     holds - same absence-means-off convention as skip_if_close/skip_if_stale
-    above. Always bypassed for a semantic reading, mapped coordinates or
-    not - its status is always "SEMANTIC", never one of the three real
-    fix-quality values this filter is offered for (see STATUS_CHOICES)."""
-    if location.get("is_semantic") or not endpoint_cfg.get("filter_by_status"):
+    above. A semantic reading's status is always "SEMANTIC" (see
+    decrypt_locations.py) - checked against blocked_statuses the same
+    uniform way as the three real fix-quality values (see STATUS_CHOICES),
+    so unchecking "Named location" there blocks it like any other type."""
+    if not endpoint_cfg.get("filter_by_status"):
         return False
     return location.get("status") in (endpoint_cfg.get("blocked_statuses") or [])
 
