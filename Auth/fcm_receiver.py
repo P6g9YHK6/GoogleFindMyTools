@@ -16,6 +16,7 @@ class FcmReceiver:
     _listening = False
     _loop = None
     _loop_thread = None
+    _MAX_RETRY_DELAY_S = 60
 
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
@@ -156,15 +157,20 @@ class FcmReceiver:
 
     async def _register_for_fcm(self):
         fcm_token = None
+        retry_delay = 5
 
-        # Register or check in with FCM and get the FCM token
+        # Register or check in with FCM and get the FCM token. Backs off up
+        # to _MAX_RETRY_DELAY_S instead of retrying at a flat 5s forever - a
+        # permanently broken config (bad credentials, FCM down) would
+        # otherwise hot-loop indefinitely.
         while fcm_token is None:
             try:
                 fcm_token = await self.pc.checkin_or_register()
             except Exception:
                 await self.pc.stop()
-                logger.warning("Failed to register with FCM. Retrying...")
-                await asyncio.sleep(5)
+                logger.warning("Failed to register with FCM. Retrying in %ss...", retry_delay)
+                await asyncio.sleep(retry_delay)
+                retry_delay = min(retry_delay * 2, self._MAX_RETRY_DELAY_S)
 
 
     async def _register_for_fcm_and_listen(self):
