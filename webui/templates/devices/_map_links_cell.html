@@ -8,7 +8,10 @@
 {% if locations %}
   <ul>
   {% for loc in locations %}
-    {% if not loc.is_semantic and loc.map_links %}
+    {# map_links is only ever set when there are coordinates to link to -
+       semantic or not (see webui/forwarders/semantic_map.py for a semantic
+       reading with mapped coordinates) - so checking it alone is enough. #}
+    {% if loc.map_links %}
     <li data-loc-key="{{ canonic_id }}:{{ loop.index0 }}" style="--dot-color: {{ location_color(canonic_id, loop.index0) }};">
         <span class="loc-dot"></span>
         {% for label, url in loc.map_links.items() %}<a href="{{ url }}" target="_blank" rel="noopener">{{ label }}</a>{% if not loop.last %} · {% endif %}{% endfor %}

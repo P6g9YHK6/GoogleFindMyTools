@@ -8,7 +8,7 @@ from croniter import croniter
 from webui import device_location_store, settings_store, ws
 from webui.auth_state import is_logged_in
 from webui.deps import locate_device
-from webui.forwarders import config_store, latest_values_store, log_store
+from webui.forwarders import config_store, latest_values_store, log_store, semantic_map
 
 # These six are underscore-prefixed but deliberately shared with this module
 # specifically - see policy.py's __all__ comment.
@@ -130,6 +130,13 @@ async def _poll_device(canonic_id: str):
                 locations = []
                 logger.warning("Locate failed for %s: %s", name, e)
 
+        # Fills in fixed coordinates for any SEMANTIC reading with a
+        # configured name (see webui/forwarders/semantic_map.py and
+        # settings_store's semantic_location_map) - done once here, before
+        # storage or forwarding, so both see the same already-mapped
+        # locations and neither has to know about the mapping itself.
+        locations = semantic_map.apply_semantic_mapping(locations, settings_store.load().get("semantic_location_map", {}))
+
         already_seen_by_index: list[bool] = []
         is_most_recent_by_index: list[bool] = []
         if locations:
@@ -240,6 +247,9 @@ async def forward_now(canonic_id: str, index: int) -> dict | None:
     except Exception as e:
         locations = []
         logger.warning("Locate failed for %s: %s", name, e)
+
+    # See the matching comment in _poll_device above.
+    locations = semantic_map.apply_semantic_mapping(locations, settings_store.load().get("semantic_location_map", {}))
 
     status = "no location"
     for location in locations:

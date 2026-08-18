@@ -527,6 +527,39 @@ def test_forward_to_custom_skips_semantic_and_missing_coordinates():
     assert custom.forward_to_custom(endpoint_cfg, {"is_semantic": False, "latitude": None}, "n") is False
 
 
+def test_forward_to_custom_sends_a_semantic_reading_with_mapped_coordinates(monkeypatch):
+    """A SEMANTIC reading with coordinates filled in by
+    webui/forwarders/semantic_map.py (see webui/scheduler.py, where that
+    happens before this is ever called) sends exactly like a real fix -
+    is_semantic and status="SEMANTIC" ride along unchanged."""
+    from webui.forwarders import custom
+
+    captured = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            pass
+
+    def fake_request(method, url, **kwargs):
+        captured["url"] = url
+        return FakeResponse()
+
+    monkeypatch.setattr(custom.httpx, "request", fake_request)
+
+    endpoint_cfg = {
+        "method": "GET",
+        "url": "https://svc.example/?lat={{latitude}}&lon={{longitude}}&status={{status}}",
+        "headers": {}, "body_type": "none", "body": "",
+    }
+    location = {
+        "is_semantic": True, "semantic_name": "Nest Mini - Living Room",
+        "latitude": 45.0, "longitude": 9.0, "time": 1,
+        "status": "SEMANTIC", "status_id": 0, "accuracy": 0, "is_own_report": True,
+    }
+    assert custom.forward_to_custom(endpoint_cfg, location, "My Tracker") is True
+    assert captured["url"] == "https://svc.example/?lat=45.0&lon=9.0&status=SEMANTIC"
+
+
 def test_forward_to_custom_skips_when_url_is_blank():
     from webui.forwarders import custom
 

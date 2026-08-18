@@ -164,6 +164,18 @@ def test_too_close_to_bother_requires_the_toggle_and_a_prior_position():
         {"is_semantic": True, "latitude": None},
     ) is False
 
+    # ...unless a semantic reading was given mapped coordinates (see
+    # webui/forwarders/semantic_map.py) - then it behaves exactly like a
+    # real fix for this gate, since it now has a real latitude to compare.
+    mapped_semantic = {"is_semantic": True, "semantic_name": "Home", "latitude": 45.0, "longitude": 9.0}
+    assert policy._too_close_to_bother(
+        {"skip_if_close": True, "last_sent_lat": 45.0, "last_sent_lon": 9.0}, mapped_semantic,
+    ) is True
+    far_mapped_semantic = {"is_semantic": True, "semantic_name": "Work", "latitude": 46.0, "longitude": 9.0}
+    assert policy._too_close_to_bother(
+        {"skip_if_close": True, "last_sent_lat": 45.0, "last_sent_lon": 9.0}, far_mapped_semantic,
+    ) is False
+
 
 def test_stale_duplicate_requires_the_toggle_and_a_prior_send():
     now = 1_000_000.0
@@ -200,6 +212,17 @@ def test_stale_duplicate_requires_the_toggle_and_a_prior_send():
         {"skip_if_stale": True, "last_sent_fix_time": stale_time},
         {"is_semantic": True, "time": None}, now=now,
     ) is False
+
+    # ...unless a semantic reading was given mapped coordinates (see
+    # webui/forwarders/semantic_map.py) - then it behaves exactly like a
+    # real fix for this gate too, since it now has both a latitude and a
+    # real "time" to compare.
+    mapped_stale_semantic = {
+        "is_semantic": True, "semantic_name": "Home", "latitude": 45.0, "longitude": 9.0, "time": stale_time,
+    }
+    assert policy._stale_duplicate(
+        {"skip_if_stale": True, "last_sent_fix_time": stale_time}, mapped_stale_semantic, now=now,
+    ) is True
 
 
 def test_forward_one_reports_stale_duplicate_skip_without_dispatching(monkeypatch):

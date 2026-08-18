@@ -32,10 +32,13 @@ DEFAULT_MIN_MOVEMENT_M = 50
 DEFAULT_MIN_UPDATE_GAP_M = 30
 DEFAULT_MAX_ACCURACY_M = 100
 # The three real fix-quality statuses a location can carry (see
-# Common.proto's Status enum) - SEMANTIC isn't offered here since semantic
-# locations have no lat/lon and are already exempt from every gate below via
-# is_semantic. Order matches roughly-best-to-worst, for the settings UI's
-# checkbox list.
+# Common.proto's Status enum) - SEMANTIC isn't offered here since it's never
+# a meaningful *quality* signal to filter on (unlike these three, it doesn't
+# say anything about how the fix was obtained) - a semantic reading always
+# bypasses this particular gate regardless of blocked_statuses, whether or
+# not it has mapped coordinates (see _skip_blocked_status below and
+# webui/forwarders/semantic_map.py). Order matches roughly-best-to-worst,
+# for the settings UI's checkbox list.
 STATUS_CHOICES: list[tuple[str, str]] = [
     ("LAST_KNOWN", "GPS"),
     ("CROWDSOURCED", "WiFi/Cellular"),
@@ -86,10 +89,14 @@ def _too_close_to_bother(endpoint_cfg: dict, location: dict) -> bool:
     """True if this endpoint's "skip if it hasn't moved" toggle is on and the
     new fix is under its configured minimum-movement threshold from the last
     position actually sent - see webui/geo.py for the (local, API-free)
-    distance calculation."""
+    distance calculation. Applies the same way to a SEMANTIC reading with
+    mapped coordinates (see webui/forwarders/semantic_map.py) as to a real
+    fix - once it has a latitude, "hasn't moved" means the same thing either
+    way. An unmapped semantic reading still has no latitude and skips this
+    gate entirely, same as before."""
     if not endpoint_cfg.get("skip_if_close"):
         return False
-    if location.get("is_semantic") or location.get("latitude") is None:
+    if location.get("latitude") is None:
         return False
     last_lat, last_lon = endpoint_cfg.get("last_sent_lat"), endpoint_cfg.get("last_sent_lon")
     if last_lat is None or last_lon is None:
@@ -104,10 +111,17 @@ def _stale_duplicate(endpoint_cfg: dict, location: dict, now: float | None = Non
     minimum-update-gap of the last fix's own timestamp actually sent - i.e.
     Google is just re-serving the same stale cached report again, not a new
     update. A genuinely live fix (recorded within FRESH_FIX_AGE_S of now)
-    always bypasses this and gets sent regardless."""
+    always bypasses this and gets sent regardless. Applies the same way to a
+    SEMANTIC reading with mapped coordinates (see
+    webui/forwarders/semantic_map.py) as to a real fix. An unmapped semantic
+    reading (is_semantic, no latitude) skips this gate entirely, same as
+    before - checked via latitude rather than is_semantic alone so a mapped
+    one isn't accidentally caught by the same exemption."""
     if not endpoint_cfg.get("skip_if_stale"):
         return False
-    if location.get("is_semantic") or location.get("time") is None:
+    if location.get("is_semantic") and location.get("latitude") is None:
+        return False
+    if location.get("time") is None:
         return False
     now = time.time() if now is None else now
     if now - location["time"] <= FRESH_FIX_AGE_S:
@@ -125,7 +139,9 @@ def _skip_blocked_status(endpoint_cfg: dict, location: dict) -> bool:
     off (the default) means the per-type checkboxes are hidden in the
     settings UI and never consulted, regardless of what blocked_statuses
     holds - same absence-means-off convention as skip_if_close/skip_if_stale
-    above."""
+    above. Always bypassed for a semantic reading, mapped coordinates or
+    not - its status is always "SEMANTIC", never one of the three real
+    fix-quality values this filter is offered for (see STATUS_CHOICES)."""
     if location.get("is_semantic") or not endpoint_cfg.get("filter_by_status"):
         return False
     return location.get("status") in (endpoint_cfg.get("blocked_statuses") or [])
@@ -135,7 +151,10 @@ def _skip_not_own_report(endpoint_cfg: dict, location: dict) -> bool:
     """True if this endpoint's "only send this tracker's own GPS reports"
     toggle is on and this fix is crowdsourced from a nearby device instead
     of the tracker's own (see own_report in webui/forwarders/custom.py's
-    build_context)."""
+    build_context). Always bypassed for a semantic reading, mapped
+    coordinates or not - is_own_report is hardcoded True at decode time for
+    every SEMANTIC result (see decrypt_locations.py), so it's never a real
+    signal to filter on."""
     if not endpoint_cfg.get("skip_if_not_own_report"):
         return False
     if location.get("is_semantic"):
@@ -149,7 +168,10 @@ def _skip_inaccurate(endpoint_cfg: dict, location: dict) -> bool:
     threshold - a wider radius means a less precise fix, independent of
     what status flag it carries (status and accuracy_m are correlated but
     not the same signal - this gate lets accuracy be filtered on directly,
-    same shape as _too_close_to_bother's min_movement_m above)."""
+    same shape as _too_close_to_bother's min_movement_m above). Always
+    bypassed for a semantic reading, mapped coordinates or not -
+    accuracy is hardcoded 0 at decode time for every SEMANTIC result (see
+    decrypt_locations.py), so it's never a real signal to filter on."""
     if not endpoint_cfg.get("skip_if_inaccurate"):
         return False
     if location.get("is_semantic") or location.get("accuracy") is None:

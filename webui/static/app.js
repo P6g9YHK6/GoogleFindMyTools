@@ -75,7 +75,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function popupLabel(name, loc, source) {
     const bits = [];
-    if (loc.is_own_report) bits.push("own report");
+    // A semantic reading with mapped coordinates (see
+    // webui/forwarders/semantic_map.py) still carries is_own_report=true
+    // (hardcoded at decode time, see decrypt_locations.py) - call out its
+    // actual semantic name instead, that's the meaningful thing here.
+    if (loc.is_semantic) bits.push(loc.semantic_name ? `mapped: ${loc.semantic_name}` : "semantic");
+    else if (loc.is_own_report) bits.push("own report");
     else if (loc.status) bits.push(loc.status.toLowerCase());
     if (source) bits.push(source);
     return bits.length ? `${name} (${bits.join(", ")})` : name;
@@ -119,7 +124,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const latlngs = [];
 
     (locations || []).forEach((loc, index) => {
-      if (loc.is_semantic || loc.latitude == null) return;
+      // A semantic reading with mapped coordinates (see
+      // webui/forwarders/semantic_map.py) gets a pin too now - gated on
+      // having a latitude at all, not on is_semantic.
+      if (loc.latitude == null) return;
       seenIndexes.add(index);
 
       const latlng = [loc.latitude, loc.longitude];

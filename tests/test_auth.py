@@ -153,6 +153,58 @@ def test_app_settings_devices_page_most_recent_only_round_trips(client, tmp_path
         _remove_apprise_handlers()
 
 
+def test_app_settings_semantic_location_map_round_trips(client, tmp_path, monkeypatch):
+    """The semantic-name/lat/lon rows (see routers/auth.py's
+    _parse_semantic_map_form) are a dynamic table, posted as parallel
+    semantic_name[]/semantic_lat[]/semantic_lon[] lists rather than named
+    Form(...) params - a blank name (an untouched "+ Add row" row left
+    empty) is dropped rather than saved as a bogus entry."""
+    from webui import config, settings_store
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "APP_SETTINGS_PATH", tmp_path / "config.yaml")
+    _stub_apprise(monkeypatch)
+
+    try:
+        resp = client.post("/auth/settings", data={
+            "query_throttle_max": "5", "query_throttle_window_s": "30", "query_min_spread_s": "0.5",
+            "apprise_urls": "", "apprise_notify_level": "WARNING",
+            "semantic_name": ["Nest Mini - Living Room", ""],
+            "semantic_lat": ["45.0", ""],
+            "semantic_lon": ["9.0", ""],
+        })
+        assert resp.status_code == 200
+        assert "Nest Mini - Living Room" in resp.text
+
+        saved = settings_store.load()
+        assert saved["semantic_location_map"] == {"Nest Mini - Living Room": {"latitude": 45.0, "longitude": 9.0}}
+
+        # A fresh GET of the Config page reflects the saved mapping too.
+        page = client.get("/auth")
+        assert "Nest Mini - Living Room" in page.text
+    finally:
+        _remove_apprise_handlers()
+
+
+def test_app_settings_semantic_location_map_drops_a_row_with_non_numeric_coordinates(client, tmp_path, monkeypatch):
+    from webui import config, settings_store
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "APP_SETTINGS_PATH", tmp_path / "config.yaml")
+    _stub_apprise(monkeypatch)
+
+    try:
+        resp = client.post("/auth/settings", data={
+            "query_throttle_max": "5", "query_throttle_window_s": "30", "query_min_spread_s": "0.5",
+            "apprise_urls": "", "apprise_notify_level": "WARNING",
+            "semantic_name": ["Bad Row"], "semantic_lat": ["not-a-number"], "semantic_lon": ["9.0"],
+        })
+        assert resp.status_code == 200
+        assert settings_store.load()["semantic_location_map"] == {}
+    finally:
+        _remove_apprise_handlers()
+
+
 def _stub_apprise(monkeypatch):
     from webui import notify
 
@@ -208,6 +260,7 @@ def test_save_app_settings_yaml_persists_and_switches_back_to_form(client, tmp_p
             "apprise_notify_level: CRITICAL\n"
             "devices_page_most_recent_only: false\n"
             "staleness_sweep_interval_s: 900\n"
+            "semantic_location_map: {}\n"
         )
         resp = client.post("/auth/settings/yaml", data={"yaml_text": yaml_text})
         assert resp.status_code == 200
@@ -221,6 +274,60 @@ def test_save_app_settings_yaml_persists_and_switches_back_to_form(client, tmp_p
         assert saved["devices_page_most_recent_only"] is False
     finally:
         _remove_apprise_handlers()
+
+
+def test_save_app_settings_yaml_persists_a_semantic_location_map(client, tmp_path, monkeypatch):
+    from webui import config, settings_store
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "APP_SETTINGS_PATH", tmp_path / "config.yaml")
+    _stub_apprise(monkeypatch)
+
+    try:
+        yaml_text = (
+            "query_throttle_max: 9\n"
+            "query_throttle_window_s: 45.0\n"
+            "query_min_spread_s: 2.0\n"
+            "apprise_urls: \"\"\n"
+            "apprise_notify_level: WARNING\n"
+            "devices_page_most_recent_only: false\n"
+            "staleness_sweep_interval_s: 900\n"
+            "semantic_location_map:\n"
+            "  Nest Mini - Living Room:\n"
+            "    latitude: 45.0\n"
+            "    longitude: 9.0\n"
+        )
+        resp = client.post("/auth/settings/yaml", data={"yaml_text": yaml_text})
+        assert resp.status_code == 200
+
+        saved = settings_store.load()
+        assert saved["semantic_location_map"] == {"Nest Mini - Living Room": {"latitude": 45.0, "longitude": 9.0}}
+    finally:
+        _remove_apprise_handlers()
+
+
+def test_save_app_settings_yaml_rejects_a_malformed_semantic_location_map(client, tmp_path, monkeypatch):
+    from webui import config, settings_store
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "APP_SETTINGS_PATH", tmp_path / "config.yaml")
+
+    before = settings_store.load()
+    yaml_text = (
+        "query_throttle_max: 9\n"
+        "query_throttle_window_s: 45.0\n"
+        "query_min_spread_s: 2.0\n"
+        "apprise_urls: \"\"\n"
+        "apprise_notify_level: WARNING\n"
+        "devices_page_most_recent_only: false\n"
+        "staleness_sweep_interval_s: 900\n"
+        "semantic_location_map:\n"
+        "  Nest Mini - Living Room: not-a-mapping\n"
+    )
+    resp = client.post("/auth/settings/yaml", data={"yaml_text": yaml_text})
+    assert resp.status_code == 200
+    assert "Invalid YAML" in resp.text
+    assert settings_store.load() == before
 
 
 def test_save_app_settings_yaml_rejects_invalid_yaml_without_persisting(client, tmp_path, monkeypatch):

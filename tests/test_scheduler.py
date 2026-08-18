@@ -187,6 +187,81 @@ async def test_poll_device_records_last_sent_position_on_success(monkeypatch, tm
     assert state["last_sent_lon"] == 34.5
 
 
+async def test_poll_device_forwards_a_semantic_reading_with_mapped_coordinates(monkeypatch, tmp_path):
+    """A SEMANTIC reading with a name that matches settings_store's
+    semantic_location_map (see webui/forwarders/semantic_map.py) gets mapped
+    coordinates before it's stored *and* before it's forwarded - both the
+    Devices page's last-known-location and the actual dispatch see the
+    same substituted fix, is_semantic still True."""
+    from webui import config, device_location_store, settings_store
+    from webui.forwarders import config_store
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
+    monkeypatch.setattr(config, "FORWARD_LOG_PATH", tmp_path / "forward_log.json")
+    monkeypatch.setattr(scheduler, "is_logged_in", lambda: True)
+    monkeypatch.setattr(settings_store, "load", lambda: {
+        "semantic_location_map": {"Nest Mini - Living Room": {"latitude": 45.0, "longitude": 9.0}},
+    })
+
+    dispatched = []
+    monkeypatch.setattr(
+        policy, "_dispatch_forward",
+        lambda cfg, loc, name="", alias=None, tracker_id="", device_meta=None, response_out=None: dispatched.append(loc) or "ok",
+    )
+
+    tick_done = asyncio.Event()
+
+    async def locate_then_signal(canonic_id, name):
+        tick_done.set()
+        return [{
+            "is_semantic": True, "semantic_name": "Nest Mini - Living Room",
+            "latitude": None, "longitude": None, "time": 1,
+            "status": "SEMANTIC", "status_id": 0, "accuracy": 0, "is_own_report": True, "map_links": None,
+        }]
+
+    monkeypatch.setattr(scheduler, "locate_device", locate_then_signal)
+
+    orig_sleep = asyncio.sleep
+    sleep_calls = {"n": 0}
+
+    async def fast_sleep(_secs):
+        sleep_calls["n"] += 1
+        await orig_sleep(0 if sleep_calls["n"] <= 1 else _secs)
+
+    monkeypatch.setattr(asyncio, "sleep", fast_sleep)
+
+    canonic_id = "semantic-mapped-device"
+    config_store.set_device_config(canonic_id, {
+        "display_name": "Test",
+        "endpoints": [_traccar_endpoint(cron="* * * * *")],
+    })
+
+    task = asyncio.create_task(scheduler._poll_device(canonic_id))
+    try:
+        await asyncio.wait_for(tick_done.wait(), timeout=5)
+    finally:
+        monkeypatch.setattr(asyncio, "sleep", orig_sleep)
+    await orig_sleep(0.5)
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+
+    assert len(dispatched) == 1
+    assert dispatched[0]["latitude"] == 45.0
+    assert dispatched[0]["longitude"] == 9.0
+    assert dispatched[0]["is_semantic"] is True
+    assert dispatched[0]["semantic_name"] == "Nest Mini - Living Room"
+
+    stored = device_location_store.get_last_location(canonic_id)["locations"][0]
+    assert stored["latitude"] == 45.0
+    assert stored["longitude"] == 9.0
+    assert stored["is_semantic"] is True
+    assert stored["map_links"]
+
+
 async def test_poll_device_passes_its_own_canonic_id_and_device_meta(monkeypatch, tmp_path):
     """{{tracker_id}} (see presets.py's BUILTIN_VARIABLES_FROM_APP) resolves
     to this app's own internal id for the tracker - the polled device's own

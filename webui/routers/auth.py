@@ -25,6 +25,48 @@ def _to_bool(value) -> bool:
     return bool(value)
 
 
+def _to_semantic_map(value) -> dict:
+    """Used as an _APP_SETTINGS_SCHEMA caster for the YAML-edit path - see
+    _parse_semantic_map_form for the structured-form equivalent. Expects
+    {name: {"latitude": ..., "longitude": ...}}; raises (caught by
+    _validate_app_settings, same as every other caster here) on anything
+    else, including a name with no coordinates or a non-numeric one."""
+    if not isinstance(value, dict):
+        raise TypeError("not a mapping")
+    result = {}
+    for name, coords in value.items():
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("semantic name must be a non-empty string")
+        if not isinstance(coords, dict):
+            raise TypeError("coordinates must be a mapping")
+        result[name] = {"latitude": float(coords["latitude"]), "longitude": float(coords["longitude"])}
+    return result
+
+
+def _parse_semantic_map_form(form) -> dict:
+    """Structured-form equivalent of _to_semantic_map above - reads the
+    semantic_name[]/semantic_lat[]/semantic_lon[] triples posted by the
+    "Semantic location mapping" table (see auth/_app_settings.html), same
+    parallel-list convention as webui/forwarders/settings_service.py's
+    parse_kv_rows for endpoint headers. A row with a blank name or a
+    non-numeric lat/lon is silently dropped rather than rejecting the whole
+    save - the same "just skip a genuinely empty row" leniency an unchecked
+    checkbox or blank text field gets elsewhere on this form."""
+    names = form.getlist("semantic_name")
+    lats = form.getlist("semantic_lat")
+    lons = form.getlist("semantic_lon")
+    result = {}
+    for name, lat, lon in zip(names, lats, lons):
+        name = name.strip()
+        if not name:
+            continue
+        try:
+            result[name] = {"latitude": float(lat), "longitude": float(lon)}
+        except (TypeError, ValueError):
+            continue
+    return result
+
+
 _APP_SETTINGS_SCHEMA: dict[str, Callable[[Any], Any]] = {
     "query_throttle_max": int,
     "query_throttle_window_s": float,
@@ -33,6 +75,7 @@ _APP_SETTINGS_SCHEMA: dict[str, Callable[[Any], Any]] = {
     "apprise_notify_level": str,
     "devices_page_most_recent_only": _to_bool,
     "staleness_sweep_interval_s": int,
+    "semantic_location_map": _to_semantic_map,
 }
 
 router = APIRouter()
@@ -88,6 +131,14 @@ async def save_app_settings(
     devices_page_most_recent_only: bool = Form(False),
     staleness_sweep_interval_s: int = Form(3600),
 ):
+    # The semantic-name/lat/lon rows are a dynamic, variable-length table
+    # (see auth/_app_settings.html) - posted as parallel
+    # semantic_name[]/semantic_lat[]/semantic_lon[] lists, so they're read
+    # straight off the raw form rather than as individual Form(...) params
+    # like everything else above (same reason
+    # webui/forwarders/settings_service.py's endpoint headers/blocked
+    # statuses go through raw form parsing instead).
+    form = await request.form()
     app_settings = {
         "query_throttle_max": query_throttle_max,
         "query_throttle_window_s": query_throttle_window_s,
@@ -96,6 +147,7 @@ async def save_app_settings(
         "apprise_notify_level": apprise_notify_level,
         "devices_page_most_recent_only": devices_page_most_recent_only,
         "staleness_sweep_interval_s": staleness_sweep_interval_s,
+        "semantic_location_map": _parse_semantic_map_form(form),
     }
     _apply_app_settings(app_settings)
 

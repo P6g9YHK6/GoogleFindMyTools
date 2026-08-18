@@ -34,6 +34,14 @@ def _defaults() -> dict:
         # why it has to be). Applies live, same as the throttle settings
         # above - no restart needed.
         "staleness_sweep_interval_s": 3600,
+        # Fixed coordinates for named SEMANTIC locations (e.g. "Nest Mini -
+        # Living Room") - Google never reports lat/lon for these, so without
+        # an entry here they're skipped by every forwarder (see
+        # webui/forwarders/semantic_map.py). Global rather than per-device:
+        # a named smart-home device's position doesn't change depending on
+        # which tracker reports being near it. {name: {"latitude": float,
+        # "longitude": float}}.
+        "semantic_location_map": {},
     }
 
 
