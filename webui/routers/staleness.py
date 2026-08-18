@@ -114,7 +114,7 @@ async def update_device_staleness(request: Request, canonic_id: str):
     new_enabled = form.get("enabled", "0") == "1"
     new_threshold = _parse_duration_field(form, "threshold", allow_off=False)
     new_repeat = _parse_duration_field(form, "repeat", allow_off=True)
-    new_template = (form.get("message_template", "") or "").strip() or staleness.DEFAULT_MESSAGE_TEMPLATE
+    new_template = str(form.get("message_template", "") or "").strip() or staleness.DEFAULT_MESSAGE_TEMPLATE
     new_muted = form.get("muted", "0") == "1"
 
     staleness_cfg = dict(existing)

@@ -119,8 +119,8 @@ def compute_status(canonic_id: str, staleness_cfg: dict, now: float | None = Non
     threshold_s = staleness_cfg.get("threshold_s")
     last_fix_time = _newest_fix_time(canonic_id)
     has_data = last_fix_time is not None
-    age_s = (now - last_fix_time) if has_data else None
-    is_stale = bool(enabled and threshold_s and has_data and age_s > threshold_s)
+    age_s = (now - last_fix_time) if last_fix_time is not None else None
+    is_stale = bool(enabled and threshold_s and age_s is not None and age_s > threshold_s)
     return {
         "enabled": enabled,
         "muted": muted,

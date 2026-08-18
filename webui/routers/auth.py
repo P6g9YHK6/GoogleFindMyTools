@@ -1,3 +1,6 @@
+from collections.abc import Callable
+from typing import Any
+
 import yaml
 from fastapi import APIRouter, Form, Request
 
@@ -22,7 +25,7 @@ def _to_bool(value) -> bool:
     return bool(value)
 
 
-_APP_SETTINGS_SCHEMA = {
+_APP_SETTINGS_SCHEMA: dict[str, Callable[[Any], Any]] = {
     "query_throttle_max": int,
     "query_throttle_window_s": float,
     "query_min_spread_s": float,

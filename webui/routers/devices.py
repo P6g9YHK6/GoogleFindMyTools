@@ -76,7 +76,11 @@ def _device_type_label(device_type: str | None, is_phone: bool) -> str | None:
         return None
     if is_phone:
         return f"📱 {plain}"
-    emoji = _DEVICE_TYPE_LABELS.get(device_type, ("🏷️",))[0]
+    # device_type is guaranteed non-None here (device_type_plain_label above
+    # already returned non-None with is_phone False, which only happens when
+    # device_type itself was truthy) - the "or ''" is just to satisfy .get()'s
+    # str-only key type.
+    emoji = _DEVICE_TYPE_LABELS.get(device_type or "", ("🏷️", ""))[0]
     return f"{emoji} {plain}"
 
 
