@@ -16,18 +16,19 @@ from DULT.OwnerLookup.link_generator import getOwnerLoopUpLink
 from example_data_provider import get_example_data
 
 
-def check_url_for_404(url):
+def check_url_status(url):
+    """True: looks like a real (non-404) page. False: a non-200 status, or a
+    200 whose body reads like Google's 404/error page. None: the request
+    itself failed (network error) - distinguishable from a confirmed 404 so
+    callers don't mistake "couldn't tell" for "checked, and it's a 404"."""
     try:
         response = requests.get(url)
-        if response.status_code == 200:
-            html_string = response.text
-            contains_404 = "404" in html_string
-            contains_error = "error" in html_string
-            return contains_404 and contains_error
-        else:
-            return True
     except requests.RequestException:
-        return True
+        return None
+    if response.status_code != 200:
+        return False
+    html_string = response.text
+    return not ("404" in html_string and "error" in html_string)
 
 
 if __name__ == '__main__':
@@ -56,8 +57,10 @@ if __name__ == '__main__':
 
         while True:
             (eid, url) = getOwnerLoopUpLink(unhexlify(get_example_data("sample_identity_key")), current_tried_offset)
-            success = not check_url_for_404(url)
-            print(f"Time Offset: {current_tried_offset}, EID: {eid}, URL: {url}, Success: {success}")
+            status = check_url_status(url)
+            success = status is True
+            print(f"Time Offset: {current_tried_offset}, EID: {eid}, URL: {url}, "
+                  f"Success: {success}{' (network error)' if status is None else ''}")
 
             if success:
                 # found first non-404
