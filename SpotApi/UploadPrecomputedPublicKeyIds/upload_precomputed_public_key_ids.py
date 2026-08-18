@@ -66,6 +66,6 @@ def get_next_eids(eik: bytes, pair_date: int, start_date: int, duration_seconds:
 
         public_key_id_list.append(info)
 
-        current_time_offset += 1024
+        current_time_offset += ROTATION_PERIOD
 
     return public_key_id_list
