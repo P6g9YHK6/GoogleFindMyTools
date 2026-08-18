@@ -5,3 +5,4 @@ python-multipart>=0.0.12
 websockets>=13.1
 croniter>=3.0.3
 apprise>=1.9.0
+py7zr>=0.21.0

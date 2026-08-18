@@ -21,7 +21,7 @@ from webui import (
 )
 from webui.auth_middleware import BasicAuthMiddleware
 from webui.forwarders import config_store
-from webui.routers import auth, devices, locate, logs, metrics, register, settings, sound, vnc_proxy
+from webui.routers import auth, debug_export, devices, locate, logs, metrics, register, settings, sound, vnc_proxy
 from webui.routers import staleness as staleness_router
 
 # Every module across the app (webui.*, Auth.*, NovaApi.*, ...) logs through
@@ -61,6 +61,7 @@ app.include_router(locate.router)
 app.include_router(sound.router)
 app.include_router(register.router)
 app.include_router(auth.router)
+app.include_router(debug_export.router)
 app.include_router(settings.router)
 app.include_router(logs.router)
 app.include_router(metrics.router)

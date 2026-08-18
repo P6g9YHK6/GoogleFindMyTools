@@ -62,6 +62,27 @@ async def locate_device(canonic_id: str, name: str, timeout: float = config.LOCA
     return await locate_coalescer.get_or_fetch(canonic_id, _fetch)
 
 
+async def locate_device_with_capture(canonic_id: str, name: str, timeout: float = config.LOCATE_TIMEOUT_S):
+    """Same underlying request as locate_device(), plus the raw hex/protobuf-
+    text behind the result (see get_location_data_for_device's `capture`
+    param) - for the debug export (webui/routers/debug_export.py), which
+    needs the wire payload itself, not just the decrypted locations.
+
+    Deliberately bypasses locate_coalescer: a caller joining someone else's
+    in-flight fetch would get back an empty capture dict, since only the
+    leader's call actually receives the FCM response. The debug export wants
+    its own guaranteed real fetch instead, so it goes straight through the
+    semaphore (same concurrency ceiling as every other locate path) without
+    coalescing.
+
+    Returns (locations, capture).
+    """
+    capture: dict = {}
+    async with _locate_semaphore:
+        locations = await run_blocking(get_location_data_for_device, canonic_id, name, timeout, capture)
+    return locations, capture
+
+
 async def set_sound(canonic_id: str, should_start: bool):
     return await run_blocking(play_sound, canonic_id, should_start)
 
