@@ -1,7 +1,16 @@
 import logging
-import threading
+import time
 
 from webui import notify
+
+
+def _wait_for(predicate, timeout=2.0):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if predicate():
+            return True
+        time.sleep(0.01)
+    return predicate()
 
 
 class FakeApprise:
@@ -52,10 +61,8 @@ def test_configure_catches_a_logger_outside_the_webui_tree(monkeypatch):
 
     handler = notify.configure_apprise_logging(env={"APPRISE_URLS": "json://example.com/hook"})
     try:
-        threads_before = set(threading.enumerate())
         logging.getLogger("Auth.fcm_receiver").warning("push client crashed")
-        for t in set(threading.enumerate()) - threads_before:
-            t.join(timeout=2)
+        _wait_for(lambda: fake.notifications)
         assert any("push client crashed" in body for _, body in fake.notifications)
     finally:
         _remove(handler)
@@ -100,9 +107,7 @@ def test_emit_sends_the_formatted_record_through_apprise_in_the_background():
         msg="Locate failed for %s: %s", args=("My Tracker", "boom"), exc_info=None,
     )
 
-    threads_before = set(threading.enumerate())
     handler.emit(record)
-    for t in set(threading.enumerate()) - threads_before:
-        t.join(timeout=2)
+    _wait_for(lambda: fake.notifications)
 
     assert fake.notifications == [("GoogleFindMyToolsWebUi: WARNING", "Locate failed for My Tracker: boom")]

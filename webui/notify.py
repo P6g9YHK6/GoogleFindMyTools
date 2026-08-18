@@ -16,7 +16,7 @@ elsewhere, in any module.
 import logging
 import os
 import re
-import threading
+from concurrent.futures import ThreadPoolExecutor
 
 import apprise
 
@@ -24,6 +24,11 @@ logger = logging.getLogger(__name__)
 
 _TARGET_LOGGER = ""  # root
 _DEFAULT_LEVEL = "WARNING"
+
+# A handful of reusable workers instead of one throwaway OS thread per log
+# record - a burst of WARNING+ lines (e.g. every device in a fleet failing to
+# forward at once) used to spawn one thread per line with no cap.
+_notify_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="apprise-notify")
 
 
 class _AppriseLogHandler(logging.Handler):
@@ -46,7 +51,7 @@ class _AppriseLogHandler(logging.Handler):
         except Exception:
             self.handleError(record)
             return
-        threading.Thread(target=self._apprise.notify, kwargs={"title": title, "body": body}, daemon=True).start()
+        _notify_executor.submit(self._apprise.notify, title=title, body=body)
 
 
 def configure_apprise_logging(env: dict | None = None) -> logging.Handler | None:
