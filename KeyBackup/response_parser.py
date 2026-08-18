@@ -12,8 +12,13 @@ logger = logging.getLogger(__name__)
 
 
 def _transform_to_byte_array(json_object):
-    byte_array = bytearray(json_object[str(i)] for i in range(len(json_object)))
-    return byte_array
+    """json_object is a JSON object used as a fake array - {"0": n, "1": n,
+    ...} - which is how the vault API represents a byte string. Raise a
+    clear error instead of a bare KeyError if it's not actually shaped that
+    way."""
+    if not isinstance(json_object, dict) or not all(str(i) in json_object for i in range(len(json_object))):
+        raise ValueError(f"Expected a {{'0': n, '1': n, ...}}-shaped byte array, got {json_object!r}")
+    return bytearray(json_object[str(i)] for i in range(len(json_object)))
 
 
 def get_fmdn_shared_key(vault_keys):
