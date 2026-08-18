@@ -172,26 +172,26 @@ def forward_to_custom(
 
     body_type = endpoint_cfg.get("body_type") or "none"
     body_raw = endpoint_cfg.get("body") or ""
-    request_kwargs = {"headers": headers, "timeout": TIMEOUT_S}
+    content: str | None = None
+    data: dict[str, str] | None = None
 
     if body_type == "json" and body_raw.strip():
-        request_kwargs["content"] = _render(body_raw, ctx)
+        content = _render(body_raw, ctx)
         headers.setdefault("Content-Type", "application/json")
     elif body_type == "raw" and body_raw.strip():
-        request_kwargs["content"] = _render(body_raw, ctx)
+        content = _render(body_raw, ctx)
     elif body_type == "form" and body_raw.strip():
         # One "key=value" pair per line, same {{variable}} substitution as
         # everything else - kept as plain text rather than a key/value
         # table, since GET/POST-style key/value needs are already covered
         # by putting them straight in the URL's own querystring.
-        form_data = {}
+        data = {}
         for line in body_raw.splitlines():
             if "=" in line:
                 k, _, v = line.partition("=")
-                form_data[k.strip()] = _render(v.strip(), ctx)
-        request_kwargs["data"] = form_data
+                data[k.strip()] = _render(v.strip(), ctx)
 
-    response = httpx.request(method, url, **request_kwargs)
+    response = httpx.request(method, url, headers=headers, timeout=TIMEOUT_S, content=content, data=data)
     if response_out is not None:
         # Captured before raise_for_status() below - a non-2xx's body is
         # exactly what's most worth seeing in the log, not just its status.
