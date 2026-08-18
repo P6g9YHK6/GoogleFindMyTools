@@ -10,7 +10,7 @@ from FMDNCrypto.key_derivation import FMDNOwnerOperations
 from FMDNCrypto.sha import calculate_hmac_sha256
 
 
-def getOwnerLoopUpLink(eik: bytes, offset: int) -> (str, str):
+def get_owner_lookup_link(eik: bytes, offset: int) -> tuple[str, str]:
 
     ownerOperations = FMDNOwnerOperations()
     ownerOperations.generate_keys(eik)
@@ -32,4 +32,4 @@ if __name__ == '__main__':
     # Generate a few URLs
     for i in range(1000):
         offset = i*ROTATION_PERIOD
-        print(getOwnerLoopUpLink(sample_identity_key, offset))
+        print(get_owner_lookup_link(sample_identity_key, offset))
