@@ -407,6 +407,8 @@ def test_build_context_exposes_status_and_own_report():
     assert ctx["status"] == "AGGREGATED"
     assert ctx["status_id"] == 3
     assert ctx["own_report"] is True
+    assert ctx["is_semantic"] is False
+    assert ctx["semantic_name"] == ""
 
 
 def test_build_context_status_and_own_report_default_when_missing():
@@ -417,6 +419,21 @@ def test_build_context_status_and_own_report_default_when_missing():
     assert ctx["status"] == ""
     assert ctx["status_id"] == ""
     assert ctx["own_report"] is False
+    assert ctx["is_semantic"] is False
+    assert ctx["semantic_name"] == ""
+
+
+def test_build_context_exposes_is_semantic_and_semantic_name():
+    from webui.forwarders.custom import build_context
+
+    location = {
+        "is_semantic": True, "semantic_name": "Nest Mini - Living Room",
+        "latitude": 45.0, "longitude": 9.0, "time": 1,
+        "status": "SEMANTIC", "status_id": 0, "is_own_report": True,
+    }
+    ctx = build_context({}, location, "My Phone")
+    assert ctx["is_semantic"] is True
+    assert ctx["semantic_name"] == "Nest Mini - Living Room"
 
 
 def test_forward_to_custom_substitutes_status_and_own_report(monkeypatch):
@@ -548,7 +565,10 @@ def test_forward_to_custom_sends_a_semantic_reading_with_mapped_coordinates(monk
 
     endpoint_cfg = {
         "method": "GET",
-        "url": "https://svc.example/?lat={{latitude}}&lon={{longitude}}&status={{status}}",
+        "url": (
+            "https://svc.example/?lat={{latitude}}&lon={{longitude}}&status={{status}}"
+            "&is_semantic={{is_semantic}}&semantic_name={{semantic_name}}"
+        ),
         "headers": {}, "body_type": "none", "body": "",
     }
     location = {
@@ -557,7 +577,10 @@ def test_forward_to_custom_sends_a_semantic_reading_with_mapped_coordinates(monk
         "status": "SEMANTIC", "status_id": 0, "accuracy": 0, "is_own_report": True,
     }
     assert custom.forward_to_custom(endpoint_cfg, location, "My Tracker") is True
-    assert captured["url"] == "https://svc.example/?lat=45.0&lon=9.0&status=SEMANTIC"
+    assert captured["url"] == (
+        "https://svc.example/?lat=45.0&lon=9.0&status=SEMANTIC"
+        "&is_semantic=True&semantic_name=Nest Mini - Living Room"
+    )
 
 
 def test_forward_to_custom_skips_when_url_is_blank():

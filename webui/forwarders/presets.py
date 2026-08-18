@@ -173,6 +173,8 @@ BUILTIN_VARIABLES_FROM_FIX: list[tuple[str, str]] = [
     ("accuracy_m", "Google's radius of uncertainty for the fix, in meters"),
     ("status", "Google's fix-quality flag: LAST_KNOWN, CROWDSOURCED, or AGGREGATED (coarse/low-accuracy)"),
     ("status_id", "Same flag as status, as Google's raw numeric id: 1=LAST_KNOWN, 2=CROWDSOURCED, 3=AGGREGATED"),
+    ("is_semantic", "True if this is a named-location reading rather than a GPS fix (Google's SEMANTIC status) - a plain boolean alternative to checking status/status_id"),
+    ("semantic_name", "The named place Google reported when is_semantic is true, e.g. \"Nest Mini - Living Room\" (blank otherwise)"),
     ("own_report", "True if this fix came from the tracker's own GPS rather than a nearby device's crowdsourced report"),
     ("google_timestamp", "Unix timestamp (seconds) of when Google recorded this fix - not when it was sent"),
     ("device_name", "This tracker's real name from your Google account (fixed, not editable here)"),

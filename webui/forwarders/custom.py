@@ -106,6 +106,14 @@ def build_context(
         # AGGREGATED=3) for endpoints that want to key off it without string
         # matching.
         "status_id": location.get("status_id") if location.get("status_id") is not None else "",
+        # is_semantic/semantic_name are a plain-boolean and a human-readable
+        # alternative to checking status/status_id above for a SEMANTIC
+        # reading - decrypt_locations.py already computes both on the
+        # decoded location dict, this just carries them through. semantic_name
+        # is the named place Google reported (e.g. "Nest Mini - Living
+        # Room"), blank on a non-semantic fix.
+        "is_semantic": bool(location.get("is_semantic")),
+        "semantic_name": location.get("semantic_name") or "",
         "own_report": bool(location.get("is_own_report")),
         # google_timestamp: when Google recorded this fix. current_timestamp:
         # right now, at send time - always fresh even when Google keeps
