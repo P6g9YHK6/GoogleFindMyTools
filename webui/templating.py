@@ -32,6 +32,7 @@ def _build_info(request: Request) -> dict:
         "build_sha": config.GFMT_BUILD_SHA,
         "build_sha_short": config.GFMT_BUILD_SHA if config.GFMT_BUILD_SHA == "dev" else config.GFMT_BUILD_SHA[:7],
         "build_date": config.GFMT_BUILD_DATE,
+        "build_branch": config.GFMT_BUILD_BRANCH,
         "uptime_str": _format_uptime(time.monotonic() - config.APP_START_TIME),
     }
 

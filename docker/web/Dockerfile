@@ -27,20 +27,23 @@ COPY . /app
 # config.yaml/forwarding.yaml/forward.log/...) lands flat in one directory,
 # no subfolders, matching the single `-v .../data:/data` mount below.
 #
-# GFMT_BUILD_SHA/GFMT_BUILD_DATE identify what's actually running (shown in
-# the web UI's footer, see webui/templating.py) without the running
-# container having to read back its own image's OCI labels. Only set by
-# .github/workflows/docker-publish.yml via --build-arg; a plain local
-# `docker build` (or docker-compose.dev.yml) leaves both at their defaults,
-# which the footer treats as "no real commit to link to".
+# GFMT_BUILD_SHA/GFMT_BUILD_DATE/GFMT_BUILD_BRANCH identify what's actually
+# running (shown in the web UI's footer, see webui/templating.py) without the
+# running container having to read back its own image's OCI labels. Only set
+# by .github/workflows/docker-publish.yml via --build-arg; a plain local
+# `docker build` (or docker-compose.dev.yml) leaves all three at their
+# defaults, which the footer treats as "no real commit to link to" / "no
+# branch to show".
 ARG GFMT_BUILD_SHA=dev
 ARG GFMT_BUILD_DATE=
+ARG GFMT_BUILD_BRANCH=
 ENV DISPLAY=:99 \
     GFMT_BROWSER_RUNTIME_DIR=/run/gfmt-browser \
     GFMT_DATA_DIR=/data \
     GFMT_NONINTERACTIVE=1 \
     GFMT_BUILD_SHA=${GFMT_BUILD_SHA} \
-    GFMT_BUILD_DATE=${GFMT_BUILD_DATE}
+    GFMT_BUILD_DATE=${GFMT_BUILD_DATE} \
+    GFMT_BUILD_BRANCH=${GFMT_BUILD_BRANCH}
 
 EXPOSE 4321
 

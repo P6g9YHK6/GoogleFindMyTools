@@ -132,6 +132,7 @@ TLS_KEY_PATH = DATA_DIR / "tls_key.pem"
 # webui/templating.py, which treats that as "no real commit to link to".
 GFMT_BUILD_SHA = os.environ.get("GFMT_BUILD_SHA", "dev")
 GFMT_BUILD_DATE = os.environ.get("GFMT_BUILD_DATE", "")
+GFMT_BUILD_BRANCH = os.environ.get("GFMT_BUILD_BRANCH", "")
 
 # Process start time, for the footer's uptime display and /metrics'
 # gfmt_uptime_seconds (webui/routers/metrics.py) - one clock, two consumers.

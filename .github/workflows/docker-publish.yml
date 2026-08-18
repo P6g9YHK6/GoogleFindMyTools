@@ -78,6 +78,7 @@ jobs:
           build-args: |
             GFMT_BUILD_SHA=${{ github.sha }}
             GFMT_BUILD_DATE=${{ steps.build_date.outputs.date }}
+            GFMT_BUILD_BRANCH=${{ github.ref_name }}
           # Registry cache instead of "type=gha": a normal image push under
           # a dedicated :buildcache tag, so it's content-addressed and each
           # push atomically replaces the whole cache manifest - no shared
