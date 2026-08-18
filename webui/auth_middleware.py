@@ -79,7 +79,11 @@ class BasicAuthMiddleware:
         except Exception:
             return False
 
+        # Only ever reached once _enabled has confirmed both are set (see
+        # above) - the "or ''" fallbacks are just to satisfy compare_digest's
+        # str-only signature, not a real code path (a blank fallback would
+        # simply fail the comparison, not match anything).
         return (
-            hmac.compare_digest(username, config.HTTP_USER)
-            and hmac.compare_digest(password, config.HTTP_PASSWORD)
+            hmac.compare_digest(username, config.HTTP_USER or "")
+            and hmac.compare_digest(password, config.HTTP_PASSWORD or "")
         )

@@ -77,6 +77,7 @@ async def _report_apt_progress(proc: asyncio.subprocess.Process, packages: list[
     total = len(packages)
     installed = 0
     base_percent, cap_percent = 8, 33
+    assert proc.stdout is not None  # the only caller always passes stdout=PIPE
     try:
         while True:
             line = await proc.stdout.readline()

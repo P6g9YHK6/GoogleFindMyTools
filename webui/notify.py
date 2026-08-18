@@ -16,6 +16,7 @@ elsewhere, in any module.
 import logging
 import os
 import re
+from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
 
 import apprise
@@ -54,7 +55,7 @@ class _AppriseLogHandler(logging.Handler):
         _notify_executor.submit(self._apprise.notify, title=title, body=body)
 
 
-def configure_apprise_logging(env: dict | None = None) -> logging.Handler | None:
+def configure_apprise_logging(env: Mapping[str, str] | None = None) -> logging.Handler | None:
     """Wires up Apprise from APPRISE_URLS (comma/newline-separated) and
     APPRISE_NOTIFY_LEVEL (a standard logging level name, default WARNING -
     a plain config knob rather than a hardcoded idea of which failures
