@@ -61,7 +61,7 @@ def most_recent_only(locations: list[dict]) -> list[dict]:
     forwarding's own per-endpoint only_most_recent toggle (see
     webui/forwarders/policy.py's _skip_not_most_recent), which decides
     what gets sent to an endpoint, not what gets shown on this page."""
-    times = [loc.get("time") for loc in locations if loc.get("time") is not None]
+    times: list[int] = [loc["time"] for loc in locations if loc.get("time") is not None]
     if not times:
         return locations
     newest = max(times)

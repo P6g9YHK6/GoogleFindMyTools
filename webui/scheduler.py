@@ -80,7 +80,9 @@ def cron_preview(cron_expr: str, count: int = 3, base: datetime | None = None) -
 async def _poll_device(canonic_id: str):
     while True:
         device_cfg = config_store.get_device_config(canonic_id)
-        endpoints = device_cfg.get("endpoints") if device_cfg else None
+        if device_cfg is None:
+            return
+        endpoints = device_cfg.get("endpoints")
         if not endpoints:
             return
 
@@ -147,8 +149,8 @@ async def _poll_device(canonic_id: str):
             # decrypt_locations.py) in no particular order - computed once
             # per batch here, same "skip" role as already_seen_by_index
             # above, for policy._skip_not_most_recent's per-endpoint toggle.
-            most_recent_time = max(
-                (loc.get("time") for loc in locations if loc.get("time") is not None), default=None,
+            most_recent_time: int | None = max(
+                (loc["time"] for loc in locations if loc.get("time") is not None), default=None,
             )
             is_most_recent_by_index = [
                 most_recent_time is None or loc.get("time") == most_recent_time for loc in locations
