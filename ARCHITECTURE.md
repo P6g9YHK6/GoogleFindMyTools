@@ -113,7 +113,10 @@ get migrated in.
 One module per URL area, thin by design - they call into the modules above
 rather than holding logic themselves: `devices.py` (`/`), `locate.py`
 (manual locate), `sound.py` (play sound), `register.py` (pair a tracker),
-`settings.py` (forwarding config UI), `staleness.py` (the Staleness page -
+`settings.py` (forwarding config UI - the actual row-fetching/YAML-
+conversion/form-parsing logic lives in `webui/forwarders/settings_service.py`,
+keeping the router itself thin like every other one here),
+`staleness.py` (the Staleness page -
 per-device staleness alert config, separate from `settings.py`'s forwarding
 config), `logs.py` (Forwarding Log + System Log pages), `auth.py` (sign
 in/out, the Config page), `vnc_proxy.py` (proxies the embedded browser view

@@ -41,8 +41,7 @@ def _sync_device_meta(client, monkeypatch, **detail_overrides):
     only ever updates an existing one, never creates one (same rule
     google_name's own sync follows - see
     test_settings_page_load_does_not_create_a_config_entry_for_an_unsaved_device)."""
-    from webui.forwarders import config_store
-    from webui.routers import settings
+    from webui.forwarders import config_store, settings_service
 
     if config_store.get_device_config(FAKE_CANONIC_ID) is None:
         # At least one endpoint, or _device_form.html's endpoint loop never
@@ -61,7 +60,7 @@ def _sync_device_meta(client, monkeypatch, **detail_overrides):
         "imei": None, "registered_at": None, "access": [],
     }
     detail.update(detail_overrides)
-    monkeypatch.setattr(settings, "get_device_details", lambda device_list: [detail])
+    monkeypatch.setattr(settings_service, "get_device_details", lambda device_list: [detail])
     assert client.get("/settings").status_code == 200
 
 
@@ -261,12 +260,11 @@ def test_saving_the_form_does_not_wipe_google_name_when_the_device_drops_off_the
     every label_* chip would disappear, until some later request happens
     to see this device again."""
     from webui.device_list_cache import device_list_cache
-    from webui.forwarders import config_store
-    from webui.routers import settings
+    from webui.forwarders import config_store, settings_service
 
     _sync_device_meta(client, monkeypatch, is_phone=True, carrier="T-Mobile")
     device_list_cache.invalidate()  # or the next fetch below would just serve _sync_device_meta's cached result
-    monkeypatch.setattr(settings, "get_device_details", lambda device_list: [])
+    monkeypatch.setattr(settings_service, "get_device_details", lambda device_list: [])
 
     resp = _post_form(
         client,
@@ -290,12 +288,11 @@ def test_settings_page_load_syncs_device_metadata_into_forwarding_yaml(client, m
     etc (see webui/forwarders/custom.py) have anywhere to read real values
     from at forward time, same as google_name already does for
     {{device_name}}."""
-    from webui.forwarders import config_store
-    from webui.routers import settings
+    from webui.forwarders import config_store, settings_service
 
     config_store.set_device_config(FAKE_CANONIC_ID, {"display_name": "My Tracker", "endpoints": []})
 
-    monkeypatch.setattr(settings, "get_device_details", lambda device_list: [{
+    monkeypatch.setattr(settings_service, "get_device_details", lambda device_list: [{
         "name": FAKE_DEVICE_NAME, "canonic_id": FAKE_CANONIC_ID, "last_seen": None,
         "is_phone": False, "image_url": "https://x/p.png", "device_type": "DEVICE_TYPE_KEYS",
         "manufacturer": "Chipolo", "model": "ONE Point", "carrier": None, "codename": None,
@@ -322,15 +319,14 @@ def test_settings_page_load_does_not_create_a_config_entry_for_an_unsaved_device
     """The device_meta sync must follow the same rule google_name's own
     sync already does - a device that's never been saved must not get a
     config entry created just from viewing the settings page."""
-    from webui.forwarders import config_store
-    from webui.routers import settings
+    from webui.forwarders import config_store, settings_service
 
     # DATA_DIR is shared for the whole test session (see conftest.py) - the
     # test above this one saves FAKE_CANONIC_ID, so it has to be reset here
     # to actually exercise the never-saved-at-all path.
     config_store.save({"devices": {}})
 
-    monkeypatch.setattr(settings, "get_device_details", lambda device_list: [{
+    monkeypatch.setattr(settings_service, "get_device_details", lambda device_list: [{
         "name": FAKE_DEVICE_NAME, "canonic_id": FAKE_CANONIC_ID, "last_seen": None,
         "is_phone": False, "image_url": None, "device_type": None, "manufacturer": "Chipolo", "model": None,
         "carrier": None, "codename": None, "imei": None, "registered_at": None, "access": [],
@@ -1034,12 +1030,11 @@ def test_save_device_yaml_does_not_wipe_device_meta_when_the_device_drops_off_th
     fetch too, and must not lose it just because this device happens to be
     missing from that one particular fetch."""
     from webui.device_list_cache import device_list_cache
-    from webui.forwarders import config_store
-    from webui.routers import settings
+    from webui.forwarders import config_store, settings_service
 
     _sync_device_meta(client, monkeypatch, is_phone=True, carrier="T-Mobile")
     device_list_cache.invalidate()  # or the next fetch below would just serve _sync_device_meta's cached result
-    monkeypatch.setattr(settings, "get_device_details", lambda device_list: [])
+    monkeypatch.setattr(settings_service, "get_device_details", lambda device_list: [])
 
     resp = client.post(
         f"/settings/devices/{FAKE_CANONIC_ID}/yaml",
@@ -1405,7 +1400,7 @@ def test_preview_values_includes_the_last_real_fix_and_device_meta(tmp_path, mon
     import json
 
     from webui import config, device_location_store
-    from webui.routers.settings import _preview_values_json_for
+    from webui.forwarders.settings_service import preview_values_json_for
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
     monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
@@ -1419,7 +1414,7 @@ def test_preview_values_includes_the_last_real_fix_and_device_meta(tmp_path, mon
     )
     device_meta = {"manufacturer": "Chipolo", "model": "", "type": "", "image_url": "", "carrier": "T-Mobile"}
 
-    values = json.loads(_preview_values_json_for(FAKE_CANONIC_ID, FAKE_DEVICE_NAME, device_meta))
+    values = json.loads(preview_values_json_for(FAKE_CANONIC_ID, FAKE_DEVICE_NAME, device_meta))
     assert values["latitude"] == 12.5
     assert values["longitude"] == 34.5
     assert values["accuracy_m"] == 8
@@ -1438,12 +1433,12 @@ def test_preview_values_omits_own_report_when_no_location_is_on_file(tmp_path, m
     import json
 
     from webui import config
-    from webui.routers.settings import _preview_values_json_for
+    from webui.forwarders.settings_service import preview_values_json_for
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
     monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
 
-    values = json.loads(_preview_values_json_for(FAKE_CANONIC_ID, FAKE_DEVICE_NAME, None))
+    values = json.loads(preview_values_json_for(FAKE_CANONIC_ID, FAKE_DEVICE_NAME, None))
     assert "own_report" not in values  # unlike a real False, "no fix at all" must not look like a real value
     assert "latitude" not in values
     assert values["tracker_id"] == FAKE_CANONIC_ID  # always real, regardless of any fix
@@ -1453,7 +1448,7 @@ def test_preview_values_ignores_a_semantic_only_last_location(tmp_path, monkeypa
     import json
 
     from webui import config, device_location_store
-    from webui.routers.settings import _preview_values_json_for
+    from webui.forwarders.settings_service import preview_values_json_for
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
     monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
@@ -1463,7 +1458,7 @@ def test_preview_values_ignores_a_semantic_only_last_location(tmp_path, monkeypa
         fetched_at=1700000000,
     )
 
-    values = json.loads(_preview_values_json_for(FAKE_CANONIC_ID, FAKE_DEVICE_NAME, None))
+    values = json.loads(preview_values_json_for(FAKE_CANONIC_ID, FAKE_DEVICE_NAME, None))
     assert "latitude" not in values
     assert "status" not in values
     assert "own_report" not in values

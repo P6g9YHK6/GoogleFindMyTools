@@ -56,6 +56,7 @@ def stub_backend(monkeypatch):
     tests get a working "happy path" for free and only override what they
     specifically care about."""
     from webui.device_list_cache import device_list_cache
+    from webui.forwarders import settings_service
     from webui.routers import auth, devices, locate, logs, register, settings, sound
     from webui.routers import staleness as staleness_router
 
@@ -75,12 +76,16 @@ def stub_backend(monkeypatch):
 
     for mod in (devices, settings, logs, staleness_router):
         monkeypatch.setattr(mod, "is_logged_in", lambda: True)
-    for mod in (devices, settings, staleness_router):
+    # settings.py's own fetch-and-parse logic lives in settings_service.py
+    # now (see webui/forwarders/settings_service.py) - patch there instead
+    # of on the router module itself.
+    for mod in (devices, settings_service, staleness_router):
         monkeypatch.setattr(mod, "request_device_list", lambda: b"")
         monkeypatch.setattr(mod, "parse_device_list_protobuf", lambda hex: None)
         # All three pages share one device_list_cache slot (see its own
         # docstring), so all need to fetch the same shape from it even
-        # though settings.py/staleness.py only actually use name/canonic_id.
+        # though settings_service.py/staleness.py only actually use
+        # name/canonic_id.
         monkeypatch.setattr(mod, "get_device_details", fake_get_device_details)
 
     monkeypatch.setattr(devices, "refresh_custom_trackers", lambda device_list: None)

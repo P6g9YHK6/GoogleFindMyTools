@@ -296,11 +296,12 @@ def test_devices_and_settings_pages_share_one_cache_fill(client, monkeypatch):
     devices.py's refresh_custom_trackers side effect only runs when
     devices.py's own fetch is the one that wins - a deliberate tradeoff,
     see webui/device_list_cache.py's module docstring."""
-    from webui.routers import devices, settings
+    from webui.forwarders import settings_service
+    from webui.routers import devices
 
     calls = []
     monkeypatch.setattr(devices, "request_device_list", lambda: calls.append("devices") or b"")
-    monkeypatch.setattr(settings, "request_device_list", lambda: calls.append("settings") or b"")
+    monkeypatch.setattr(settings_service, "request_device_list", lambda: calls.append("settings") or b"")
 
     assert client.get("/devices/table").status_code == 200
     assert client.get("/settings").status_code == 200
