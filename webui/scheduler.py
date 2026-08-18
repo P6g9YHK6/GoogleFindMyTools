@@ -25,6 +25,14 @@ logger = logging.getLogger("webui.scheduler")
 
 _tasks: dict[str, asyncio.Task] = {}
 
+
+def _merged_endpoint(canonic_id: str, endpoint_cfg: dict) -> tuple[str, dict]:
+    """(url, endpoint config merged with its recorded runtime state) - see
+    latest_values_store. Every forward needs this same merge before it can
+    run the skip-gates or dispatch."""
+    url = endpoint_cfg.get("url", "")
+    return url, {**endpoint_cfg, **latest_values_store.get_endpoint_state(canonic_id, url)}
+
 DEFAULT_CRON = "*/5 * * * *"
 
 # Friendly names for the schedule editor's preset dropdown - the common cases
@@ -159,8 +167,7 @@ async def _poll_device(canonic_id: str):
         results: dict[int, dict] = {}
         for location, already_seen, is_most_recent in zip(locations, already_seen_by_index, is_most_recent_by_index):
             for i in due_indices:
-                url = endpoints[i].get("url", "")
-                merged = {**endpoints[i], **latest_values_store.get_endpoint_state(canonic_id, url)}
+                url, merged = _merged_endpoint(canonic_id, endpoints[i])
                 response_out: dict = {}
                 status = await asyncio.to_thread(
                     _forward_one, merged, location, google_name, name, canonic_id, device_meta,
@@ -178,8 +185,7 @@ async def _poll_device(canonic_id: str):
                 )
         for i in due_indices:
             if i not in results:
-                url = endpoints[i].get("url", "")
-                merged = {**endpoints[i], **latest_values_store.get_endpoint_state(canonic_id, url)}
+                url, merged = _merged_endpoint(canonic_id, endpoints[i])
                 results[i] = {"status": "no location", "location": None, "url": url, "merged": merged}
 
         now_ts = int(time.time())
@@ -225,8 +231,7 @@ async def forward_now(canonic_id: str, index: int) -> dict | None:
     google_name = device_cfg.get("google_name") or name
     device_meta = device_cfg.get("device_meta")
     endpoint_cfg = endpoints[index]
-    url = endpoint_cfg.get("url", "")
-    merged = {**endpoint_cfg, **latest_values_store.get_endpoint_state(canonic_id, url)}
+    url, merged = _merged_endpoint(canonic_id, endpoint_cfg)
 
     try:
         locations = await locate_device(canonic_id, name)
