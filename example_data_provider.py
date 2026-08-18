@@ -11,14 +11,15 @@ def get_example_data(identifier: str) -> str:
     try:
         with open(_get_example_file()) as file:
             data = json.load(file)
-            value = data.get(identifier)
+    except OSError as e:
+        raise ValueError("example_data.json is missing or unreadable.") from e
+    except json.JSONDecodeError as e:
+        raise ValueError("example_data.json is not valid JSON.") from e
 
-            if value is not None:
-                return value
-            else:
-                raise ValueError("The requested value was not found in the example data file (example_data.json).")
-    except Exception:
-        raise ValueError("The requested value was not found in the example data file (example_data.json). Please make sure the file is present and correctly formatted.")
+    value = data.get(identifier)
+    if value is None:
+        raise ValueError(f"'{identifier}' was not found in example_data.json.")
+    return value
 
 
 def _get_example_file() -> str:
