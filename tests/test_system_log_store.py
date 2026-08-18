@@ -1,4 +1,4 @@
-from webui import config, system_log_store
+from webui import config, line_log_io, system_log_store
 
 
 def test_round_trip(tmp_path, monkeypatch):
@@ -18,6 +18,10 @@ def test_caps_entries(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
     monkeypatch.setattr(config, "SYSTEM_LOG_PATH", tmp_path / "system.log")
     monkeypatch.setattr(config, "SYSTEM_LOG_MAX_ENTRIES", 5)
+    # append_line() only compacts once every _COMPACT_SLACK entries past the
+    # cap (see line_log_io.py) - force it to 0 so this test still checks the
+    # cap logic itself, without depending on that amortization tuning.
+    monkeypatch.setattr(line_log_io, "_COMPACT_SLACK", 0)
 
     for i in range(10):
         system_log_store.append(level="INFO", logger_name="test", message=f"line {i}", when=i)

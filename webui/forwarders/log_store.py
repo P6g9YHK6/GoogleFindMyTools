@@ -4,7 +4,7 @@ import threading
 import time
 
 from webui import config
-from webui.line_log_io import read_lines, write_lines
+from webui.line_log_io import append_line, read_lines, write_lines
 
 _lock = threading.Lock()
 
@@ -100,8 +100,12 @@ def append(
     payload: str = "", response: str = "",
 ):
     with _lock:
-        entries = _read_all()
-        entries.append({
+        if not config.FORWARD_LOG_PATH.exists():
+            # Materializes the file (migrated from forward_log.json) if
+            # there's legacy data to fold in, same as a plain read would -
+            # append_line below only ever creates/appends, it doesn't migrate.
+            _migrate_from_legacy_json()
+        entry = {
             "time": int(time.time()),
             "canonic_id": canonic_id,
             "device_name": device_name,
@@ -110,11 +114,8 @@ def append(
             "status": status,
             "payload": payload,
             "response": response,
-        })
-        # Keep the log file bounded instead of growing it forever.
-        if len(entries) > config.FORWARD_LOG_MAX_ENTRIES:
-            entries = entries[-config.FORWARD_LOG_MAX_ENTRIES:]
-        _write_all(entries)
+        }
+        append_line(config.FORWARD_LOG_PATH, entry, _format_line, _parse_line, config.FORWARD_LOG_MAX_ENTRIES)
 
 
 def recent_entries(limit: int = 500) -> list[dict]:

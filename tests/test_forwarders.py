@@ -883,12 +883,16 @@ def test_log_store_sanitizes_embedded_tabs_and_newlines(tmp_path, monkeypatch):
 
 
 def test_log_store_caps_entries(tmp_path, monkeypatch):
-    from webui import config
+    from webui import config, line_log_io
     from webui.forwarders import log_store
 
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
     monkeypatch.setattr(config, "FORWARD_LOG_PATH", tmp_path / "forward.log")
     monkeypatch.setattr(config, "FORWARD_LOG_MAX_ENTRIES", 5)
+    # append_line() only compacts once every _COMPACT_SLACK entries past the
+    # cap (see line_log_io.py) - force it to 0 so this test still checks the
+    # cap logic itself, without depending on that amortization tuning.
+    monkeypatch.setattr(line_log_io, "_COMPACT_SLACK", 0)
 
     for i in range(10):
         log_store.append("dev-1", "My Tracker", "traccar", "target", f"status-{i}")

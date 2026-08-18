@@ -9,7 +9,7 @@ import re
 import threading
 
 from webui import config
-from webui.line_log_io import read_lines, write_lines
+from webui.line_log_io import append_line, read_lines, write_lines
 
 _lock = threading.Lock()
 
@@ -51,11 +51,8 @@ def _write_all(entries: list[dict]):
 
 def append(level: str, logger_name: str, message: str, when: int):
     with _lock:
-        entries = _read_all()
-        entries.append({"time": when, "level": level, "logger": logger_name, "message": message})
-        if len(entries) > config.SYSTEM_LOG_MAX_ENTRIES:
-            entries = entries[-config.SYSTEM_LOG_MAX_ENTRIES:]
-        _write_all(entries)
+        entry = {"time": when, "level": level, "logger": logger_name, "message": message}
+        append_line(config.SYSTEM_LOG_PATH, entry, _format_line, _parse_line, config.SYSTEM_LOG_MAX_ENTRIES)
 
 
 def recent_entries(limit: int = 500) -> list[dict]:
