@@ -135,3 +135,20 @@ def mutate_device(canonic_id: str, fn: Callable[[dict], None]) -> dict:
                 devices.pop(canonic_id, None)
             _save_unlocked(data)
         return entry
+
+
+def mutate_devices(fn: Callable[[dict], None]) -> dict:
+    """Like mutate_device, but fn gets the whole devices dict to mutate
+    directly, in one locked read-modify-write pass - for operations that
+    touch more than one device at once (e.g. config_store.save()'s
+    full-replace), instead of one mutate_device() round trip per device."""
+    with _lock:
+        data = _load_unlocked()
+        devices = data.setdefault("devices", {})
+        before = copy.deepcopy(devices)
+        fn(devices)
+        for canonic_id in [cid for cid, entry in devices.items() if not entry]:
+            devices.pop(canonic_id, None)
+        if devices != before:
+            _save_unlocked(data)
+        return devices

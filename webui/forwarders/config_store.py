@@ -191,22 +191,22 @@ def _set_config(canonic_id: str, cfg: dict) -> None:
     device_store.mutate_device(canonic_id, lambda entry: entry.update(config=cfg))
 
 
-def _clear_config(entry: dict) -> None:
-    entry.pop("config", None)
-
-
 def save(data: dict):
     """Full-replace of every device's config, same semantics this module
     always had - a device omitted from data["devices"] loses its config
     (but keeps its location/endpoint_state/staleness, which aren't this
-    module's concern)."""
+    module's concern). One locked read-modify-write pass, not one per
+    device."""
     wanted = data.get("devices", {})
-    current = device_store.load()["devices"]
-    for canonic_id in set(current) | set(wanted):
-        if canonic_id in wanted:
-            _set_config(canonic_id, wanted[canonic_id])
-        elif "config" in current.get(canonic_id, {}):
-            device_store.mutate_device(canonic_id, _clear_config)
+
+    def _replace_all(devices: dict) -> None:
+        for canonic_id in set(devices) | set(wanted):
+            if canonic_id in wanted:
+                devices.setdefault(canonic_id, {})["config"] = wanted[canonic_id]
+            else:
+                devices.get(canonic_id, {}).pop("config", None)
+
+    device_store.mutate_devices(_replace_all)
 
 
 def get_device_config(canonic_id: str) -> dict | None:
