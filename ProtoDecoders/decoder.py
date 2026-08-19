@@ -127,7 +127,16 @@ def get_device_details(device_list) -> list[dict]:
             manufacturer = reg.manufacturer or None
             model = reg.model or None
             if reg.HasField("deviceTypeInformation"):
-                device_type = DeviceUpdate_pb2.SpotDeviceType.Name(reg.deviceTypeInformation.deviceType)
+                type_value = reg.deviceTypeInformation.deviceType
+                try:
+                    device_type = DeviceUpdate_pb2.SpotDeviceType.Name(type_value)
+                except ValueError:
+                    # Google occasionally rolls out new device type values
+                    # (e.g. new supported product categories) before this
+                    # enum is updated to match - fall back to the raw number
+                    # instead of taking down the whole device list over one
+                    # unrecognized device.
+                    device_type = f"DEVICE_TYPE_UNKNOWN_{type_value}"
 
         access = [
             {"email": a.email, "has_access": a.hasAccess, "is_owner": a.isOwner, "this_account": a.thisAccount}

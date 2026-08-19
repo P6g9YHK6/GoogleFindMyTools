@@ -113,6 +113,20 @@ def test_get_device_details_extracts_spot_tag_registration_info():
     assert detail["imei"] is None
 
 
+def test_get_device_details_survives_an_unrecognized_device_type():
+    # Google occasionally rolls out new SpotDeviceType values before this
+    # enum is updated to match (see decoder.py's comment) - one unrecognized
+    # device shouldn't take down the whole device list.
+    device = _tag_device("tag-1", "Mystery Tag")
+    device.information.deviceRegistration.deviceTypeInformation.deviceType = 27
+
+    device_list = DeviceUpdate_pb2.DevicesList()
+    device_list.deviceMetadata.append(device)
+
+    [detail] = get_device_details(device_list)
+    assert detail["device_type"] == "DEVICE_TYPE_UNKNOWN_27"
+
+
 def test_get_device_details_extracts_access_information():
     device = _tag_device("tag-1", "My Tag")
     device.information.accessInformation.add(
