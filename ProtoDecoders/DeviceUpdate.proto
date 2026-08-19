@@ -226,6 +226,7 @@ enum SpotDeviceType {
     DEVICE_TYPE_UMBRELLA = 24;
     DEVICE_TYPE_STYLUS = 25;
     DEVICE_TYPE_EARBUDS = 26;
+    DEVICE_TYPE_LUGGAGE = 27;
 }
 
 message AccessInformation {

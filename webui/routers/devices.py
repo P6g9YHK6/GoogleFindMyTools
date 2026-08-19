@@ -49,6 +49,7 @@ _DEVICE_TYPE_LABELS = {
     "DEVICE_TYPE_UMBRELLA": ("☂️", "Umbrella"),
     "DEVICE_TYPE_STYLUS": ("🖊️", "Stylus"),
     "DEVICE_TYPE_EARBUDS": ("🎧", "Earbuds"),
+    "DEVICE_TYPE_LUGGAGE": ("🧳", "Luggage"),
 }
 
 

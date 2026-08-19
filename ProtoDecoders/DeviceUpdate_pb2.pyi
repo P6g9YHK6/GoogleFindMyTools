@@ -3,7 +3,8 @@ from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
-from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Mapping, Optional as _Optional, Union as _Union
+from collections.abc import Iterable as _Iterable, Mapping as _Mapping
+from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
@@ -66,6 +67,7 @@ class SpotDeviceType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     DEVICE_TYPE_UMBRELLA: _ClassVar[SpotDeviceType]
     DEVICE_TYPE_STYLUS: _ClassVar[SpotDeviceType]
     DEVICE_TYPE_EARBUDS: _ClassVar[SpotDeviceType]
+    DEVICE_TYPE_LUGGAGE: _ClassVar[SpotDeviceType]
 UNKNOWN_DEVICE_TYPE: DeviceType
 ANDROID_DEVICE: DeviceType
 SPOT_DEVICE: DeviceType
@@ -111,6 +113,7 @@ DEVICE_TYPE_TOY: SpotDeviceType
 DEVICE_TYPE_UMBRELLA: SpotDeviceType
 DEVICE_TYPE_STYLUS: SpotDeviceType
 DEVICE_TYPE_EARBUDS: SpotDeviceType
+DEVICE_TYPE_LUGGAGE: SpotDeviceType
 
 class GetEidInfoForE2eeDevicesResponse(_message.Message):
     __slots__ = ("encryptedOwnerKeyAndMetadata",)
@@ -170,7 +173,7 @@ class ExecuteActionRequestMetadata(_message.Message):
     fmdClientUuid: str
     gcmRegistrationId: GcmCloudMessagingIdProtobuf
     unknown: bool
-    def __init__(self, type: _Optional[_Union[DeviceType, str]] = ..., requestUuid: _Optional[str] = ..., fmdClientUuid: _Optional[str] = ..., gcmRegistrationId: _Optional[_Union[GcmCloudMessagingIdProtobuf, _Mapping]] = ..., unknown: bool = ...) -> None: ...
+    def __init__(self, type: _Optional[_Union[DeviceType, str]] = ..., requestUuid: _Optional[str] = ..., fmdClientUuid: _Optional[str] = ..., gcmRegistrationId: _Optional[_Union[GcmCloudMessagingIdProtobuf, _Mapping]] = ..., unknown: _Optional[bool] = ...) -> None: ...
 
 class GcmCloudMessagingIdProtobuf(_message.Message):
     __slots__ = ("id",)
@@ -227,16 +230,36 @@ class DeviceUpdate(_message.Message):
     def __init__(self, fcmMetadata: _Optional[_Union[ExecuteActionRequestMetadata, _Mapping]] = ..., deviceMetadata: _Optional[_Union[DeviceMetadata, _Mapping]] = ..., requestMetadata: _Optional[_Union[RequestMetadata, _Mapping]] = ...) -> None: ...
 
 class DeviceMetadata(_message.Message):
-    __slots__ = ("identifierInformation", "information", "userDefinedDeviceName", "imageInformation")
+    __slots__ = ("identifierInformation", "hardwareInfo", "information", "userDefinedDeviceName", "imageInformation")
     IDENTIFIERINFORMATION_FIELD_NUMBER: _ClassVar[int]
+    HARDWAREINFO_FIELD_NUMBER: _ClassVar[int]
     INFORMATION_FIELD_NUMBER: _ClassVar[int]
     USERDEFINEDDEVICENAME_FIELD_NUMBER: _ClassVar[int]
     IMAGEINFORMATION_FIELD_NUMBER: _ClassVar[int]
     identifierInformation: IdentitfierInformation
+    hardwareInfo: DeviceHardwareInfo
     information: DeviceInformation
     userDefinedDeviceName: str
     imageInformation: ImageInformation
-    def __init__(self, identifierInformation: _Optional[_Union[IdentitfierInformation, _Mapping]] = ..., information: _Optional[_Union[DeviceInformation, _Mapping]] = ..., userDefinedDeviceName: _Optional[str] = ..., imageInformation: _Optional[_Union[ImageInformation, _Mapping]] = ...) -> None: ...
+    def __init__(self, identifierInformation: _Optional[_Union[IdentitfierInformation, _Mapping]] = ..., hardwareInfo: _Optional[_Union[DeviceHardwareInfo, _Mapping]] = ..., information: _Optional[_Union[DeviceInformation, _Mapping]] = ..., userDefinedDeviceName: _Optional[str] = ..., imageInformation: _Optional[_Union[ImageInformation, _Mapping]] = ...) -> None: ...
+
+class DeviceHardwareInfo(_message.Message):
+    __slots__ = ("registrationTime", "model", "manufacturer", "codename", "carrier", "imei", "lastSeenTime")
+    REGISTRATIONTIME_FIELD_NUMBER: _ClassVar[int]
+    MODEL_FIELD_NUMBER: _ClassVar[int]
+    MANUFACTURER_FIELD_NUMBER: _ClassVar[int]
+    CODENAME_FIELD_NUMBER: _ClassVar[int]
+    CARRIER_FIELD_NUMBER: _ClassVar[int]
+    IMEI_FIELD_NUMBER: _ClassVar[int]
+    LASTSEENTIME_FIELD_NUMBER: _ClassVar[int]
+    registrationTime: _Common_pb2.Time
+    model: str
+    manufacturer: str
+    codename: str
+    carrier: str
+    imei: str
+    lastSeenTime: _Common_pb2.Time
+    def __init__(self, registrationTime: _Optional[_Union[_Common_pb2.Time, _Mapping]] = ..., model: _Optional[str] = ..., manufacturer: _Optional[str] = ..., codename: _Optional[str] = ..., carrier: _Optional[str] = ..., imei: _Optional[str] = ..., lastSeenTime: _Optional[_Union[_Common_pb2.Time, _Mapping]] = ...) -> None: ...
 
 class ImageInformation(_message.Message):
     __slots__ = ("imageUrl",)
@@ -354,7 +377,7 @@ class AccessInformation(_message.Message):
     hasAccess: bool
     isOwner: bool
     thisAccount: bool
-    def __init__(self, email: _Optional[str] = ..., hasAccess: bool = ..., isOwner: bool = ..., thisAccount: bool = ...) -> None: ...
+    def __init__(self, email: _Optional[str] = ..., hasAccess: _Optional[bool] = ..., isOwner: _Optional[bool] = ..., thisAccount: _Optional[bool] = ...) -> None: ...
 
 class RequestMetadata(_message.Message):
     __slots__ = ("responseTime",)
@@ -468,7 +491,7 @@ class DeviceCapabilities(_message.Message):
     isAdvertising: bool
     capableComponents: int
     trackableComponents: int
-    def __init__(self, isAdvertising: bool = ..., capableComponents: _Optional[int] = ..., trackableComponents: _Optional[int] = ...) -> None: ...
+    def __init__(self, isAdvertising: _Optional[bool] = ..., capableComponents: _Optional[int] = ..., trackableComponents: _Optional[int] = ...) -> None: ...
 
 class DeviceDescription(_message.Message):
     __slots__ = ("userDefinedName", "deviceType", "deviceComponentsInformation")
