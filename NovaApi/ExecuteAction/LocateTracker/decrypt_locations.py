@@ -41,6 +41,18 @@ def create_map_links(latitude, longitude):
         "Waze": f"https://waze.com/ul?ll={latitude},{longitude}&navigate=yes",
     }
 
+def _status_name(status_value):
+    """Common_pb2.Status.Name(), tolerant of values the enum doesn't define
+    yet. Same situation as SpotDeviceType in ProtoDecoders/decoder.py -
+    Google can roll out a new Status value before this enum is updated to
+    match, and one unrecognized status shouldn't take down location
+    decoding for the rest of the device's reports."""
+    try:
+        return Common_pb2.Status.Name(status_value)
+    except ValueError:
+        return f"STATUS_UNKNOWN_{status_value}"
+
+
 def decrypt_location_response_locations(device_update_protobuf):
 
     device_registration = device_update_protobuf.deviceMetadata.information.deviceRegistration
@@ -130,7 +142,7 @@ def decrypt_location_response_locations(device_update_protobuf):
             "time": loc.time,
             "is_semantic": is_semantic,
             "semantic_name": loc.name if is_semantic else None,
-            "status": Common_pb2.Status.Name(loc.status),
+            "status": _status_name(loc.status),
             "status_id": int(loc.status),
             "accuracy": loc.accuracy,
             "is_own_report": loc.is_own_report,
