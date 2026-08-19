@@ -30,6 +30,38 @@
     {% endfor %}
   </datalist>
 
+  <details id="firmware-advanced">
+    <summary>Advanced</summary>
+
+    <label for="device_name">Device name</label>
+    <input id="device_name" name="device_name" type="text" maxlength="20" value="GFMT Tracker" required>
+
+    <label for="adv_interval_ms">Advertising interval (ms)</label>
+    <input id="adv_interval_ms" name="adv_interval_ms" type="number" min="20" max="10240" value="20" required>
+    <p class="field-hint">20-10240ms. Lower is more discoverable but uses more power.</p>
+
+    <label for="tx_power_dbm">TX power (dBm, ESP32 only)</label>
+    <select id="tx_power_dbm" name="tx_power_dbm">
+      <option value="-12">-12</option>
+      <option value="-9">-9</option>
+      <option value="-6">-6</option>
+      <option value="-3">-3</option>
+      <option value="0">0</option>
+      <option value="3">3</option>
+      <option value="6">6</option>
+      <option value="9" selected>9 (default)</option>
+    </select>
+    <p class="field-hint">Ignored on ESP32-C3 for now - see ESP32Firmware/main/build_config.h.</p>
+
+    <label for="tracking_protection">Unwanted-tracking-protection mode</label>
+    <select id="tracking_protection" name="tracking_protection">
+      <option value="1" selected>Enabled (default)</option>
+      <option value="0">Disabled</option>
+    </select>
+    <p class="field-hint">Experimental: only changes the advertised flag - this firmware doesn't
+       implement the buzzer/motion-alert behavior either way.</p>
+  </details>
+
   <button id="build-btn" type="submit">Build firmware</button>
 </form>
 
@@ -51,5 +83,6 @@
    (J-Link, UF2, <code>west flash</code>). See <a href="/firmware/zephyr-readme">ZephyrFirmware/README.md</a>
    for build/flash instructions.</p>
 
+<script type="application/json" id="firmware-build-settings-by-eid">{{ build_settings_by_eid | tojson }}</script>
 <script type="module" src="/static/firmware.js"></script>
 {% endblock %}

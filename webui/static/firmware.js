@@ -17,6 +17,43 @@ document.addEventListener("DOMContentLoaded", () => {
   const flashBtn = document.getElementById("flash-btn");
   const flashNote = document.getElementById("firmware-flash-note");
 
+  const eidInput = document.getElementById("eid_hex");
+  const advancedDetails = document.getElementById("firmware-advanced");
+  const deviceNameInput = document.getElementById("device_name");
+  const advIntervalInput = document.getElementById("adv_interval_ms");
+  const txPowerSelect = document.getElementById("tx_power_dbm");
+  const trackingProtectionSelect = document.getElementById("tracking_protection");
+  let buildSettingsByEid = {};
+  try {
+    buildSettingsByEid = JSON.parse(
+      document.getElementById("firmware-build-settings-by-eid").textContent);
+  } catch (e) {
+    // Empty/malformed blob - Advanced section just keeps its defaults.
+  }
+
+  // Pre-fills the Advanced section from a previous build's settings for this
+  // EID (see webui/firmware_store.py), but only while the user hasn't opened
+  // it themselves - once they have, assume they're mid-edit and leave it alone.
+  let advancedTouchedByUser = false;
+  advancedDetails.addEventListener("toggle", () => {
+    if (advancedDetails.open) advancedTouchedByUser = true;
+  });
+
+  function applyKnownEidSettings() {
+    if (advancedTouchedByUser) return;
+    const settings = buildSettingsByEid[eidInput.value.trim().toLowerCase()]
+      || buildSettingsByEid[eidInput.value.trim()];
+    if (!settings) return;
+    deviceNameInput.value = settings.device_name;
+    advIntervalInput.value = settings.adv_interval_ms;
+    txPowerSelect.value = String(settings.tx_power_dbm);
+    trackingProtectionSelect.value = settings.tracking_protection ? "1" : "0";
+  }
+
+  eidInput.addEventListener("input", applyKnownEidSettings);
+  eidInput.addEventListener("change", applyKnownEidSettings);
+  applyKnownEidSettings();
+
   const ACTIVE_PHASES = ["preparing", "building", "merging"];
   // Backstops the websocket, same reasoning as provision.js: a dropped/
   // reconnecting socket or a throttled background tab must never leave the

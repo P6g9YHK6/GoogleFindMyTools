@@ -64,27 +64,61 @@ async def test_start_refuses_concurrent_build(monkeypatch):
     _reset_state()
 
 
-def test_inject_eid_replaces_placeholder(tmp_path):
+def test_write_build_config_esp32(tmp_path):
     src = tmp_path / "ESP32Firmware" / "main"
     src.mkdir(parents=True)
-    main_c = src / "main.c"
-    main_c.write_text('const char *eid_string = "INSERT_YOUR_ADVERTISEMENT_KEY_HERE";\n')
 
-    firmware_build._inject_eid(tmp_path / "ESP32Firmware", "b" * 40)
+    firmware_build._write_build_config(
+        tmp_path / "ESP32Firmware", "esp32", "b" * 40, "My Tracker",
+        adv_interval_ms=100, tx_power_dbm=-6, tracking_protection=False,
+    )
 
-    assert 'const char *eid_string = "' + "b" * 40 + '";' in main_c.read_text()
+    text = (src / "build_config.h").read_text()
+    assert f'#define GFMT_EID_STRING "{"b" * 40}"' in text
+    assert '#define GFMT_DEVICE_NAME "My Tracker"' in text
+    assert "#define GFMT_ADV_FRAME_TYPE 0x40" in text  # protection off
+    assert "#define GFMT_ADV_INTERVAL_UNITS 0x00a0" in text  # 100ms / 0.625ms
+    assert "#define GFMT_TX_POWER_LEVEL ESP_PWR_LVL_N6" in text
 
 
-def test_inject_eid_fails_loudly_if_literal_missing(tmp_path):
+def test_write_build_config_esp32c3_omits_tx_power(tmp_path):
     src = tmp_path / "ESP32Firmware" / "main"
     src.mkdir(parents=True)
-    (src / "main.c").write_text("// no eid_string literal here\n")
 
-    try:
-        firmware_build._inject_eid(tmp_path / "ESP32Firmware", "b" * 40)
-        assert False, "expected RuntimeError"
-    except RuntimeError:
-        pass
+    firmware_build._write_build_config(
+        tmp_path / "ESP32Firmware", "esp32c3", "b" * 40, "My Tracker",
+        adv_interval_ms=20, tx_power_dbm=9, tracking_protection=True,
+    )
+
+    text = (src / "build_config.h").read_text()
+    assert "#define GFMT_ADV_FRAME_TYPE 0x41" in text  # protection on
+    assert "GFMT_TX_POWER_LEVEL" not in text  # ESP32-only, not wired up for C3 yet
+
+
+def test_validate_device_name():
+    assert firmware_build._validate_device_name("Tracker") is None
+    assert firmware_build._validate_device_name("") is not None
+    assert firmware_build._validate_device_name("x" * 21) is not None
+    assert firmware_build._validate_device_name('bad"name') is not None
+
+
+def test_validate_adv_interval():
+    assert firmware_build._validate_adv_interval(20) is None
+    assert firmware_build._validate_adv_interval(10240) is None
+    assert firmware_build._validate_adv_interval(19) is not None
+    assert firmware_build._validate_adv_interval(10241) is not None
+
+
+def test_validate_tx_power():
+    assert firmware_build._validate_tx_power(9) is None
+    assert firmware_build._validate_tx_power(1) is not None
+
+
+async def test_start_rejects_bad_device_name():
+    _reset_state()
+    result = await firmware_build.start("esp32", "a" * 40, device_name="")
+    assert result["started"] is False
+    assert firmware_build._state["phase"] == "idle"
 
 
 def test_firmware_store_round_trip():
@@ -94,6 +128,38 @@ def test_firmware_store_round_trip():
 
     entries = firmware_store.list_registered()
     assert [e["eid_hex"] for e in entries] == ["b" * 40, "a" * 40]  # newest first
+    # New registrations already carry the default build settings.
+    assert entries[0]["device_name"] == firmware_store.DEFAULT_BUILD_SETTINGS["device_name"]
+
+
+def test_firmware_store_backfills_defaults_for_legacy_entries():
+    firmware_store._save_unlocked([{"eid_hex": "c" * 40, "pair_date": 1700000200}])
+
+    entries = firmware_store.list_registered()
+
+    assert entries[0]["eid_hex"] == "c" * 40
+    assert entries[0]["device_name"] == firmware_store.DEFAULT_BUILD_SETTINGS["device_name"]
+    assert entries[0]["tracking_protection"] is True
+
+
+def test_record_build_settings_updates_existing_entry():
+    firmware_store.record_registration("d" * 40, 1700000300)
+
+    firmware_store.record_build_settings("d" * 40, "Renamed", 100, -3, False)
+
+    entries = firmware_store.list_registered()
+    updated = next(e for e in entries if e["eid_hex"] == "d" * 40)
+    assert updated["device_name"] == "Renamed"
+    assert updated["adv_interval_ms"] == 100
+    assert updated["tx_power_dbm"] == -3
+    assert updated["tracking_protection"] is False
+
+
+def test_record_build_settings_inserts_when_eid_unknown():
+    firmware_store.record_build_settings("e" * 40, "Hand-typed", 40, 0, True)
+
+    entries = firmware_store.list_registered()
+    assert any(e["eid_hex"] == "e" * 40 and e["device_name"] == "Hand-typed" for e in entries)
 
 
 def test_register_submit_records_eid_for_firmware_page(client):

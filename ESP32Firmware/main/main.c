@@ -5,6 +5,7 @@
 #include "esp_log.h"
 #include "nvs_flash.h"      // For NVS functions like nvs_flash_init
 #include "esp_err.h"        // For error handling
+#include "build_config.h"   // Per-build EID/name/power/interval - see that file
 
 #define TAG "ESP_FMDN"
 
@@ -24,9 +25,6 @@
 #else
 #error "Unsupported target"
 #endif
-
-// This is the advertisement key / EID. Change it to your own EID.
-const char *eid_string = "INSERT_YOUR_ADVERTISEMENT_KEY_HERE";
 
 // Find My Device Network (FMDN) advertisement
 // Octet 	Value 	        Description
@@ -49,7 +47,7 @@ uint8_t adv_raw_data[31] = {
     0x16,   // Service data data type value
     0xAA,   // 16-bit service UUID
     0xFE,   // 16-bit service UUID
-    0x41,   // FMDN frame type with unwanted tracking protection mode indication
+    GFMT_ADV_FRAME_TYPE,   // FMDN frame type with unwanted tracking protection mode indication
             // 20-byte ephemeral identifier (inserted below)
             // Hashed flags (implicitly initialized to 0)
 };
@@ -82,8 +80,8 @@ static void ble_start_advertising(uint8_t *adv_raw_data, size_t adv_raw_data_len
     struct ble_gap_adv_params adv_params = {
         .conn_mode = BLE_GAP_CONN_MODE_NON,
         .disc_mode = BLE_GAP_DISC_MODE_GEN,
-        .itvl_min = 0x20,
-        .itvl_max = 0x20
+        .itvl_min = GFMT_ADV_INTERVAL_UNITS,
+        .itvl_max = GFMT_ADV_INTERVAL_UNITS
     };
 
 
@@ -106,7 +104,7 @@ static void ble_host_task(void *param)
 static void on_sync(void)
 {
     // Set device name
-    ble_svc_gap_device_name_set("ESP32-C3-BLE");
+    ble_svc_gap_device_name_set(GFMT_DEVICE_NAME);
     
     // Start advertising
     ble_start_advertising(adv_raw_data, sizeof(adv_raw_data));
@@ -128,7 +126,7 @@ void app_main() {
 
     // 20-byte ephemeral identifier
     uint8_t eid_bytes[20];
-    hex_string_to_bytes(eid_string, eid_bytes, 20);
+    hex_string_to_bytes(GFMT_EID_STRING, eid_bytes, 20);
     memcpy(&adv_raw_data[8], eid_bytes, 20);
 
     #if defined(CONFIG_IDF_TARGET_ESP32C3)
@@ -156,10 +154,11 @@ void app_main() {
         ESP_ERROR_CHECK(esp_bluedroid_init());
         ESP_ERROR_CHECK(esp_bluedroid_enable());
 
-        // Set BLE TX power to 9 dBm
-        ESP_ERROR_CHECK(esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_DEFAULT, ESP_PWR_LVL_P9));
-        ESP_ERROR_CHECK(esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, ESP_PWR_LVL_P9));
-        ESP_LOGI(TAG, "Set BLE TX Power to 9 dBm");
+        // Set BLE device name and TX power
+        ESP_ERROR_CHECK(esp_ble_gap_set_device_name(GFMT_DEVICE_NAME));
+        ESP_ERROR_CHECK(esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_DEFAULT, GFMT_TX_POWER_LEVEL));
+        ESP_ERROR_CHECK(esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, GFMT_TX_POWER_LEVEL));
+        ESP_LOGI(TAG, "Set BLE device name and TX power");
 
 
         ESP_ERROR_CHECK(esp_ble_gap_config_adv_data_raw(adv_raw_data, sizeof(adv_raw_data)));
@@ -167,9 +166,9 @@ void app_main() {
         // Configure advertisement parameters
         esp_ble_adv_params_t adv_params = {
 
-            // change those if you want to save power
-            .adv_int_min = 0x20,
-            .adv_int_max = 0x20,
+            // change GFMT_ADV_INTERVAL_UNITS in build_config.h if you want to save power
+            .adv_int_min = GFMT_ADV_INTERVAL_UNITS,
+            .adv_int_max = GFMT_ADV_INTERVAL_UNITS,
 
             .adv_type = ADV_TYPE_NONCONN_IND,
             .own_addr_type = BLE_ADDR_TYPE_PUBLIC,

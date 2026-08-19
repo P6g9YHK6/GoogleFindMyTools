@@ -14,8 +14,8 @@ Currently known working devices include the ESP32 (Dev Module V1), the ESP32-CAM
 - Install Visual Studio Code [here](https://code.visualstudio.com/download)
 - Go to Visual Studio Code Extensions, search, install and open 'ESP-IDF' by Espressif
 - Open the folder containing this README file in Visual Studio Code
-- Navigate to the folder main, select the file [`main.c`](main/main.c)
-- Edit Line 15, and insert the advertisement key retrieved from the Python Script
+- Navigate to the folder main, select the file [`build_config.h`](main/build_config.h)
+- Edit `GFMT_EID_STRING`, and insert the advertisement key retrieved from the Python Script
 - Connect your ESP32 to your system with USB
 - On the bottom left of Visual Studio Code, click the 'plug' icon and select your ESP32, it should be named '/dev/tty.usbserial-0001' or similar
 - Click the 'Fire' icon to build and flash the firmware
@@ -29,4 +29,4 @@ Currently known working devices include the ESP32 (Dev Module V1), the ESP32-CAM
 - Might not work with 'fresh' Google accounts: "Your encryption data is locked on your device" is shown if you have never paired a Find My Device tracker with an Android device. Solution: See [README of the parent folder](../README.md).
 - You cannot view locations for the ESP32 in the Google Find My Device app. You will need to use the Python script to do so.
 - No privacy features such as rotating MAC addresses are implemented
-- The firmware was built to receive as many network reports as possible. Therefore, it might consume more power than necessary. To fix this, you can tweak the parameters (TX Power and advertising interval) in [`main.c`](main/main.c)
+- The firmware was built to receive as many network reports as possible. Therefore, it might consume more power than necessary. To fix this, you can tweak the parameters (TX Power and advertising interval) in [`build_config.h`](main/build_config.h)

@@ -1,12 +1,17 @@
 """Builds a flashable ESP32/ESP32-C3 binary with a given advertisement key
-(EID) baked in, driven from the Firmware page (webui/routers/firmware.py).
-Same background-job shape as webui/browser_provisioning.py: a module-level
-_state dict, an async start()/_run_build() pair, and progress broadcast over
-a websocket (webui/ws.py::firmware_manager) with a poll-endpoint backstop.
+(EID) and Advanced-section values (device name, advertising interval, TX
+power, unwanted-tracking-protection flag) baked in, driven from the Firmware
+page (webui/routers/firmware.py). Same background-job shape as
+webui/browser_provisioning.py: a module-level _state dict, an async
+start()/_run_build() pair, and progress broadcast over a websocket
+(webui/ws.py::firmware_manager) with a poll-endpoint backstop.
 
 Never builds against the checked-in ESP32Firmware/ tree directly - each build
 runs in its own throwaway copy under DATA_DIR/firmware_builds/, so concurrent
-or repeated builds can never corrupt the repo's own source or each other.
+or repeated builds can never corrupt the repo's own source or each other. All
+per-build values are injected by (re)writing main/build_config.h in that
+throwaway copy - see _write_build_config() and ESP32Firmware/main/build_config.h's
+own docstring.
 """
 
 import asyncio
@@ -29,7 +34,21 @@ _BOARDS = {
     "esp32c3": "esp32c3",
 }
 _EID_RE = re.compile(r"[0-9a-fA-F]{40}")
-_EID_LITERAL_RE = re.compile(r'const char \*eid_string = "[^"]*";')
+
+# Advanced-section build values, and the bounds/defaults main/build_config.h ships
+# with (see that file) - an unmodified Advanced section builds identically to the
+# firmware's historical hardcoded behavior.
+_DEVICE_NAME_MAX_LEN = 20
+_ADV_INTERVAL_MIN_MS = 20
+_ADV_INTERVAL_MAX_MS = 10240
+_ADV_INTERVAL_UNIT_MS = 0.625
+
+# Mirrors esp_power_level_t in ESP-IDF's esp_gap_ble_api.h - ESP32 (Bluedroid) only,
+# NimBLE's equivalent for ESP32-C3 isn't wired up yet.
+_TX_POWER_ENUM = {
+    -12: "ESP_PWR_LVL_N12", -9: "ESP_PWR_LVL_N9", -6: "ESP_PWR_LVL_N6", -3: "ESP_PWR_LVL_N3",
+    0: "ESP_PWR_LVL_N0", 3: "ESP_PWR_LVL_P3", 6: "ESP_PWR_LVL_P6", 9: "ESP_PWR_LVL_P9",
+}
 
 # Keep at most this many past build directories around (see _prune_old_builds)
 # so DATA_DIR/firmware_builds doesn't grow without bound.
@@ -51,7 +70,9 @@ def is_active() -> bool:
     return _state["phase"] in _ACTIVE_PHASES
 
 
-async def start(board: str, eid_hex: str) -> dict:
+async def start(board: str, eid_hex: str, device_name: str = "GFMT Tracker",
+                 adv_interval_ms: int = 20, tx_power_dbm: int = 9,
+                 tracking_protection: bool = True) -> dict:
     if _state["phase"] in _ACTIVE_PHASES:
         return {"started": False, "state": get_state()}
 
@@ -60,9 +81,40 @@ async def start(board: str, eid_hex: str) -> dict:
     if not _EID_RE.fullmatch(eid_hex or ""):
         return {"started": False, "error": "Advertisement key must be exactly 40 hex characters"}
 
+    device_name = (device_name or "").strip()
+    for error in (
+        _validate_device_name(device_name),
+        _validate_adv_interval(adv_interval_ms),
+        _validate_tx_power(tx_power_dbm),
+    ):
+        if error:
+            return {"started": False, "error": error}
+
     await _set_state("preparing", "Preparing build...", 0, artifact_path=None, download_name=None)
-    asyncio.create_task(_run_build(board, eid_hex))
+    asyncio.create_task(_run_build(board, eid_hex, device_name, adv_interval_ms,
+                                    tx_power_dbm, tracking_protection))
     return {"started": True, "state": get_state()}
+
+
+def _validate_device_name(name: str) -> str | None:
+    if not (1 <= len(name) <= _DEVICE_NAME_MAX_LEN):
+        return f"Device name must be 1-{_DEVICE_NAME_MAX_LEN} characters"
+    if any(ch in ('"', "\\") or not (0x20 <= ord(ch) <= 0x7e) for ch in name):
+        return "Device name must be printable ASCII without quotes or backslashes"
+    return None
+
+
+def _validate_adv_interval(ms: int) -> str | None:
+    if not isinstance(ms, int) or not (_ADV_INTERVAL_MIN_MS <= ms <= _ADV_INTERVAL_MAX_MS):
+        return f"Advertising interval must be between {_ADV_INTERVAL_MIN_MS} and {_ADV_INTERVAL_MAX_MS} ms"
+    return None
+
+
+def _validate_tx_power(dbm: int) -> str | None:
+    if dbm not in _TX_POWER_ENUM:
+        levels = ", ".join(str(d) for d in sorted(_TX_POWER_ENUM))
+        return f"TX power must be one of: {levels} dBm"
+    return None
 
 
 async def _set_state(phase: str, message: str, percent: int, error: str | None = None,
@@ -71,7 +123,9 @@ async def _set_state(phase: str, message: str, percent: int, error: str | None =
     await firmware_manager.broadcast({"type": "firmware", **_state})
 
 
-async def _run_build(board: str, eid_hex: str):
+async def _run_build(board: str, eid_hex: str, device_name: str = "GFMT Tracker",
+                      adv_interval_ms: int = 20, tx_power_dbm: int = 9,
+                      tracking_protection: bool = True):
     try:
         idf_py = shutil.which("idf.py")
         if not idf_py:
@@ -92,7 +146,8 @@ async def _run_build(board: str, eid_hex: str):
         src_dir = job_dir / "ESP32Firmware"
         await asyncio.to_thread(shutil.copytree, FIRMWARE_SRC, src_dir)
 
-        _inject_eid(src_dir, eid_hex)
+        _write_build_config(src_dir, board, eid_hex, device_name, adv_interval_ms,
+                             tx_power_dbm, tracking_protection)
         if target == "esp32c3":
             # The checked-in sdkconfig is generated for plain "esp32" - drop
             # the copy so `idf.py set-target` regenerates it and picks up
@@ -123,18 +178,27 @@ async def _run_build(board: str, eid_hex: str):
         await _set_state("error", f"Build failed ({type(e).__name__}): {detail}", 100, error=str(e))
 
 
-def _inject_eid(src_dir: pathlib.Path, eid_hex: str):
-    main_c = src_dir / "main" / "main.c"
-    text = main_c.read_text()
-    new_text, count = _EID_LITERAL_RE.subn(f'const char *eid_string = "{eid_hex}";', text)
-    if count != 1:
-        # main.c no longer has the exact literal this was written against -
-        # fail loudly instead of silently shipping the placeholder EID.
-        raise RuntimeError(
-            f"Expected exactly one eid_string literal in main.c, found {count} - "
-            "ESP32Firmware/main/main.c may have changed upstream."
-        )
-    main_c.write_text(new_text)
+def _write_build_config(src_dir: pathlib.Path, board: str, eid_hex: str, device_name: str,
+                         adv_interval_ms: int, tx_power_dbm: int, tracking_protection: bool):
+    """Overwrites main/build_config.h (see that file) in this build's throwaway copy
+    with the values chosen on the Firmware page - main.c #includes it, so this is the
+    one place any of them get baked into the binary. Never touches the checked-in
+    copy under ESP32Firmware/, only the copy under src_dir made by _run_build."""
+    adv_interval_units = round(adv_interval_ms / _ADV_INTERVAL_UNIT_MS)
+    frame_type = 0x41 if tracking_protection else 0x40
+    lines = [
+        "// Generated by webui/firmware_build.py for this build - overwritten on",
+        "// every build, don't edit by hand.",
+        "#pragma once",
+        "",
+        f'#define GFMT_EID_STRING "{eid_hex}"',
+        f'#define GFMT_DEVICE_NAME "{device_name}"',
+        f"#define GFMT_ADV_FRAME_TYPE 0x{frame_type:02x}",
+        f"#define GFMT_ADV_INTERVAL_UNITS 0x{adv_interval_units:04x}",
+    ]
+    if board == "esp32":
+        lines.append(f"#define GFMT_TX_POWER_LEVEL {_TX_POWER_ENUM[tx_power_dbm]}")
+    (src_dir / "main" / "build_config.h").write_text("\n".join(lines) + "\n")
 
 
 async def _run_idf(idf_py: str, cwd: pathlib.Path, args: list[str], phase: str,
