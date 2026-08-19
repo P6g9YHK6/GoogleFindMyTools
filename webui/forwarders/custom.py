@@ -53,7 +53,7 @@ def _render(template: str, ctx: dict) -> str:
 # else present in device_meta gets a generic "label_<key>" name instead,
 # so a field added to get_device_details later needs no change here to
 # become available as a variable.
-_NAMED_DEVICE_META_KEYS = ("manufacturer", "model", "type", "image_url")
+_NAMED_DEVICE_META_KEYS = ("manufacturer", "model", "type", "type_id", "image_url")
 
 
 def build_context(
@@ -135,7 +135,10 @@ def build_context(
     }
     meta = device_meta or {}
     for key in _NAMED_DEVICE_META_KEYS:
-        ctx[key] = meta.get(key) or ""
+        # "is not None", not "or \"\"" - type_id can legitimately be 0
+        # (DEVICE_TYPE_UNKNOWN), which "or" would wrongly blank out.
+        value = meta.get(key)
+        ctx[key] = value if value is not None else ""
     for key, value in meta.items():
         if key not in _NAMED_DEVICE_META_KEYS:
             ctx[f"label_{key}"] = value if value is not None else ""

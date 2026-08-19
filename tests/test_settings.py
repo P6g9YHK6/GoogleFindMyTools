@@ -55,7 +55,7 @@ def _sync_device_meta(client, monkeypatch, **detail_overrides):
 
     detail = {
         "name": FAKE_DEVICE_NAME, "canonic_id": FAKE_CANONIC_ID, "last_seen": None,
-        "is_phone": False, "image_url": "", "device_type": "DEVICE_TYPE_KEYS",
+        "is_phone": False, "image_url": "", "device_type": "DEVICE_TYPE_KEYS", "type_id": 3,
         "manufacturer": "", "model": "", "carrier": None, "codename": None,
         "imei": None, "registered_at": None, "access": [],
     }
@@ -294,7 +294,7 @@ def test_settings_page_load_syncs_device_metadata_into_forwarding_yaml(client, m
 
     monkeypatch.setattr(settings_service, "get_device_details", lambda device_list: [{
         "name": FAKE_DEVICE_NAME, "canonic_id": FAKE_CANONIC_ID, "last_seen": None,
-        "is_phone": False, "image_url": "https://x/p.png", "device_type": "DEVICE_TYPE_KEYS",
+        "is_phone": False, "image_url": "https://x/p.png", "device_type": "DEVICE_TYPE_KEYS", "type_id": 3,
         "manufacturer": "Chipolo", "model": "ONE Point", "carrier": None, "codename": None,
         "imei": None, "registered_at": 1700000000,
         "access": [
@@ -310,6 +310,7 @@ def test_settings_page_load_syncs_device_metadata_into_forwarding_yaml(client, m
     assert device_meta["manufacturer"] == "Chipolo"
     assert device_meta["model"] == "ONE Point"
     assert device_meta["type"] == "Keys"
+    assert device_meta["type_id"] == 3
     assert device_meta["image_url"] == "https://x/p.png"
     assert device_meta["registered_at"] == 1700000000
     assert device_meta["shared_with"] == "family@example.com"  # excludes your own account
@@ -328,8 +329,8 @@ def test_settings_page_load_does_not_create_a_config_entry_for_an_unsaved_device
 
     monkeypatch.setattr(settings_service, "get_device_details", lambda device_list: [{
         "name": FAKE_DEVICE_NAME, "canonic_id": FAKE_CANONIC_ID, "last_seen": None,
-        "is_phone": False, "image_url": None, "device_type": None, "manufacturer": "Chipolo", "model": None,
-        "carrier": None, "codename": None, "imei": None, "registered_at": None, "access": [],
+        "is_phone": False, "image_url": None, "device_type": None, "type_id": None, "manufacturer": "Chipolo",
+        "model": None, "carrier": None, "codename": None, "imei": None, "registered_at": None, "access": [],
     }])
 
     resp = client.get("/settings")

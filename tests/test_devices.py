@@ -261,8 +261,8 @@ def test_devices_table_uses_persisted_location_time_when_proto_has_no_last_seen(
     monkeypatch.setattr(config, "DEVICES_PATH", tmp_path / "devices.yaml")
     monkeypatch.setattr(devices, "get_device_details", lambda device_list: [{
         "name": FAKE_DEVICE_NAME, "canonic_id": FAKE_CANONIC_ID, "last_seen": None,
-        "is_phone": False, "image_url": None, "device_type": None, "manufacturer": None, "model": None,
-        "carrier": None, "codename": None, "imei": None, "registered_at": None, "access": [],
+        "is_phone": False, "image_url": None, "device_type": None, "type_id": None, "manufacturer": None,
+        "model": None, "carrier": None, "codename": None, "imei": None, "registered_at": None, "access": [],
     }])
 
     device_location_store.set_last_location(
@@ -311,8 +311,8 @@ def test_devices_and_settings_pages_share_one_cache_fill(client, monkeypatch):
 def _fake_detail(**overrides) -> dict:
     base = {
         "name": FAKE_DEVICE_NAME, "canonic_id": FAKE_CANONIC_ID, "last_seen": FAKE_LAST_SEEN,
-        "is_phone": False, "image_url": None, "device_type": None, "manufacturer": None, "model": None,
-        "carrier": None, "codename": None, "imei": None, "registered_at": None, "access": [],
+        "is_phone": False, "image_url": None, "device_type": None, "type_id": None, "manufacturer": None,
+        "model": None, "carrier": None, "codename": None, "imei": None, "registered_at": None, "access": [],
     }
     base.update(overrides)
     return base
@@ -322,7 +322,7 @@ def test_devices_table_shows_device_type_and_photo_for_a_tag(client, monkeypatch
     from webui.routers import devices
 
     monkeypatch.setattr(devices, "get_device_details", lambda device_list: [_fake_detail(
-        device_type="DEVICE_TYPE_KEYS", image_url="https://example.com/tag.png",
+        device_type="DEVICE_TYPE_KEYS", type_id=3, image_url="https://example.com/tag.png",
         manufacturer="Chipolo", model="Chipolo ONE Point",
     )])
 
@@ -346,7 +346,7 @@ def test_devices_table_falls_back_to_a_readable_label_for_an_unmapped_device_typ
     from webui.routers import devices
 
     monkeypatch.setattr(devices, "get_device_details", lambda device_list: [_fake_detail(
-        device_type="DEVICE_TYPE_SOMETHING_NEW",
+        device_type="DEVICE_TYPE_SOMETHING_NEW", type_id=9999,
     )])
 
     resp = client.get("/devices/table")

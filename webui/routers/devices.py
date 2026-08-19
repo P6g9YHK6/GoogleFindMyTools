@@ -184,6 +184,7 @@ async def get_devices() -> list[dict]:
             # report them (e.g. no hardwareInfo for a Spot/BLE tag).
             "image_url": detail["image_url"],
             "type_label": _device_type_label(detail["device_type"], detail["is_phone"]),
+            "type_id": detail["type_id"],
             "manufacturer": detail["manufacturer"],
             "model": detail["model"],
             "carrier": detail["carrier"],

@@ -70,8 +70,8 @@ def stub_backend(monkeypatch):
     def fake_get_device_details(device_list):
         return [{
             "name": FAKE_DEVICE_NAME, "canonic_id": FAKE_CANONIC_ID, "last_seen": FAKE_LAST_SEEN,
-            "is_phone": False, "image_url": None, "device_type": None, "manufacturer": None, "model": None,
-            "carrier": None, "codename": None, "imei": None, "registered_at": None, "access": [],
+            "is_phone": False, "image_url": None, "device_type": None, "type_id": None, "manufacturer": None,
+            "model": None, "carrier": None, "codename": None, "imei": None, "registered_at": None, "access": [],
         }]
 
     for mod in (devices, settings, logs, staleness_router):

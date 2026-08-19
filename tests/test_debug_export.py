@@ -111,6 +111,24 @@ def test_debug_export_happy_path_builds_expected_archive(client, monkeypatch):
     assert files[f"locate/{FAKE_CANONIC_ID}/raw_hex.txt"] == b"cafebabe"
 
 
+def test_debug_export_decoded_json_carries_type_id(client, monkeypatch):
+    """device_list/decoded.json is get_device_details()'s output dumped
+    verbatim (see debug_export.py) - type_id needs no dedicated handling
+    here, just confirming it actually survives the dump."""
+    debug_export = _stub_device_list_and_locate(monkeypatch)
+    monkeypatch.setattr(
+        debug_export, "get_device_details",
+        lambda device_list: [{"canonic_id": FAKE_CANONIC_ID, "name": FAKE_DEVICE_NAME, "type_id": 3}],
+    )
+
+    resp = client.post("/auth/debug-export", data=_LIVE)
+    assert resp.status_code == 200
+
+    files = _archive_extract(resp.content)
+    decoded = json.loads(files["device_list/decoded.json"])
+    assert decoded[0]["type_id"] == 3
+
+
 def test_debug_export_no_devices_still_succeeds(client, monkeypatch):
     from ProtoDecoders import DeviceUpdate_pb2
     from webui.routers import debug_export

@@ -112,6 +112,7 @@ def get_device_details(device_list) -> list[dict]:
         image_url = device.imageInformation.imageUrl if device.HasField("imageInformation") else None
 
         manufacturer = model = carrier = codename = imei = device_type = None
+        type_id = None
         registered_at = None
         if is_phone and device.HasField("hardwareInfo"):
             hw = device.hardwareInfo
@@ -128,6 +129,7 @@ def get_device_details(device_list) -> list[dict]:
             model = reg.model or None
             if reg.HasField("deviceTypeInformation"):
                 type_value = reg.deviceTypeInformation.deviceType
+                type_id = type_value
                 try:
                     device_type = DeviceUpdate_pb2.SpotDeviceType.Name(type_value)
                 except ValueError:
@@ -147,6 +149,11 @@ def get_device_details(device_list) -> list[dict]:
             result.append({
                 "name": device_name, "canonic_id": canonic_id.id, "last_seen": last_seen,
                 "is_phone": is_phone, "image_url": image_url or None, "device_type": device_type,
+                # Same SpotDeviceType as device_type above, but the raw numeric
+                # enum value, for callers that want to key off it without string
+                # matching - stays populated (even 0, DEVICE_TYPE_UNKNOWN) when
+                # device_type falls back to DEVICE_TYPE_UNKNOWN_<n> above.
+                "type_id": type_id,
                 "manufacturer": manufacturer, "model": model, "carrier": carrier, "codename": codename,
                 "imei": imei, "registered_at": registered_at, "access": access,
             })

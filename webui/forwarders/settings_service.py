@@ -36,6 +36,11 @@ def device_meta_from_detail(detail: dict) -> dict:
         "manufacturer": detail["manufacturer"] or "",
         "model": detail["model"] or "",
         "type": device_type_plain_label(detail["device_type"], detail["is_phone"]) or "",
+        # Same SpotDeviceType as "type" above, but the raw numeric enum value -
+        # guarded with "is not None" rather than "or \"\"" since 0
+        # (DEVICE_TYPE_UNKNOWN) is a legitimate value, not an absent one (see
+        # custom.py's status_id for the identical situation).
+        "type_id": detail["type_id"] if detail["type_id"] is not None else "",
         "image_url": detail["image_url"] or "",
         "carrier": detail["carrier"] or "",
         "codename": detail["codename"] or "",

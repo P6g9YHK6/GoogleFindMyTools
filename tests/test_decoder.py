@@ -89,6 +89,7 @@ def test_get_device_details_extracts_phone_hardware_info():
     assert detail["registered_at"] == 1785964218
     assert detail["image_url"] == "https://example.com/phone.png"
     assert detail["device_type"] is None  # SpotDeviceType doesn't apply to phones
+    assert detail["type_id"] is None
 
 
 def test_get_device_details_extracts_spot_tag_registration_info():
@@ -107,6 +108,7 @@ def test_get_device_details_extracts_spot_tag_registration_info():
     assert detail["manufacturer"] == "Chipolo"
     assert detail["model"] == "Chipolo ONE Point"
     assert detail["device_type"] == "DEVICE_TYPE_KEYS"
+    assert detail["type_id"] == DeviceUpdate_pb2.DEVICE_TYPE_KEYS
     assert detail["image_url"] == "https://example.com/tag.png"
     # Phone-only fields must not leak onto a tag
     assert detail["carrier"] is None
@@ -125,6 +127,23 @@ def test_get_device_details_survives_an_unrecognized_device_type():
 
     [detail] = get_device_details(device_list)
     assert detail["device_type"] == "DEVICE_TYPE_UNKNOWN_99"
+    assert detail["type_id"] == 99
+
+
+def test_get_device_details_type_id_zero_is_a_real_value_not_a_missing_one():
+    # DEVICE_TYPE_UNKNOWN is enum value 0, a legitimate reading (an
+    # untyped/unrecognized Spot device) rather than "no type at all" - the
+    # phone case above is the actual "no type at all" (type_id is None
+    # there, never 0).
+    device = _tag_device("tag-1", "Untyped Tag")
+    device.information.deviceRegistration.deviceTypeInformation.deviceType = DeviceUpdate_pb2.DEVICE_TYPE_UNKNOWN
+
+    device_list = DeviceUpdate_pb2.DevicesList()
+    device_list.deviceMetadata.append(device)
+
+    [detail] = get_device_details(device_list)
+    assert detail["device_type"] == "DEVICE_TYPE_UNKNOWN"
+    assert detail["type_id"] == 0
 
 
 def test_get_device_details_extracts_access_information():

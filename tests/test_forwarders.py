@@ -464,6 +464,61 @@ def test_forward_to_custom_substitutes_status_and_own_report(monkeypatch):
     assert captured["url"] == "https://svc.example/?status=CROWDSOURCED&status_id=2&own=False"
 
 
+def test_build_context_exposes_type_id_alongside_type():
+    from webui.forwarders.custom import build_context
+
+    location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
+    device_meta = {"type": "Keys", "type_id": 3}
+    ctx = build_context({}, location, "My Phone", device_meta=device_meta)
+    assert ctx["type"] == "Keys"
+    assert ctx["type_id"] == 3
+
+
+def test_build_context_type_id_defaults_to_empty_string_when_missing():
+    from webui.forwarders.custom import build_context
+
+    location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
+    ctx = build_context({}, location, "My Phone")
+    assert ctx["type_id"] == ""
+
+
+def test_build_context_type_id_zero_is_not_treated_as_missing():
+    """DEVICE_TYPE_UNKNOWN is enum value 0 - a legitimate value, not an
+    absent one (see custom.py's _NAMED_DEVICE_META_KEYS loop)."""
+    from webui.forwarders.custom import build_context
+
+    location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
+    device_meta = {"type": "Unknown", "type_id": 0}
+    ctx = build_context({}, location, "My Phone", device_meta=device_meta)
+    assert ctx["type_id"] == 0
+
+
+def test_forward_to_custom_substitutes_type_id(monkeypatch):
+    from webui.forwarders import custom
+
+    captured = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            pass
+
+    def fake_request(method, url, **kwargs):
+        captured["url"] = url
+        return FakeResponse()
+
+    monkeypatch.setattr(custom.httpx, "request", fake_request)
+
+    endpoint_cfg = {
+        "method": "GET",
+        "url": "https://svc.example/?type={{type}}&type_id={{type_id}}",
+        "headers": {}, "body_type": "none", "body": "",
+    }
+    location = {"is_semantic": False, "latitude": 1.0, "longitude": 2.0, "time": 1}
+    device_meta = {"type": "Keys", "type_id": 3}
+    custom.forward_to_custom(endpoint_cfg, location, "My Phone", device_meta=device_meta)
+    assert captured["url"] == "https://svc.example/?type=Keys&type_id=3"
+
+
 def test_forward_to_custom_device_name_uses_device_display_name(monkeypatch):
     from webui.forwarders import custom
 
