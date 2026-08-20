@@ -118,6 +118,12 @@ async def test_run_build_runs_set_target_for_esp32c3(monkeypatch):
     await firmware_build._run_build("esp32c3", "a" * 40)
 
     assert calls[0][-2:] == ["set-target", "esp32c3"]
+    # ESP-IDF doesn't auto-apply a sdkconfig.defaults.<target> file just
+    # from its name - it has to be spelled out via -D SDKCONFIG_DEFAULTS,
+    # otherwise CONFIG_BT_ENABLED/CONFIG_BT_NIMBLE_ENABLED never get set and
+    # main.c fails to compile on a missing esp_nimble_hci.h. Regression test
+    # for exactly that, caught building against a live container.
+    assert "SDKCONFIG_DEFAULTS=sdkconfig.defaults.esp32c3" in calls[0]
 
 
 async def test_start_refuses_concurrent_build(monkeypatch):

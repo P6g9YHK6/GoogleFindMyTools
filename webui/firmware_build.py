@@ -150,11 +150,20 @@ async def _run_build(board: str, eid_hex: str, device_name: str = "GFMT Tracker"
                              tx_power_dbm, tracking_protection)
         if target == "esp32c3":
             # The checked-in sdkconfig is generated for plain "esp32" - drop
-            # the copy and run set-target so a fresh one gets generated from
-            # sdkconfig.defaults.esp32c3 for this target instead.
+            # the copy and run set-target so a fresh one gets generated for
+            # this target instead. -D SDKCONFIG_DEFAULTS is required, not
+            # optional: ESP-IDF does NOT auto-apply a sdkconfig.defaults.<target>
+            # file just from its name/presence - that convention only kicks in
+            # alongside a plain sdkconfig.defaults (which this project doesn't
+            # have), so without spelling it out here CONFIG_BT_ENABLED/
+            # CONFIG_BT_NIMBLE_ENABLED are silently never set and main.c fails
+            # to compile on a missing esp_nimble_hci.h.
             (src_dir / "sdkconfig").unlink(missing_ok=True)
             await _set_state("preparing", f"Setting build target to {target}...", 15)
-            await _run_cmd(["python3", idf_py, "set-target", target], idf_env, src_dir, "preparing", 15, 25)
+            await _run_cmd(
+                ["python3", idf_py, "-D", "SDKCONFIG_DEFAULTS=sdkconfig.defaults.esp32c3", "set-target", target],
+                idf_env, src_dir, "preparing", 15, 25,
+            )
         else:
             # esp32's checked-in sdkconfig already targets esp32, with custom
             # options (CONFIG_BT_ENABLED, Bluedroid, ...) main.c depends on
