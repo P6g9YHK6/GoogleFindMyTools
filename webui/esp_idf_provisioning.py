@@ -202,7 +202,11 @@ async def get_env() -> dict:
     if proc.returncode != 0:
         raise RuntimeError(f"idf_tools.py export failed:\n{stdout.decode(errors='replace')}")
 
-    env = dict(os.environ)
+    # IDF_TOOLS_PATH itself is an input to idf_tools.py, not one of the
+    # derived vars it prints - export's own output never re-states it, so
+    # without setting it explicitly here idf.py falls back to its default
+    # ~/.espressif (nothing installed there) instead of our DATA_DIR install.
+    env = {**os.environ, "IDF_TOOLS_PATH": str(tools_dir)}
     for line in stdout.decode(errors="replace").splitlines():
         if "=" not in line:
             continue

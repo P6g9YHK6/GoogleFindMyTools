@@ -151,8 +151,11 @@ async def test_provision_raises_and_leaves_no_marker_on_install_failure(monkeypa
 
 
 async def test_get_env_parses_key_value_output(monkeypatch, tmp_path):
-    _patch_dirs(monkeypatch, tmp_path)
+    idf_dir, tools_dir = _patch_dirs(monkeypatch, tmp_path)
 
+    # idf_tools.py export's own output never re-states IDF_TOOLS_PATH (it's
+    # an input to it, not a derived var) - regression test for the bug where
+    # that meant idf.py fell back to its default ~/.espressif at build time.
     output = b'PATH="/fake/idf/tools:$PATH"\nIDF_PATH="/fake/idf"\n'
 
     async def fake_exec(*args, **kwargs):
@@ -164,3 +167,4 @@ async def test_get_env_parses_key_value_output(monkeypatch, tmp_path):
 
     assert env["IDF_PATH"] == "/fake/idf"
     assert env["PATH"] == "/fake/idf/tools:$PATH"
+    assert env["IDF_TOOLS_PATH"] == str(tools_dir)
