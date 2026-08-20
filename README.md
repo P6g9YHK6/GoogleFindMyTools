@@ -20,6 +20,7 @@ It's built on top of [GoogleFindMyTools](https://github.com/leonboe1/GoogleFindM
 - **Skip pointless updates** - two independent, opt-in gates per destination: skip sending if the device hasn't moved far enough, and skip re-sending the same stale cached fix Google keeps returning. Both are local math (haversine distance), no external API calls, no extra cost.
 - **Logging** - every forwarding attempt and every warning/error anywhere in the app (a failed locate, an expired token, a forwarding failure) lands in a searchable in-app log, with errors also pushed out live through [Apprise](https://github.com/caronc/apprise) to whatever you already use (ntfy, Discord, Telegram, Pushover, email, 100+ others) - configured from the Config page, no restart needed.
 - **Register your own trackers** - pair a custom ESP32- or Zephyr-based BLE tracker straight from the web UI.
+- **Build and flash ESP32 firmware from the browser** - the Firmware page bakes a registered tracker's key into an ESP32/ESP32-C3 build (device name, advertising interval, TX power, and the unwanted-tracking-protection flag are all configurable), then flashes it over USB via Web Serial, or gives you a plain `.bin` to flash yourself. Still marked experimental in the UI - hasn't been exercised across every board/setup yet. Other Zephyr-supported boards link out to a manual build/flash guide instead.
 - **Account-wide rate limiting** - every call to Google's backend (device list, locate, sound, register) goes through one shared throttle, tunable live from the Config page, so a burst of manual clicks and every device's poll loop can never combine into something that gets your account flagged.
 - **`/metrics`** - a small set of Prometheus-format gauges (uptime, sign-in status, query-throttle queue depth, forwarding/system log entry counts by outcome) if you already scrape other self-hosted services and want this one in the same dashboard. Behind the same Basic Auth as everything else when configured.
 
@@ -90,5 +91,4 @@ On first run this walks you through the same Google sign-in as the web UI, stori
 ## TODO
 
 - Finish the live data scraper: battery level, wifi, wifi signal strength, force a phone update and any other data found via this api.
-- ESP32 firmware builder in the web UI.
 - AirTag support, with the help of a reverse-engineered locate app: [AirtagAlex](https://github.com/icepick3000/AirtagAlex/blob/main/AirtagAlex.sh), [demo video](https://www.youtube.com/watch?v=9VQ-_ztG9aM).
