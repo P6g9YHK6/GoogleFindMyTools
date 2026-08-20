@@ -92,3 +92,44 @@ def test_mixed_batch_only_substitutes_the_matching_semantic_entry():
     assert result[0]["latitude"] == 1.0
     assert result[1] is unmapped
     assert result[2] is gps
+
+
+def test_entry_with_no_match_mode_still_matches_exactly():
+    # Configs saved before match_mode existed have no such key at all -
+    # should keep behaving like "full" always did.
+    location = _semantic("Home")
+    mapping = {"Home": {"latitude": 1.0, "longitude": 2.0}}
+
+    [result] = semantic_map.apply_semantic_mapping([location], mapping)
+
+    assert result["latitude"] == 1.0
+
+
+def test_full_match_mode_rejects_a_mere_substring():
+    location = _semantic("Nest Mini - Living Room")
+    mapping = {"Living Room": {"latitude": 1.0, "longitude": 2.0, "match_mode": "full"}}
+
+    [result] = semantic_map.apply_semantic_mapping([location], mapping)
+
+    assert result is location
+    assert result["latitude"] is None
+
+
+def test_partial_match_mode_matches_on_substring():
+    location = _semantic("Nest Mini - Living Room")
+    mapping = {"Living Room": {"latitude": 1.0, "longitude": 2.0, "match_mode": "partial"}}
+
+    [result] = semantic_map.apply_semantic_mapping([location], mapping)
+
+    assert result["latitude"] == 1.0
+    assert result["longitude"] == 2.0
+    assert result["semantic_name"] == "Nest Mini - Living Room"
+
+
+def test_partial_match_mode_does_not_match_when_not_a_substring():
+    location = _semantic("Unrelated Place")
+    mapping = {"Living Room": {"latitude": 1.0, "longitude": 2.0, "match_mode": "partial"}}
+
+    [result] = semantic_map.apply_semantic_mapping([location], mapping)
+
+    assert result is location
