@@ -6,6 +6,10 @@ webui/browser_provisioning.py: a module-level _state dict, an async
 start()/_run_build() pair, and progress broadcast over a websocket
 (webui/ws.py::firmware_manager) with a poll-endpoint backstop.
 
+The ESP-IDF toolchain itself isn't baked into the Docker image - it's fetched
+on demand and cached the first time anyone actually builds, see
+webui/esp_idf_provisioning.py.
+
 Never builds against the checked-in ESP32Firmware/ tree directly - each build
 runs in its own throwaway copy under DATA_DIR/firmware_builds/, so concurrent
 or repeated builds can never corrupt the repo's own source or each other. All
@@ -21,7 +25,7 @@ import re
 import shutil
 import tempfile
 
-from webui import config
+from webui import config, esp_idf_provisioning
 from webui.ws import firmware_manager
 
 logger = logging.getLogger("webui.firmware_build")
@@ -54,7 +58,7 @@ _TX_POWER_ENUM = {
 # so DATA_DIR/firmware_builds doesn't grow without bound.
 _MAX_KEPT_BUILDS = 5
 
-_ACTIVE_PHASES = {"preparing", "building", "merging"}
+_ACTIVE_PHASES = {"provisioning", "cloning", "installing_toolchain", "preparing", "building", "merging"}
 
 _state = {
     "phase": "idle", "message": "", "percent": 0, "error": None,
@@ -127,15 +131,10 @@ async def _run_build(board: str, eid_hex: str, device_name: str = "GFMT Tracker"
                       adv_interval_ms: int = 20, tx_power_dbm: int = 9,
                       tracking_protection: bool = True):
     try:
-        idf_py = shutil.which("idf.py")
-        if not idf_py:
-            await _set_state(
-                "error", "not-found", 0,
-                error="ESP-IDF (idf.py) is not available on this server, so firmware can't be "
-                      "built here. See ESP32Firmware/README.md to build and flash it manually "
-                      "instead - the same source tree, just run by hand.",
-            )
-            return
+        await _set_state("provisioning", "Checking ESP-IDF installation...", 0)
+        await esp_idf_provisioning.provision(on_progress=_set_state)
+        idf_env = await esp_idf_provisioning.get_env()
+        idf_py = esp_idf_provisioning.idf_py_path()
 
         target = _BOARDS[board]
         builds_dir = config.DATA_DIR / "firmware_builds"
@@ -154,15 +153,15 @@ async def _run_build(board: str, eid_hex: str, device_name: str = "GFMT Tracker"
             # sdkconfig.defaults.esp32c3 for this target instead.
             (src_dir / "sdkconfig").unlink(missing_ok=True)
 
-        await _set_state("preparing", f"Setting build target to {target}...", 5)
-        await _run_idf(idf_py, src_dir, ["set-target", target], "preparing", 5, 20)
+        await _set_state("preparing", f"Setting build target to {target}...", 15)
+        await _run_idf(idf_py, idf_env, src_dir, ["set-target", target], "preparing", 15, 25)
 
-        await _set_state("building", "Building firmware...", 20)
-        await _run_idf(idf_py, src_dir, ["build"], "building", 20, 85)
+        await _set_state("building", "Building firmware...", 25)
+        await _run_idf(idf_py, idf_env, src_dir, ["build"], "building", 25, 85)
 
         await _set_state("merging", "Merging into a single flashable image...", 90)
         artifact_path = src_dir / "artifact.bin"
-        await _run_idf(idf_py, src_dir, ["merge-bin", "-o", str(artifact_path)], "merging", 90, 98)
+        await _run_idf(idf_py, idf_env, src_dir, ["merge-bin", "-o", str(artifact_path)], "merging", 90, 98)
 
         if not artifact_path.exists():
             raise RuntimeError("Build finished but no merged artifact.bin was produced")
@@ -201,14 +200,18 @@ def _write_build_config(src_dir: pathlib.Path, board: str, eid_hex: str, device_
     (src_dir / "main" / "build_config.h").write_text("\n".join(lines) + "\n")
 
 
-async def _run_idf(idf_py: str, cwd: pathlib.Path, args: list[str], phase: str,
+async def _run_idf(idf_py: str, env: dict, cwd: pathlib.Path, args: list[str], phase: str,
                     base_percent: int, cap_percent: int):
     """Runs one `idf.py <args>` step, streaming its output into incremental
     phase updates (parsing ninja's "[123/456] ..." lines for a percent, same
     idea as browser_provisioning.py's apt-progress parsing) instead of
-    sitting on one static message for the whole build."""
+    sitting on one static message for the whole build. `env` is the on-demand
+    ESP-IDF install's own environment (PATH/IDF_PATH/etc.) - see
+    esp_idf_provisioning.get_env() - not this process's own, since idf.py
+    isn't on this container's normal PATH. Invoked via an explicit `python3`
+    rather than relying on the freshly-cloned script's shebang/exec bit."""
     proc = await asyncio.create_subprocess_exec(
-        idf_py, *args, cwd=str(cwd),
+        "python3", idf_py, *args, cwd=str(cwd), env=env,
         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
     )
     log_tail: list[str] = []

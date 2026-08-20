@@ -31,9 +31,10 @@ services:
       - "4321:4321"
     # Chrome under Xvfb needs more than Docker's default 64MB /dev/shm, and its
     # tmpfs mount needs exec (Docker defaults to noexec, which blocks running the
-    # extracted Chrome binary with a misleading "Permission denied"). Both are only
-    # needed during sign-in - once signed in, comment them out; uncomment before
-    # signing in again.
+    # extracted Chrome binary with a misleading "Permission denied"). Leave both
+    # on rather than toggling them off after signing in - the Firmware page's
+    # on-demand ESP-IDF build also needs this container capable of that kind of
+    # work, so there's no "done with it" point to comment them back out at.
     shm_size: "1g"
     tmpfs:
       - /run/gfmt-browser:rw,exec,nosuid,size=1g

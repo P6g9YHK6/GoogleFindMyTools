@@ -12,12 +12,14 @@ COPY requirements.lock /app/
 RUN pip install --no-cache-dir -r requirements.lock
 
 # Only what's needed to run apt-get itself at runtime (ca-certificates for the
-# HTTPS downloads, procps for pkill during teardown) and to actually install
-# xvfb/x11vnc/novnc/websockify on demand. Chrome itself is fetched as a
-# portable "Chrome for Testing" zip at runtime, not via apt, and none of the
-# browser/X11/VNC stack is baked into this image - see webui/browser_provisioning.py.
+# HTTPS downloads, procps for pkill during teardown), to actually install
+# xvfb/x11vnc/novnc/websockify on demand, and git to clone ESP-IDF on demand
+# (see webui/esp_idf_provisioning.py). Chrome and the ESP-IDF toolchain itself
+# are both fetched at runtime, not via apt, and neither the browser/X11/VNC
+# stack nor ESP-IDF is baked into this image - see webui/browser_provisioning.py
+# and webui/esp_idf_provisioning.py.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates procps tzdata \
+        ca-certificates procps tzdata git \
     && rm -rf /var/lib/apt/lists/*
 
 COPY . /app

@@ -54,7 +54,7 @@ document.addEventListener("DOMContentLoaded", () => {
   eidInput.addEventListener("change", applyKnownEidSettings);
   applyKnownEidSettings();
 
-  const ACTIVE_PHASES = ["preparing", "building", "merging"];
+  const ACTIVE_PHASES = ["provisioning", "cloning", "installing_toolchain", "preparing", "building", "merging"];
   // Backstops the websocket, same reasoning as provision.js: a dropped/
   // reconnecting socket or a throttled background tab must never leave the
   // page stuck showing stale progress.

@@ -1,5 +1,6 @@
 import asyncio
 
+import webui.esp_idf_provisioning as esp_idf_provisioning
 import webui.firmware_build as firmware_build
 import webui.firmware_store as firmware_store
 
@@ -35,16 +36,20 @@ async def test_start_rejects_bad_eid():
     assert firmware_build._state["phase"] == "idle"
 
 
-async def test_run_build_fails_gracefully_without_idf(monkeypatch):
+async def test_run_build_fails_gracefully_when_esp_idf_provisioning_fails(monkeypatch):
     _reset_state()
-    monkeypatch.setattr(firmware_build.shutil, "which", lambda name: None)
+
+    async def fake_provision(on_progress=None):
+        raise RuntimeError("git clone failed: could not resolve host")
+
+    monkeypatch.setattr(esp_idf_provisioning, "provision", fake_provision)
 
     called = False
 
     async def fake_exec(*args, **kwargs):
         nonlocal called
         called = True
-        raise AssertionError("should never spawn a subprocess when idf.py is missing")
+        raise AssertionError("should never spawn idf.py when provisioning fails")
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
 
@@ -53,7 +58,7 @@ async def test_run_build_fails_gracefully_without_idf(monkeypatch):
     assert called is False
     state = firmware_build.get_state()
     assert state["phase"] == "error"
-    assert "idf.py" in state["error"] or "ESP-IDF" in state["message"]
+    assert "git clone failed" in state["error"]
 
 
 async def test_start_refuses_concurrent_build(monkeypatch):

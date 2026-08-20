@@ -118,6 +118,17 @@ REGISTERED_TRACKERS_PATH = DATA_DIR / "registered_trackers.yaml"
 # several minutes.
 GFMT_FIRMWARE_BUILD_TIMEOUT_S = int(os.environ.get("GFMT_FIRMWARE_BUILD_TIMEOUT_S", "900"))
 
+# Where the on-demand ESP-IDF toolchain (source clone + installed toolchains)
+# lives - under DATA_DIR, the volume mount, since re-fetching ~1-2GB on every
+# container restart would be far too slow to redo per-attempt. See
+# webui/esp_idf_provisioning.py.
+GFMT_ESP_IDF_DIR = DATA_DIR / "esp-idf"
+GFMT_ESP_IDF_TOOLS_DIR = DATA_DIR / "esp-idf-tools"
+# Bounds the initial ESP-IDF clone + toolchain install (webui/esp_idf_provisioning.py) -
+# generous, since a cold clone/install over a slow connection can take several
+# minutes; only paid once per container's DATA_DIR, not on every build.
+GFMT_ESP_IDF_PROVISION_TIMEOUT_S = int(os.environ.get("GFMT_ESP_IDF_PROVISION_TIMEOUT_S", "1800"))
+
 # Default location for a generated self-signed cert/key (see webui/tls.py) -
 # flat in DATA_DIR like everything else here, so the existing volume mount
 # covers it with no new subfolder. Only used when GFMT_TLS_CERT_PATH/
