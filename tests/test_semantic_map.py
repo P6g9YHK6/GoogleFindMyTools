@@ -133,3 +133,21 @@ def test_partial_match_mode_does_not_match_when_not_a_substring():
     [result] = semantic_map.apply_semantic_mapping([location], mapping)
 
     assert result is location
+
+
+def test_partial_match_mode_is_case_insensitive():
+    location = _semantic("nest mini - LIVING ROOM")
+    mapping = {"Living Room": {"latitude": 1.0, "longitude": 2.0, "match_mode": "partial"}}
+
+    [result] = semantic_map.apply_semantic_mapping([location], mapping)
+
+    assert result["latitude"] == 1.0
+
+
+def test_full_match_mode_still_requires_matching_case():
+    location = _semantic("home")
+    mapping = {"Home": {"latitude": 1.0, "longitude": 2.0, "match_mode": "full"}}
+
+    [result] = semantic_map.apply_semantic_mapping([location], mapping)
+
+    assert result is location

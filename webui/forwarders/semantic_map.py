@@ -13,12 +13,14 @@ from NovaApi.ExecuteAction.LocateTracker.decrypt_locations import create_map_lin
 
 def _matches(entry_name: str, match_mode: str, semantic_name: str) -> bool:
     """A "full" entry (the default, and the only behavior before match_mode
-    existed) requires semantic_name to equal entry_name exactly; a "partial"
-    entry only requires entry_name to appear somewhere inside semantic_name -
-    useful since Google's reported text isn't always the same on every
-    reading (extra context, phrasing changes)."""
+    existed) requires semantic_name to equal entry_name exactly, case
+    included; a "partial" entry only requires entry_name to appear somewhere
+    inside semantic_name, case-insensitively - useful since Google's reported
+    text isn't always the same on every reading (extra context, phrasing
+    changes, and casing shouldn't matter when you're only matching a
+    fragment like "Home")."""
     if match_mode == "partial":
-        return entry_name in semantic_name
+        return entry_name.casefold() in semantic_name.casefold()
     return entry_name == semantic_name
 
 
