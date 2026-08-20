@@ -61,6 +61,64 @@ async def test_run_build_fails_gracefully_when_esp_idf_provisioning_fails(monkey
     assert "git clone failed" in state["error"]
 
 
+async def test_run_build_skips_set_target_for_esp32(monkeypatch):
+    """idf.py set-target forces a fullclean + full sdkconfig regen from bare
+    Kconfig defaults - fine for esp32c3 (there's a sdkconfig.defaults.esp32c3
+    to regenerate from), but esp32's checked-in sdkconfig already has custom
+    options (CONFIG_BT_ENABLED, Bluedroid, ...) main.c depends on baked in,
+    with no sdkconfig.defaults.esp32 to restore them from - running
+    set-target there silently disables BT and breaks the build. Regression
+    test for exactly that, caught building against a live container."""
+    _reset_state()
+
+    async def fake_provision(on_progress=None):
+        pass
+
+    async def fake_get_env():
+        return {}
+
+    monkeypatch.setattr(esp_idf_provisioning, "provision", fake_provision)
+    monkeypatch.setattr(esp_idf_provisioning, "get_env", fake_get_env)
+    monkeypatch.setattr(esp_idf_provisioning, "idf_py_path", lambda: "idf.py")
+
+    calls = []
+
+    async def fake_run_idf(idf_py, env, cwd, args, phase, base_percent, cap_percent):
+        calls.append(args)
+
+    monkeypatch.setattr(firmware_build, "_run_idf", fake_run_idf)
+
+    await firmware_build._run_build("esp32", "a" * 40)
+
+    assert all(args[0] != "set-target" for args in calls)
+    assert any(args[0] == "build" for args in calls)
+
+
+async def test_run_build_runs_set_target_for_esp32c3(monkeypatch):
+    _reset_state()
+
+    async def fake_provision(on_progress=None):
+        pass
+
+    async def fake_get_env():
+        return {}
+
+    monkeypatch.setattr(esp_idf_provisioning, "provision", fake_provision)
+    monkeypatch.setattr(esp_idf_provisioning, "get_env", fake_get_env)
+    monkeypatch.setattr(esp_idf_provisioning, "idf_py_path", lambda: "idf.py")
+
+    calls = []
+
+    async def fake_run_idf(idf_py, env, cwd, args, phase, base_percent, cap_percent):
+        calls.append(args)
+
+    monkeypatch.setattr(firmware_build, "_run_idf", fake_run_idf)
+
+    await firmware_build._run_build("esp32c3", "a" * 40)
+
+    assert calls[0] == ["set-target", "esp32c3"]
+
+
 async def test_start_refuses_concurrent_build(monkeypatch):
     _reset_state()
     firmware_build._state["phase"] = "building"

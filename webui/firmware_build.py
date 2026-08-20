@@ -149,12 +149,23 @@ async def _run_build(board: str, eid_hex: str, device_name: str = "GFMT Tracker"
                              tx_power_dbm, tracking_protection)
         if target == "esp32c3":
             # The checked-in sdkconfig is generated for plain "esp32" - drop
-            # the copy so `idf.py set-target` regenerates it and picks up
+            # the copy and run set-target so a fresh one gets generated from
             # sdkconfig.defaults.esp32c3 for this target instead.
             (src_dir / "sdkconfig").unlink(missing_ok=True)
-
-        await _set_state("preparing", f"Setting build target to {target}...", 15)
-        await _run_idf(idf_py, idf_env, src_dir, ["set-target", target], "preparing", 15, 25)
+            await _set_state("preparing", f"Setting build target to {target}...", 15)
+            await _run_idf(idf_py, idf_env, src_dir, ["set-target", target], "preparing", 15, 25)
+        else:
+            # esp32's checked-in sdkconfig already targets esp32, with custom
+            # options (CONFIG_BT_ENABLED, Bluedroid, ...) main.c depends on
+            # baked in. Running set-target here anyway would still "succeed"
+            # (same target either way) but forces a fullclean + full
+            # sdkconfig regen from bare Kconfig defaults - there's no
+            # sdkconfig.defaults.esp32 to restore those custom options from,
+            # so it silently disables BT and the build fails on a missing
+            # esp_bt.h. `idf.py build` below reconciles the existing
+            # sdkconfig against this IDF version on its own, non-
+            # destructively, without needing set-target at all.
+            await _set_state("preparing", "Using the checked-in build config for esp32...", 15)
 
         await _set_state("building", "Building firmware...", 25)
         await _run_idf(idf_py, idf_env, src_dir, ["build"], "building", 25, 85)
