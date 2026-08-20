@@ -54,6 +54,18 @@ document.addEventListener("DOMContentLoaded", () => {
   eidInput.addEventListener("change", applyKnownEidSettings);
   applyKnownEidSettings();
 
+  // Register Tracker and the build form are now one page (see
+  // webui/templates/firmware/_register_result.html) - carry a freshly
+  // registered EID straight into the build form instead of making the user
+  // copy-paste the one-time key shown above.
+  document.body.addEventListener("htmx:afterSwap", (event) => {
+    if (event.target.id !== "result") return;
+    const newEid = document.getElementById("new-eid-hex");
+    if (!newEid) return;
+    eidInput.value = newEid.textContent.trim();
+    applyKnownEidSettings();
+  });
+
   const ACTIVE_PHASES = ["provisioning", "cloning", "installing_toolchain", "preparing", "building", "merging"];
   // Backstops the websocket, same reasoning as provision.js: a dropped/
   // reconnecting socket or a throttled background tab must never leave the

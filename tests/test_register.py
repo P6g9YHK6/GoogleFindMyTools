@@ -1,6 +1,10 @@
-def test_register_form(client):
+def test_register_form_redirects_to_firmware_page(client):
+    # /register used to be its own page - now it's the "Register Tracker"
+    # section at the top of /firmware, see webui/templates/firmware/page.html.
     resp = client.get("/register")
     assert resp.status_code == 200
+    assert resp.request.url.path == "/firmware"
+    assert "Register Tracker" in resp.text
 
 
 def test_register_submit(client):
