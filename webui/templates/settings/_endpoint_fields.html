@@ -214,13 +214,13 @@
       <label class="checkbox-label">
         <input type="checkbox" class="skip-toggle" data-controls="stale" {% if endpoint.skip_if_stale %}checked{% endif %}>
         <input type="hidden" name="ep-{{ idx }}-skip_if_stale" value="{{ '1' if endpoint.skip_if_stale else '0' }}">
-        Skip re-sending Google's same last-known fix
+        Skip stale fixes too close in time to the last one sent
       </label>
       <div class="toggle-controlled" {% if not endpoint.skip_if_stale %}hidden{% endif %}>
-        <label>Minimum time between re-sends of an unchanged fix (minutes)
+        <label>Minimum gap from the last sent fix's timestamp (minutes)
           <input type="number" name="ep-{{ idx }}-min_update_gap_m" min="1" step="1" value="{{ endpoint.min_update_gap_m or 30 }}">
         </label>
-        <p class="field-hint">This is based on the fix timestamp <strong>Google's backend</strong> reports for this tracker, not on when this endpoint last sent something. Google can keep returning the exact same cached fix for a while; this only delays re-sending that identical stale fix by the time set here. The moment Google reports an actually newer fix, it's sent immediately regardless of this timer.</p>
+        <p class="field-hint">Based on the fix timestamp <strong>Google's backend</strong> reports, not on when this endpoint last sent something. A fix reported within the last 2 minutes always sends immediately, live or not. Otherwise, a stale fix is skipped unless its timestamp is at least this many minutes away (earlier or later) from the last fix's timestamp actually sent - it's a spacing rule between stale timestamps, not a check for whether it's literally the same fix as before.</p>
       </div>
     </div>
 
@@ -236,31 +236,6 @@
         </label>
         <p class="field-hint">Google's own <code>accuracy_m</code> radius of uncertainty for the fix - independent of the status filter above, since a fix can carry a "good" status but still have a wide radius, or vice versa.</p>
       </div>
-    </div>
-
-    <div class="toggle-group">
-      {# skip_if_already_seen defaults to on (unlike the two toggles above,
-         which default off) - checked whenever the key is absent or true;
-         only an explicit False unchecks it. See policy.py's
-         _skip_already_seen and this form's parsing in settings.py. #}
-      <label class="checkbox-label">
-        <input type="checkbox" class="skip-toggle" {% if endpoint.skip_if_already_seen is undefined or endpoint.skip_if_already_seen %}checked{% endif %}>
-        <input type="hidden" name="ep-{{ idx }}-skip_if_already_seen" value="{{ '1' if (endpoint.skip_if_already_seen is undefined or endpoint.skip_if_already_seen) else '0' }}">
-        Skip sending a reading Google already reported before
-      </label>
-      <p class="field-hint">On by default: Google sometimes bundles an old, already-sent reading alongside a genuinely new one, and this stops it going out to this endpoint a second time. Turn off to always forward every reading Google returns, duplicates included.</p>
-    </div>
-
-    <div class="toggle-group">
-      {# only_most_recent defaults to on, same convention as
-         skip_if_already_seen above. See policy.py's _skip_not_most_recent
-         and this form's parsing in settings.py. #}
-      <label class="checkbox-label">
-        <input type="checkbox" class="skip-toggle" {% if endpoint.only_most_recent is undefined or endpoint.only_most_recent %}checked{% endif %}>
-        <input type="hidden" name="ep-{{ idx }}-only_most_recent" value="{{ '1' if (endpoint.only_most_recent is undefined or endpoint.only_most_recent) else '0' }}">
-        Only send the most recent reading
-      </label>
-      <p class="field-hint">On by default: Google can return several readings in one response, and this only forwards the one with the latest timestamp to this endpoint instead of all of them.</p>
     </div>
 
     <div class="toggle-group">
@@ -298,6 +273,31 @@
         Only send this tracker's own GPS reports
       </label>
       <p class="field-hint">Off by default: Google can also report crowdsourced fixes from other nearby devices seeing this tracker. Turn this on to only forward the tracker's own reports.</p>
+    </div>
+
+    <div class="toggle-group">
+      {# skip_if_already_seen defaults to on (unlike the two toggles above,
+         which default off) - checked whenever the key is absent or true;
+         only an explicit False unchecks it. See policy.py's
+         _skip_already_seen and this form's parsing in settings.py. #}
+      <label class="checkbox-label">
+        <input type="checkbox" class="skip-toggle" {% if endpoint.skip_if_already_seen is undefined or endpoint.skip_if_already_seen %}checked{% endif %}>
+        <input type="hidden" name="ep-{{ idx }}-skip_if_already_seen" value="{{ '1' if (endpoint.skip_if_already_seen is undefined or endpoint.skip_if_already_seen) else '0' }}">
+        Skip sending a reading Google already reported before
+      </label>
+      <p class="field-hint">On by default: Google sometimes bundles an old, already-sent reading alongside a genuinely new one, and this stops it going out to this endpoint a second time. Turn off to always forward every reading Google returns, duplicates included.</p>
+    </div>
+
+    <div class="toggle-group">
+      {# only_most_recent defaults to on, same convention as
+         skip_if_already_seen above. See policy.py's _skip_not_most_recent
+         and this form's parsing in settings.py. #}
+      <label class="checkbox-label">
+        <input type="checkbox" class="skip-toggle" {% if endpoint.only_most_recent is undefined or endpoint.only_most_recent %}checked{% endif %}>
+        <input type="hidden" name="ep-{{ idx }}-only_most_recent" value="{{ '1' if (endpoint.only_most_recent is undefined or endpoint.only_most_recent) else '0' }}">
+        Only send the most recent reading
+      </label>
+      <p class="field-hint">On by default: Google can return several readings in one response, and this only forwards the one with the latest timestamp to this endpoint instead of all of them.</p>
     </div>
   </fieldset>
   </div>
