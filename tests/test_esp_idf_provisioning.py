@@ -152,6 +152,7 @@ async def test_provision_raises_and_leaves_no_marker_on_install_failure(monkeypa
 
 async def test_get_env_parses_key_value_output(monkeypatch, tmp_path):
     idf_dir, tools_dir = _patch_dirs(monkeypatch, tmp_path)
+    monkeypatch.setenv("PATH", "/usr/bin:/bin")
 
     # idf_tools.py export's own output never re-states IDF_TOOLS_PATH (it's
     # an input to it, not a derived var) - regression test for the bug where
@@ -166,5 +167,9 @@ async def test_get_env_parses_key_value_output(monkeypatch, tmp_path):
     env = await esp_idf_provisioning.get_env()
 
     assert env["IDF_PATH"] == "/fake/idf"
-    assert env["PATH"] == "/fake/idf/tools:$PATH"
     assert env["IDF_TOOLS_PATH"] == str(tools_dir)
+    # PATH="...:$PATH" is a literal shell-variable reference meant for eval,
+    # not an already-expanded value - regression test for the bug where the
+    # literal "$PATH" text was kept as-is, silently dropping /usr/bin (cmake,
+    # ninja, git, ...) off the front of it entirely.
+    assert env["PATH"] == "/fake/idf/tools:/usr/bin:/bin"

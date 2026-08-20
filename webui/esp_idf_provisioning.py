@@ -211,5 +211,17 @@ async def get_env() -> dict:
         if "=" not in line:
             continue
         key, _, value = line.partition("=")
-        env[key.strip()] = value.strip().strip('"')
+        key = key.strip()
+        value = value.strip().strip('"')
+        if key == "PATH":
+            # export's own PATH value is "<idf toolchain/venv dirs>:$PATH" -
+            # a literal shell variable reference meant for `eval`ing inside
+            # export.sh, not an already-expanded value. There's no shell in
+            # the loop here to expand it, so without this substitution the
+            # subprocess's PATH would end with a literal, meaningless
+            # "$PATH" segment instead of the base PATH it's supposed to
+            # extend - silently dropping /usr/bin (cmake, ninja, git, ...)
+            # off the front of it entirely.
+            value = value.replace("$PATH", env.get("PATH", ""))
+        env[key] = value
     return env
