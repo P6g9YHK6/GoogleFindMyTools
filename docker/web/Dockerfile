@@ -18,8 +18,16 @@ RUN pip install --no-cache-dir -r requirements.lock
 # are both fetched at runtime, not via apt, and neither the browser/X11/VNC
 # stack nor ESP-IDF is baked into this image - see webui/browser_provisioning.py
 # and webui/esp_idf_provisioning.py.
+#
+# libusb-1.0-0 is ESP-IDF's own runtime dependency, not this app's: the
+# openocd-esp32 tool that install.sh pulls in dlopen's libusb at startup, and
+# idf_tools.py export sanity-checks every installed tool by running it -
+# without this, that check fails ("error while loading shared libraries:
+# libusb-1.0.so.0") and export aborts before printing anything to source env
+# vars from, even though openocd (JTAG debugging) itself is never actually
+# used by a build/merge-bin here.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates procps tzdata git \
+        ca-certificates procps tzdata git libusb-1.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY . /app

@@ -17,6 +17,7 @@ import asyncio
 import logging
 import os
 import pathlib
+import re
 import shutil
 from collections.abc import Awaitable, Callable
 
@@ -88,6 +89,61 @@ async def _run_checked(*args: str, cwd: str | None = None, env: dict | None = No
         raise RuntimeError(f"`{' '.join(args)}` exited with code {proc.returncode}\n{tail}")
 
 
+# git prints "Receiving objects: 45% (5678/12345), 12.34 MiB | 3.45 MiB/s"-style
+# progress by overwriting one line with \r, not \n - _run_git_clone below reads
+# raw chunks and splits on both so these actually show up incrementally
+# instead of only once the whole (multi-minute) clone finishes.
+_GIT_PROGRESS_RE = re.compile(r"(Receiving objects|Resolving deltas):\s*(\d+)%")
+
+
+async def _run_git_clone(args: list[str], timeout: float, on_progress: ProgressCallback,
+                          phase: str, base_percent: int, cap_percent: int):
+    proc = await asyncio.create_subprocess_exec(
+        *args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+    )
+    tail: list[str] = []
+
+    async def _drain():
+        buf = b""
+        while True:
+            chunk = await proc.stdout.read(4096)
+            if not chunk:
+                break
+            buf += chunk
+            while b"\r" in buf or b"\n" in buf:
+                idx = min(i for i in (buf.find(b"\r"), buf.find(b"\n")) if i != -1)
+                raw_line, buf = buf[:idx], buf[idx + 1:]
+                text = raw_line.decode(errors="replace").strip()
+                if not text:
+                    continue
+                tail.append(text)
+                del tail[:-50]
+                m = _GIT_PROGRESS_RE.search(text)
+                if m:
+                    pct = int(m.group(2))
+                    percent = base_percent + round(pct / 100 * (cap_percent - base_percent))
+                    await on_progress(phase, f"Downloading ESP-IDF... {m.group(1).lower()}: {pct}%",
+                                       min(percent, cap_percent))
+        if buf.strip():
+            tail.append(buf.decode(errors="replace").strip())
+
+    try:
+        # Drain to EOF (which follows the process closing its stdout, i.e.
+        # exiting) before reaping the exit code, rather than racing the two -
+        # proc.wait() can resolve slightly before every buffered chunk has
+        # actually been read out, which would cut the last progress update
+        # (or, worse, the whole tail used for the error message below) off.
+        await asyncio.wait_for(_drain(), timeout=timeout)
+        rc = await proc.wait()
+    except TimeoutError:
+        proc.kill()
+        await proc.wait()
+        raise RuntimeError(f"`{' '.join(args)}` timed out after {timeout}s") from None
+
+    if rc != 0:
+        raise RuntimeError(f"`{' '.join(args)}` exited with code {rc}\n" + "\n".join(tail[-20:]))
+
+
 async def provision(on_progress: ProgressCallback = _no_progress):
     if is_provisioned():
         await on_progress("provisioning", "ESP-IDF already installed.", 15)
@@ -108,10 +164,10 @@ async def provision(on_progress: ProgressCallback = _no_progress):
         f"Downloading ESP-IDF ({IDF_BRANCH})... this can take a few minutes the first time.",
         2,
     )
-    await _run_checked(
-        "git", "clone", "--recursive", "--shallow-submodules", "--depth", "1",
-        "--branch", IDF_BRANCH, IDF_GIT_URL, str(idf_dir),
-        timeout=timeout,
+    await _run_git_clone(
+        ["git", "clone", "--recursive", "--shallow-submodules", "--progress", "--depth", "1",
+         "--branch", IDF_BRANCH, IDF_GIT_URL, str(idf_dir)],
+        timeout=timeout, on_progress=on_progress, phase="cloning", base_percent=2, cap_percent=8,
     )
 
     await on_progress(

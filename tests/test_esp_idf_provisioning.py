@@ -9,13 +9,28 @@ import webui.esp_idf_provisioning as esp_idf_provisioning
 from webui import config
 
 
-class _FakeProc:
-    """Stands in for an asyncio.subprocess.Process for _run_checked/get_env's
-    communicate()-based calls."""
+class _FakeStdout:
+    """Stands in for a StreamReader for _run_git_clone's chunked read() loop -
+    yields the given chunks in order, then an empty bytes to signal EOF."""
 
-    def __init__(self, returncode=0, output=b""):
+    def __init__(self, chunks: list[bytes]):
+        self._chunks = list(chunks)
+
+    async def read(self, n=-1):
+        if self._chunks:
+            return self._chunks.pop(0)
+        return b""
+
+
+class _FakeProc:
+    """Stands in for an asyncio.subprocess.Process for both _run_checked/
+    get_env's communicate()-based calls and _run_git_clone's wait()+streamed-
+    stdout-read() calls."""
+
+    def __init__(self, returncode=0, output=b"", stdout_chunks: list[bytes] | None = None):
         self.returncode = returncode
         self._output = output
+        self.stdout = _FakeStdout(stdout_chunks or [])
 
     async def communicate(self):
         return self._output, None
@@ -77,10 +92,13 @@ async def test_provision_clones_and_installs_when_missing(monkeypatch, tmp_path)
     idf_dir, tools_dir = _patch_dirs(monkeypatch, tmp_path)
     monkeypatch.setattr(esp_idf_provisioning, "is_provisioned", lambda: False)
 
+    git_progress = b"Receiving objects:  50% (5/10)\rReceiving objects: 100% (10/10), done.\n"
     calls = []
 
     async def fake_exec(*args, **kwargs):
         calls.append(args)
+        if args[0] == "git":
+            return _FakeProc(0, stdout_chunks=[git_progress])
         return _FakeProc(0)
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
@@ -88,13 +106,21 @@ async def test_provision_clones_and_installs_when_missing(monkeypatch, tmp_path)
     events = []
 
     async def on_progress(phase, message, percent):
-        events.append(phase)
+        events.append((phase, message, percent))
 
     await esp_idf_provisioning.provision(on_progress=on_progress)
 
-    assert events == ["cloning", "installing_toolchain", "provisioning"]
+    phases = [e[0] for e in events]
+    assert phases == ["cloning", "cloning", "cloning", "installing_toolchain", "provisioning"]
+    # The two mid-clone updates parsed out of git's \r-separated progress
+    # output - this is the part that used to just sit on one static message
+    # for the whole multi-minute clone.
+    assert any("50%" in e[1] for e in events)
+    assert any("100%" in e[1] for e in events)
+
     assert calls[0][0] == "git"
     assert "clone" in calls[0]
+    assert "--progress" in calls[0]
     assert esp_idf_provisioning.IDF_BRANCH in calls[0]
     assert str(idf_dir) in calls[0]
     assert calls[1][0] == str(idf_dir / "install.sh")
