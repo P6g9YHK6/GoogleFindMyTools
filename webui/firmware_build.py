@@ -19,6 +19,7 @@ own docstring.
 """
 
 import asyncio
+import json
 import logging
 import pathlib
 import re
@@ -153,7 +154,7 @@ async def _run_build(board: str, eid_hex: str, device_name: str = "GFMT Tracker"
             # sdkconfig.defaults.esp32c3 for this target instead.
             (src_dir / "sdkconfig").unlink(missing_ok=True)
             await _set_state("preparing", f"Setting build target to {target}...", 15)
-            await _run_idf(idf_py, idf_env, src_dir, ["set-target", target], "preparing", 15, 25)
+            await _run_cmd(["python3", idf_py, "set-target", target], idf_env, src_dir, "preparing", 15, 25)
         else:
             # esp32's checked-in sdkconfig already targets esp32, with custom
             # options (CONFIG_BT_ENABLED, Bluedroid, ...) main.c depends on
@@ -168,11 +169,11 @@ async def _run_build(board: str, eid_hex: str, device_name: str = "GFMT Tracker"
             await _set_state("preparing", "Using the checked-in build config for esp32...", 15)
 
         await _set_state("building", "Building firmware...", 25)
-        await _run_idf(idf_py, idf_env, src_dir, ["build"], "building", 25, 85)
+        await _run_cmd(["python3", idf_py, "build"], idf_env, src_dir, "building", 25, 85)
 
         await _set_state("merging", "Merging into a single flashable image...", 90)
         artifact_path = src_dir / "artifact.bin"
-        await _run_idf(idf_py, idf_env, src_dir, ["merge-bin", "-o", str(artifact_path)], "merging", 90, 98)
+        await _merge_bin(idf_env, src_dir, artifact_path)
 
         if not artifact_path.exists():
             raise RuntimeError("Build finished but no merged artifact.bin was produced")
@@ -211,18 +212,17 @@ def _write_build_config(src_dir: pathlib.Path, board: str, eid_hex: str, device_
     (src_dir / "main" / "build_config.h").write_text("\n".join(lines) + "\n")
 
 
-async def _run_idf(idf_py: str, env: dict, cwd: pathlib.Path, args: list[str], phase: str,
+async def _run_cmd(cmd: list[str], env: dict, cwd: pathlib.Path, phase: str,
                     base_percent: int, cap_percent: int):
-    """Runs one `idf.py <args>` step, streaming its output into incremental
-    phase updates (parsing ninja's "[123/456] ..." lines for a percent, same
-    idea as browser_provisioning.py's apt-progress parsing) instead of
-    sitting on one static message for the whole build. `env` is the on-demand
-    ESP-IDF install's own environment (PATH/IDF_PATH/etc.) - see
-    esp_idf_provisioning.get_env() - not this process's own, since idf.py
-    isn't on this container's normal PATH. Invoked via an explicit `python3`
-    rather than relying on the freshly-cloned script's shebang/exec bit."""
+    """Runs one build step to completion, streaming its output into
+    incremental phase updates (parsing ninja's "[123/456] ..." lines for a
+    percent, same idea as browser_provisioning.py's apt-progress parsing)
+    instead of sitting on one static message for the whole build. `env` is
+    the on-demand ESP-IDF install's own environment (PATH/IDF_PATH/etc.) -
+    see esp_idf_provisioning.get_env() - not this process's own, since
+    idf.py/esptool.py aren't on this container's normal PATH."""
     proc = await asyncio.create_subprocess_exec(
-        "python3", idf_py, *args, cwd=str(cwd), env=env,
+        *cmd, cwd=str(cwd), env=env,
         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
     )
     log_tail: list[str] = []
@@ -249,7 +249,7 @@ async def _run_idf(idf_py: str, env: dict, cwd: pathlib.Path, args: list[str], p
     except TimeoutError:
         proc.kill()
         await proc.wait()
-        raise RuntimeError(f"`idf.py {' '.join(args)}` timed out after "
+        raise RuntimeError(f"`{' '.join(cmd)}` timed out after "
                             f"{config.GFMT_FIRMWARE_BUILD_TIMEOUT_S}s")
     finally:
         # _drain() already exits on its own once stdout hits EOF (which
@@ -263,7 +263,35 @@ async def _run_idf(idf_py: str, env: dict, cwd: pathlib.Path, args: list[str], p
             pass
     if rc != 0:
         tail = "\n".join(log_tail[-20:])
-        raise RuntimeError(f"`idf.py {' '.join(args)}` exited with code {rc}\n{tail}")
+        raise RuntimeError(f"`{' '.join(cmd)}` exited with code {rc}\n{tail}")
+
+
+async def _merge_bin(idf_env: dict, src_dir: pathlib.Path, artifact_path: pathlib.Path):
+    """Merges the built bootloader/app/partition-table into one flashable
+    image via esptool.py directly, driven by the build's own
+    build/flasher_args.json - idf.py's own "merge-bin" convenience action
+    doesn't exist at all in ESP-IDF 5.1 (no CMake target, no Python action
+    registered anywhere - it was added in a later release; running it just
+    falls through to idf.py's generic "unknown target" passthrough, which
+    doesn't accept an -o/--output flag). flasher_args.json's shape has been
+    stable across ESP-IDF versions, so driving esptool.py from it directly
+    works regardless of which version ends up provisioned."""
+    build_dir = src_dir / "build"
+    flasher_args = json.loads((build_dir / "flasher_args.json").read_text())
+    settings = flasher_args["flash_settings"]
+    chip = flasher_args["extra_esptool_args"]["chip"]
+
+    cmd = [
+        "esptool.py", "--chip", chip, "merge_bin",
+        "--output", str(artifact_path),
+        "--flash_mode", settings["flash_mode"],
+        "--flash_size", settings["flash_size"],
+        "--flash_freq", settings["flash_freq"],
+    ]
+    for offset, filename in flasher_args["flash_files"].items():
+        cmd += [offset, filename]
+
+    await _run_cmd(cmd, idf_env, build_dir, "merging", 90, 98)
 
 
 def _prune_old_builds(builds_dir: pathlib.Path):

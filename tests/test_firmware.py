@@ -1,4 +1,5 @@
 import asyncio
+import json
 
 import webui.esp_idf_provisioning as esp_idf_provisioning
 import webui.firmware_build as firmware_build
@@ -83,15 +84,15 @@ async def test_run_build_skips_set_target_for_esp32(monkeypatch):
 
     calls = []
 
-    async def fake_run_idf(idf_py, env, cwd, args, phase, base_percent, cap_percent):
-        calls.append(args)
+    async def fake_run_cmd(cmd, env, cwd, phase, base_percent, cap_percent):
+        calls.append(cmd)
 
-    monkeypatch.setattr(firmware_build, "_run_idf", fake_run_idf)
+    monkeypatch.setattr(firmware_build, "_run_cmd", fake_run_cmd)
 
     await firmware_build._run_build("esp32", "a" * 40)
 
-    assert all(args[0] != "set-target" for args in calls)
-    assert any(args[0] == "build" for args in calls)
+    assert all("set-target" not in cmd for cmd in calls)
+    assert any("build" in cmd for cmd in calls)
 
 
 async def test_run_build_runs_set_target_for_esp32c3(monkeypatch):
@@ -109,14 +110,14 @@ async def test_run_build_runs_set_target_for_esp32c3(monkeypatch):
 
     calls = []
 
-    async def fake_run_idf(idf_py, env, cwd, args, phase, base_percent, cap_percent):
-        calls.append(args)
+    async def fake_run_cmd(cmd, env, cwd, phase, base_percent, cap_percent):
+        calls.append(cmd)
 
-    monkeypatch.setattr(firmware_build, "_run_idf", fake_run_idf)
+    monkeypatch.setattr(firmware_build, "_run_cmd", fake_run_cmd)
 
     await firmware_build._run_build("esp32c3", "a" * 40)
 
-    assert calls[0] == ["set-target", "esp32c3"]
+    assert calls[0][-2:] == ["set-target", "esp32c3"]
 
 
 async def test_start_refuses_concurrent_build(monkeypatch):
@@ -125,6 +126,43 @@ async def test_start_refuses_concurrent_build(monkeypatch):
     result = await firmware_build.start("esp32", "a" * 40)
     assert result["started"] is False
     _reset_state()
+
+
+async def test_merge_bin_drives_esptool_from_flasher_args(monkeypatch, tmp_path):
+    """idf.py's own "merge-bin" action doesn't exist in ESP-IDF 5.1 at all
+    (added in a later release) - regression test for driving esptool.py
+    directly from build/flasher_args.json instead, which has been stable
+    across versions."""
+    src_dir = tmp_path / "ESP32Firmware"
+    build_dir = src_dir / "build"
+    build_dir.mkdir(parents=True)
+    (build_dir / "flasher_args.json").write_text(json.dumps({
+        "flash_settings": {"flash_mode": "dio", "flash_size": "2MB", "flash_freq": "40m"},
+        "flash_files": {
+            "0x1000": "bootloader/bootloader.bin",
+            "0x10000": "ESPFindMy.bin",
+            "0x8000": "partition_table/partition-table.bin",
+        },
+        "extra_esptool_args": {"chip": "esp32"},
+    }))
+
+    calls = []
+
+    async def fake_run_cmd(cmd, env, cwd, phase, base_percent, cap_percent):
+        calls.append((cmd, cwd))
+
+    monkeypatch.setattr(firmware_build, "_run_cmd", fake_run_cmd)
+
+    artifact_path = src_dir / "artifact.bin"
+    await firmware_build._merge_bin({}, src_dir, artifact_path)
+
+    assert len(calls) == 1
+    cmd, cwd = calls[0]
+    assert cmd[:3] == ["esptool.py", "--chip", "esp32"]
+    assert "merge_bin" in cmd
+    assert "--output" in cmd and str(artifact_path) in cmd
+    assert "0x1000" in cmd and "bootloader/bootloader.bin" in cmd
+    assert cwd == build_dir
 
 
 def test_write_build_config_esp32(tmp_path):
