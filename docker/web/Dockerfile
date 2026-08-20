@@ -26,8 +26,16 @@ RUN pip install --no-cache-dir -r requirements.lock
 # libusb-1.0.so.0") and export aborts before printing anything to source env
 # vars from, even though openocd (JTAG debugging) itself is never actually
 # used by a build/merge-bin here.
+#
+# cmake/ninja-build/ccache/dfu-util/libffi-dev/libssl-dev/wget/flex/bison/
+# gperf are ESP-IDF's own documented Linux prerequisites - install.sh only
+# fetches the cross-compiler toolchains and debug tools (xtensa-esp32-elf,
+# riscv32-esp-elf, openocd, gdb, ...), it never bundles cmake/ninja
+# themselves, those are expected to already be on the system. Without them,
+# `idf.py set-target` fails outright ("cmake" must be available on the PATH).
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates procps tzdata git libusb-1.0-0 \
+        cmake ninja-build ccache dfu-util libffi-dev libssl-dev wget flex bison gperf \
     && rm -rf /var/lib/apt/lists/*
 
 COPY . /app
