@@ -36,6 +36,17 @@
            value="{{ last_identity.image_url }}" required>
     <p class="field-hint">Shown inside Google's Find My Device app - never fetched by this
        server, so any well-formed http(s) URL is accepted.</p>
+
+    <label class="checkbox-label">
+      <input id="experimental_official_app_compat" name="experimental_official_app_compat" type="checkbox"
+             {% if last_identity.experimental_official_app_compat %}checked{% endif %}>
+      Experimental: attempt official Find My Device app compatibility
+    </label>
+    <p class="field-hint">Best-effort and unverified. Normally this project deliberately scrambles part
+       of the registration data so Google's official app can never read it. Checking this instead
+       encrypts that data the same way a real Android device's would be - but there's no way to confirm
+       from here whether the (closed-source) official app will actually show or locate this tracker as a
+       result. This project's own tooling can locate the tracker either way.</p>
   </details>
   <button type="submit">Register new tracker</button>
 </form>

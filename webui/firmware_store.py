@@ -11,10 +11,12 @@ on the Firmware page pre-fills the same settings instead of resetting to
 defaults.
 
 And remembers the last identity (display name/device type/manufacturer/
-model/image URL) submitted on the Register form itself - see
-webui/identity_validation.py. Unlike the build settings above, this isn't
-per-EID (it's chosen before a new EID exists), so it's a single top-level
-record rather than part of the entries list.
+model/image URL, plus the experimental_official_app_compat checkbox - see
+SpotApi/CreateBleDevice/create_ble_device.py's register_esp32()) submitted
+on the Register form itself - see webui/identity_validation.py. Unlike the
+build settings above, this isn't per-EID (it's chosen before a new EID
+exists), so it's a single top-level record rather than part of the entries
+list.
 
 Only the public EID and these settings are stored - never the private eik
 (see SpotApi/CreateBleDevice/create_ble_device.py, which never returns eik
@@ -55,6 +57,7 @@ DEFAULT_IDENTITY = {
     "manufacturer_name": "GoogleFindMyTools",
     "model_name": "µC",
     "image_url": "https://docs.espressif.com/projects/esp-idf/en/v4.3/esp32/_images/esp32-DevKitM-1-isometric.png",
+    "experimental_official_app_compat": False,
 }
 
 
@@ -129,12 +132,14 @@ def load_last_identity() -> dict:
 
 
 def record_identity(display_name: str, device_type: str, manufacturer_name: str,
-                     model_name: str, image_url: str):
+                     model_name: str, image_url: str,
+                     experimental_official_app_compat: bool = False):
     with _lock:
         data = _load_unlocked()
         data["last_identity"] = {
             "display_name": display_name, "device_type": device_type,
             "manufacturer_name": manufacturer_name, "model_name": model_name,
             "image_url": image_url,
+            "experimental_official_app_compat": experimental_official_app_compat,
         }
         _save_unlocked(data)

@@ -29,16 +29,46 @@ def is_mcu_tracker(device_registration: DeviceRegistration) -> bool:
     return device_registration.fastPairModelId == mcu_fast_pair_model_id
 
 
+def _decrypt_identity_key(owner_key: bytes, encrypted_user_secrets, is_mcu: bool) -> bytes:
+    """Tries to decrypt encryptedIdentityKey with owner_key, handling both
+    possible states of an MCU tracker's field: bit-flipped (the default at
+    registration - see create_ble_device.py's register_esp32(), which
+    corrupts it so the official Find My Device app can't decrypt it) or not
+    (only possible when registered with the experimental
+    experimental_official_app_compat=True flag, which skips that
+    corruption). fastPairModelId can't tell the two apart - both use the
+    same shared MCU model ID regardless of the flag - so the flipped variant
+    (the default, and the only possibility for anything registered before
+    that flag existed) is tried first, falling back to the raw bytes as
+    received. A wrong guess just fails AES-GCM's tag check (decrypt_eik ->
+    decrypt_aes_gcm -> AESGCM.decrypt raises on a bad tag - already the
+    fallback-retry mechanism callers of this function rely on for owner-key
+    version mismatches), so trying both here is safe: false-positive success
+    on a wrong 96-bit tag is cryptographically negligible. Non-MCU trackers
+    (real Android/Fast Pair devices, never registered by this project) never
+    had this corruption applied, so only the raw bytes are tried for those -
+    unchanged from before this flag existed.
+    """
+    encrypted_identity_key = encrypted_user_secrets.encryptedIdentityKey
+    candidates = (
+        [flip_bits(encrypted_identity_key, True), encrypted_identity_key]
+        if is_mcu else [encrypted_identity_key]
+    )
+    last_error = None
+    for candidate in candidates:
+        try:
+            return decrypt_eik(owner_key, candidate)
+        except Exception as e:
+            last_error = e
+    raise last_error
+
+
 def retrieve_identity_key(device_registration: DeviceRegistration) -> bytes:
     is_mcu = is_mcu_tracker(device_registration)
     encrypted_user_secrets = device_registration.encryptedUserSecrets
 
-    encrypted_identity_key = flip_bits(
-        encrypted_user_secrets.encryptedIdentityKey,
-        is_mcu)
-
     try:
-        return decrypt_eik(get_owner_key(), encrypted_identity_key)
+        return _decrypt_identity_key(get_owner_key(), encrypted_user_secrets, is_mcu)
     except Exception as e:
         logger.debug("Current owner key didn't decrypt this tracker's identity key (%s), trying next.", e)
 
@@ -49,7 +79,7 @@ def retrieve_identity_key(device_registration: DeviceRegistration) -> bytes:
     # generation; see SpotApi/GetEidInfoForE2eeDevices/get_owner_key.py.
     needed_version = encrypted_user_secrets.ownerKeyVersion
     try:
-        return decrypt_eik(get_owner_key(owner_key_version=needed_version), encrypted_identity_key)
+        return _decrypt_identity_key(get_owner_key(owner_key_version=needed_version), encrypted_user_secrets, is_mcu)
     except Exception as e:
         logger.debug("Owner key version %s didn't decrypt this tracker's identity key (%s), trying next.",
                       needed_version, e)
@@ -66,7 +96,7 @@ def retrieve_identity_key(device_registration: DeviceRegistration) -> bytes:
     for name, blob_hex in get_cached_values_with_prefix("encrypted_owner_key_v").items():
         try:
             owner_key = get_owner_key_from_wrapped_blob(bytes.fromhex(blob_hex))
-            identity_key = decrypt_eik(owner_key, encrypted_identity_key)
+            identity_key = _decrypt_identity_key(owner_key, encrypted_user_secrets, is_mcu)
             logger.info("Decrypted using %s.", name)
             return identity_key
         except Exception:

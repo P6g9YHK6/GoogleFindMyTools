@@ -20,6 +20,10 @@ def test_register_submit_persists_custom_identity(client):
         "display_name": "My Keys", "device_type": "DEVICE_TYPE_KEYS",
         "manufacturer_name": "Acme", "model_name": "Tag v2",
         "image_url": "https://example.com/tag.png",
+        # A browser only posts a checkbox at all when it's checked, and
+        # "on" is what it posts - see webui/routers/register.py's
+        # experimental_official_app_compat: bool = Form(False) comment.
+        "experimental_official_app_compat": "on",
     })
     assert resp.status_code == 200
     assert "deadbeef" in resp.text
@@ -29,6 +33,7 @@ def test_register_submit_persists_custom_identity(client):
         "display_name": "My Keys", "device_type": "DEVICE_TYPE_KEYS",
         "manufacturer_name": "Acme", "model_name": "Tag v2",
         "image_url": "https://example.com/tag.png",
+        "experimental_official_app_compat": True,
     }
 
 

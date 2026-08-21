@@ -93,10 +93,12 @@ async def register_tracker(
     manufacturer_name: str = "GoogleFindMyTools",
     model_name: str = "µC",
     image_url: str = "https://docs.espressif.com/projects/esp-idf/en/v4.3/esp32/_images/esp32-DevKitM-1-isometric.png",
+    experimental_official_app_compat: bool = False,
 ):
     result = await run_blocking(
         register_esp32, display_name=display_name, device_type=device_type,
         manufacturer_name=manufacturer_name, model_name=model_name, image_url=image_url,
+        experimental_official_app_compat=experimental_official_app_compat,
     )
     # register_esp32() raises on failure rather than returning a sentinel,
     # so getting here already means success - invalidate the device-list

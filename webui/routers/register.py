@@ -26,6 +26,10 @@ async def register_submit(
     manufacturer_name: str = Form(_DEFAULT_IDENTITY["manufacturer_name"]),
     model_name: str = Form(_DEFAULT_IDENTITY["model_name"]),
     image_url: str = Form(_DEFAULT_IDENTITY["image_url"]),
+    # An unchecked checkbox isn't posted at all - Form(False) is what
+    # correctly resolves that absence to False (same pattern as
+    # webui/routers/auth.py's devices_page_most_recent_only).
+    experimental_official_app_compat: bool = Form(False),
 ):
     display_name, manufacturer_name = display_name.strip(), manufacturer_name.strip()
     model_name, image_url = model_name.strip(), image_url.strip()
@@ -47,10 +51,13 @@ async def register_submit(
 
     result = await register_tracker(display_name=display_name, device_type=device_type,
                                       manufacturer_name=manufacturer_name, model_name=model_name,
-                                      image_url=image_url)
+                                      image_url=image_url,
+                                      experimental_official_app_compat=experimental_official_app_compat)
     # Remember the (public) EID so the Firmware page can offer it again later
     # instead of requiring it be copy-pasted from this one-time display.
     firmware_store.record_registration(result["eid_hex"], result.get("pair_date", 0))
-    firmware_store.record_identity(display_name, device_type, manufacturer_name, model_name, image_url)
+    firmware_store.record_identity(display_name, device_type, manufacturer_name, model_name, image_url,
+                                    experimental_official_app_compat)
     return templates.TemplateResponse(request, "firmware/_register_result.html",
-                                       {"result": result, "error": None})
+                                       {"result": result, "error": None,
+                                        "experimental_official_app_compat": experimental_official_app_compat})

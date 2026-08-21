@@ -254,7 +254,7 @@ def test_firmware_store_backfills_defaults_for_legacy_entries():
 
 def test_firmware_store_identity_round_trip():
     firmware_store.record_identity("My Keys", "DEVICE_TYPE_KEYS", "Acme", "Tag v2",
-                                    "https://example.com/tag.png")
+                                    "https://example.com/tag.png", True)
 
     identity = firmware_store.load_last_identity()
 
@@ -262,6 +262,7 @@ def test_firmware_store_identity_round_trip():
         "display_name": "My Keys", "device_type": "DEVICE_TYPE_KEYS",
         "manufacturer_name": "Acme", "model_name": "Tag v2",
         "image_url": "https://example.com/tag.png",
+        "experimental_official_app_compat": True,
     }
 
 
