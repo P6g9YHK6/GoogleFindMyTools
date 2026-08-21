@@ -63,7 +63,7 @@ _ACTIVE_PHASES = {"provisioning", "cloning", "installing_toolchain", "preparing"
 
 _state = {
     "phase": "idle", "message": "", "percent": 0, "error": None,
-    "artifact_path": None, "download_name": None,
+    "artifact_path": None, "download_name": None, "built_chip": None,
 }
 
 
@@ -95,7 +95,8 @@ async def start(board: str, eid_hex: str, device_name: str = "GFMT Tracker",
         if error:
             return {"started": False, "error": error}
 
-    await _set_state("preparing", "Preparing build...", 0, artifact_path=None, download_name=None)
+    await _set_state("preparing", "Preparing build...", 0, artifact_path=None, download_name=None,
+                      built_chip=None)
     asyncio.create_task(_run_build(board, eid_hex, device_name, adv_interval_ms,
                                     tx_power_dbm, tracking_protection))
     return {"started": True, "state": get_state()}
@@ -182,7 +183,7 @@ async def _run_build(board: str, eid_hex: str, device_name: str = "GFMT Tracker"
 
         await _set_state("merging", "Merging into a single flashable image...", 90)
         artifact_path = src_dir / "artifact.bin"
-        await _merge_bin(idf_env, src_dir, artifact_path)
+        built_chip = await _merge_bin(idf_env, src_dir, artifact_path)
 
         if not artifact_path.exists():
             raise RuntimeError("Build finished but no merged artifact.bin was produced")
@@ -191,6 +192,7 @@ async def _run_build(board: str, eid_hex: str, device_name: str = "GFMT Tracker"
         await _set_state(
             "done", "Firmware built successfully.", 100,
             artifact_path=str(artifact_path), download_name=download_name,
+            built_chip=built_chip,
         )
     except Exception as e:
         logger.exception("Firmware build failed")
@@ -275,7 +277,7 @@ async def _run_cmd(cmd: list[str], env: dict, cwd: pathlib.Path, phase: str,
         raise RuntimeError(f"`{' '.join(cmd)}` exited with code {rc}\n{tail}")
 
 
-async def _merge_bin(idf_env: dict, src_dir: pathlib.Path, artifact_path: pathlib.Path):
+async def _merge_bin(idf_env: dict, src_dir: pathlib.Path, artifact_path: pathlib.Path) -> str:
     """Merges the built bootloader/app/partition-table into one flashable
     image via esptool.py directly, driven by the build's own
     build/flasher_args.json - idf.py's own "merge-bin" convenience action
@@ -284,7 +286,13 @@ async def _merge_bin(idf_env: dict, src_dir: pathlib.Path, artifact_path: pathli
     falls through to idf.py's generic "unknown target" passthrough, which
     doesn't accept an -o/--output flag). flasher_args.json's shape has been
     stable across ESP-IDF versions, so driving esptool.py from it directly
-    works regardless of which version ends up provisioned."""
+    works regardless of which version ends up provisioned.
+
+    Returns the chip target string (e.g. "esp32", "esp32c3") flasher_args.json
+    was actually built for, so callers can record what the resulting artifact
+    is compatible with - see _state["built_chip"] and firmware.js's pre-flash
+    chip-mismatch guard, which compares this against the chip the browser's
+    WebSerial ROM handshake reports on the physically connected device."""
     build_dir = src_dir / "build"
     flasher_args = json.loads((build_dir / "flasher_args.json").read_text())
     settings = flasher_args["flash_settings"]
@@ -301,6 +309,7 @@ async def _merge_bin(idf_env: dict, src_dir: pathlib.Path, artifact_path: pathli
         cmd += [offset, filename]
 
     await _run_cmd(cmd, idf_env, build_dir, "merging", 90, 98)
+    return chip
 
 
 def _prune_old_builds(builds_dir: pathlib.Path):

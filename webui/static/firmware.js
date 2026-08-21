@@ -4,6 +4,16 @@
 
 const ESPTOOL_JS_URL = "https://unpkg.com/esptool-js@0.4.6/bundle.js";
 
+// Maps webui/firmware_build.py's _BOARDS/flasher_args target strings (what the
+// server reports as state.built_chip) to esptool-js's ROM.CHIP_NAME strings
+// (what loader.chip.CHIP_NAME reads after a real serial ROM sync with the
+// connected device) - see the pre-flash chip-mismatch guard below. Add an
+// entry here whenever another target is wired into _BOARDS server-side.
+const CHIP_NAME_BY_TARGET = {
+  esp32: "ESP32",
+  esp32c3: "ESP32-C3",
+};
+
 document.addEventListener("DOMContentLoaded", () => {
   const form = document.getElementById("firmware-build-form");
   if (!form) return;
@@ -126,6 +136,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (msg.phase === "done") {
+      lastBuiltChip = msg.built_chip || null;
       downloadLink.style.display = "inline-block";
       downloadLink.setAttribute("download", msg.download_name || "firmware.bin");
       updateFlashAvailability();
@@ -173,6 +184,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- WebSerial flashing -------------------------------------------------
 
+  // Which target the last completed build (this tab's own, or one already
+  // finished before the page loaded, via pollState() below) was built for -
+  // set from state.built_chip, checked against the WebSerial ROM handshake's
+  // detected chip right before flashing.
+  let lastBuiltChip = null;
+
   function updateFlashAvailability() {
     if (!navigator.serial) {
       flashBtn.style.display = "none";
@@ -208,7 +225,25 @@ document.addEventListener("DOMContentLoaded", () => {
       flashNote.textContent = "Connecting to device...";
       await loader.main();
 
-      flashNote.textContent = "Downloading built firmware...";
+      // loader.chip.CHIP_NAME comes from esptool-js's own ROM sync handshake
+      // with the physically connected device - a stronger source of truth
+      // than trusting the board dropdown or the downloaded file's bytes.
+      // Only blocks on a positively confirmed mismatch: if lastBuiltChip is
+      // unset/unmapped (e.g. stale state, or a future board not yet added to
+      // CHIP_NAME_BY_TARGET), the check is skipped rather than blocking a
+      // legitimate flash.
+      const detectedChip = loader.chip && loader.chip.CHIP_NAME;
+      const expectedChip = CHIP_NAME_BY_TARGET[lastBuiltChip];
+      if (expectedChip && detectedChip && detectedChip !== expectedChip) {
+        throw new Error(
+          `Chip mismatch: this firmware was built for ${expectedChip}, but the connected device ` +
+          `identified itself as ${detectedChip}. Build firmware for the ${detectedChip} board instead.`
+        );
+      }
+
+      flashNote.textContent = detectedChip
+        ? `Detected ${detectedChip} - matches built firmware. Downloading...`
+        : "Downloading built firmware...";
       const buf = await (await fetch("/firmware/build/download")).arrayBuffer();
       const binaryStr = Array.from(new Uint8Array(buf), (b) => String.fromCharCode(b)).join("");
 
