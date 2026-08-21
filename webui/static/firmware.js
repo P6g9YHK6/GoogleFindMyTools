@@ -222,6 +222,10 @@ document.addEventListener("DOMContentLoaded", () => {
         // offsets with flash params baked in by the build, so there's
         // nothing for esptool-js to rewrite here anyway.
         flashSize: "keep",
+        // esptool-js's non-compressed write path is unimplemented (it just
+        // throws "Yet to handle Non Compressed writes"), so compression is
+        // not optional here.
+        compress: true,
         reportProgress: (_fileIndex, written, total) => {
           flashNote.textContent = `Flashing... ${Math.round((written / total) * 100)}%`;
         },
