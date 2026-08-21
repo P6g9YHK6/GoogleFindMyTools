@@ -13,6 +13,47 @@ def test_register_submit(client):
     assert "deadbeef" in resp.text
 
 
+def test_register_submit_persists_custom_identity(client):
+    from webui import firmware_store
+
+    resp = client.post("/register", data={
+        "display_name": "My Keys", "device_type": "DEVICE_TYPE_KEYS",
+        "manufacturer_name": "Acme", "model_name": "Tag v2",
+        "image_url": "https://example.com/tag.png",
+    })
+    assert resp.status_code == 200
+    assert "deadbeef" in resp.text
+
+    identity = firmware_store.load_last_identity()
+    assert identity == {
+        "display_name": "My Keys", "device_type": "DEVICE_TYPE_KEYS",
+        "manufacturer_name": "Acme", "model_name": "Tag v2",
+        "image_url": "https://example.com/tag.png",
+    }
+
+
+def test_register_submit_rejects_bad_device_type(client):
+    from webui import firmware_store
+
+    before = firmware_store.list_registered()
+    resp = client.post("/register", data={"device_type": "DEVICE_TYPE_NOT_A_REAL_TYPE"})
+    assert resp.status_code == 200
+    assert "form-error" in resp.text
+    assert "new-eid-hex" not in resp.text
+    assert firmware_store.list_registered() == before
+
+
+def test_register_submit_rejects_bad_image_url(client):
+    from webui import firmware_store
+
+    before = firmware_store.list_registered()
+    resp = client.post("/register", data={"image_url": "ftp://example.com/x.png"})
+    assert resp.status_code == 200
+    assert "form-error" in resp.text
+    assert "new-eid-hex" not in resp.text
+    assert firmware_store.list_registered() == before
+
+
 def test_register_then_devices_table_sees_the_new_tracker_immediately(client, monkeypatch):
     """webui/deps.py's register_tracker() invalidates the shared
     device-list cache (webui/device_list_cache.py) on success, so a
@@ -27,7 +68,7 @@ def test_register_then_devices_table_sees_the_new_tracker_immediately(client, mo
     from webui.routers import devices, register
 
     monkeypatch.setattr(register, "register_tracker", deps.register_tracker)
-    monkeypatch.setattr(deps, "register_esp32", lambda: {"eid_hex": "deadbeef"})
+    monkeypatch.setattr(deps, "register_esp32", lambda **kwargs: {"eid_hex": "deadbeef"})
 
     resp = client.get("/devices/table")
     assert FAKE_DEVICE_NAME in resp.text

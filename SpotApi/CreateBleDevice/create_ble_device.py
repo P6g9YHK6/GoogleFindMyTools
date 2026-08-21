@@ -24,7 +24,13 @@ from SpotApi.spot_request import spot_request
 logger = logging.getLogger(__name__)
 
 
-def register_esp32():
+def register_esp32(
+    display_name: str = "GoogleFindMyTools µC",
+    device_type: str = "DEVICE_TYPE_BEACON",
+    manufacturer_name: str = "GoogleFindMyTools",
+    model_name: str = "µC",
+    image_url: str = "https://docs.espressif.com/projects/esp-idf/en/v4.3/esp32/_images/esp32-DevKitM-1-isometric.png",
+):
 
     owner_key = get_owner_key()
 
@@ -36,12 +42,12 @@ def register_esp32():
     register_request.fastPairModelId = mcu_fast_pair_model_id
 
     # Description
-    register_request.description.userDefinedName = "GoogleFindMyTools µC"
-    register_request.description.deviceType = SpotDeviceType.DEVICE_TYPE_BEACON
+    register_request.description.userDefinedName = display_name
+    register_request.description.deviceType = SpotDeviceType.Value(device_type)
 
     # Device Components Information
     component_information = DeviceComponentInformation()
-    component_information.imageUrl = "https://docs.espressif.com/projects/esp-idf/en/v4.3/esp32/_images/esp32-DevKitM-1-isometric.png"
+    component_information.imageUrl = image_url
     register_request.description.deviceComponentsInformation.append(component_information)
 
     # Capabilities
@@ -77,8 +83,8 @@ def register_esp32():
         time_counter += ROTATION_PERIOD
 
     # General
-    register_request.manufacturerName = "GoogleFindMyTools"
-    register_request.modelName = "µC"
+    register_request.manufacturerName = manufacturer_name
+    register_request.modelName = model_name
 
     ownerKeys = FMDNOwnerOperations()
     ownerKeys.generate_keys(identity_key=eik)

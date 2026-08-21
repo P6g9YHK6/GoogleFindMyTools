@@ -1,9 +1,12 @@
 import asyncio
 import json
 
+import yaml
+
 import webui.esp_idf_provisioning as esp_idf_provisioning
 import webui.firmware_build as firmware_build
 import webui.firmware_store as firmware_store
+from webui import config
 
 
 def _reset_state():
@@ -240,13 +243,41 @@ def test_firmware_store_round_trip():
 
 
 def test_firmware_store_backfills_defaults_for_legacy_entries():
-    firmware_store._save_unlocked([{"eid_hex": "c" * 40, "pair_date": 1700000200}])
+    firmware_store._save_unlocked({"entries": [{"eid_hex": "c" * 40, "pair_date": 1700000200}]})
 
     entries = firmware_store.list_registered()
 
     assert entries[0]["eid_hex"] == "c" * 40
     assert entries[0]["device_name"] == firmware_store.DEFAULT_BUILD_SETTINGS["device_name"]
     assert entries[0]["tracking_protection"] is True
+
+
+def test_firmware_store_identity_round_trip():
+    firmware_store.record_identity("My Keys", "DEVICE_TYPE_KEYS", "Acme", "Tag v2",
+                                    "https://example.com/tag.png")
+
+    identity = firmware_store.load_last_identity()
+
+    assert identity == {
+        "display_name": "My Keys", "device_type": "DEVICE_TYPE_KEYS",
+        "manufacturer_name": "Acme", "model_name": "Tag v2",
+        "image_url": "https://example.com/tag.png",
+    }
+
+
+def test_firmware_store_identity_survives_legacy_list_shaped_file():
+    # The file shape before last_identity existed was a bare list, not
+    # {"entries": [...], "last_identity": {...}} - both readers must still
+    # work against it without raising, and load_last_identity() falls back
+    # to defaults since a legacy file never had one.
+    firmware_store._save_unlocked({"entries": [{"eid_hex": "f" * 40, "pair_date": 1700000400}]})
+    with open(config.REGISTERED_TRACKERS_PATH) as f:
+        raw = yaml.safe_load(f)
+    with open(config.REGISTERED_TRACKERS_PATH, "w") as f:
+        yaml.safe_dump(raw["entries"], f)  # rewrite as the old bare-list shape
+
+    assert any(e["eid_hex"] == "f" * 40 for e in firmware_store.list_registered())
+    assert firmware_store.load_last_identity() == firmware_store.DEFAULT_IDENTITY
 
 
 def test_record_build_settings_updates_existing_entry():

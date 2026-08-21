@@ -3,8 +3,9 @@ from datetime import datetime
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import FileResponse
 
-from webui import firmware_build, firmware_store
+from webui import firmware_build, firmware_store, identity_validation
 from webui.firmware_build import REPO_ROOT
+from webui.routers.devices import device_type_plain_label
 from webui.templating import templates
 
 router = APIRouter()
@@ -25,10 +26,20 @@ async def firmware_page(request: Request):
         }
         for entry in registered
     }
+    # Pre-fills the Register form's identity section with whatever was last
+    # submitted (see firmware_store.py's last_identity record), and supplies
+    # the device-type dropdown's options - human-readable labels reused from
+    # webui/routers/devices.py rather than duplicating them here.
+    device_type_choices = [
+        (name, device_type_plain_label(name, is_phone=False))
+        for name in identity_validation.DEVICE_TYPE_CHOICES
+    ]
     return templates.TemplateResponse(request, "firmware/page.html", {
         "registered": registered,
         "build_settings_by_eid": build_settings_by_eid,
         "state": firmware_build.get_state(),
+        "last_identity": firmware_store.load_last_identity(),
+        "device_type_choices": device_type_choices,
     })
 
 
