@@ -1179,6 +1179,32 @@ details ul {
   color: var(--text-muted);
 }
 
+/* Device console */
+#device-console-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  margin: 1.25rem 0;
+  box-shadow: var(--shadow);
+}
+
+#device-console-controls {
+  margin: 0.5rem 0;
+}
+
+#device-console-note {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin: 0.5rem 0;
+}
+
+#device-console-log {
+  max-height: 320px;
+  overflow-y: auto;
+  margin: 0.5rem 0 0;
+}
+
 .method-badge {
   display: inline-block;
   font-weight: 700;

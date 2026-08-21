@@ -26,6 +26,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const downloadLink = document.getElementById("firmware-download-link");
   const flashBtn = document.getElementById("flash-btn");
   const flashNote = document.getElementById("firmware-flash-note");
+  const rebootBootloaderBtn = document.getElementById("reboot-bootloader-btn");
+  const rebootNormalBtn = document.getElementById("reboot-normal-btn");
+  const consoleNote = document.getElementById("device-console-note");
+  const consoleLogEl = document.getElementById("device-console-log");
 
   const eidInput = document.getElementById("eid_hex");
   const advancedDetails = document.getElementById("firmware-advanced");
@@ -182,13 +186,150 @@ document.addEventListener("DOMContentLoaded", () => {
   // load/refresh instead of showing a blank panel, same as provision.js.
   pollState();
 
-  // --- WebSerial flashing -------------------------------------------------
+  // --- WebSerial flashing, rebooting, and live console --------------------
+  // Flash / Reboot to Bootloader / Reboot to Normal Mode / the log monitor
+  // all coordinate on one shared SerialPort (see acquirePort() below) so the
+  // browser's port picker only has to run once per session, and so only one
+  // of them ever holds port.readable's reader lock at a time - see
+  // stopMonitor() for how each action hands the port back before another
+  // one takes it.
 
   // Which target the last completed build (this tab's own, or one already
   // finished before the page loaded, via pollState() below) was built for -
   // set from state.built_chip, checked against the WebSerial ROM handshake's
   // detected chip right before flashing.
   let lastBuiltChip = null;
+
+  let sharedPort = null;            // the one SerialPort every action coordinates on
+  let portReader = null;            // set only while the monitor loop holds port.readable's lock
+  let monitorStopRequested = false; // suppresses the "stopped" note on our own handoff cancels
+  let consoleBuffer = "";
+  const MAX_CONSOLE_CHARS = 200000; // caps memory/DOM size over a long-running session
+
+  function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  // Reuses an already-granted port when there's exactly one, so actions after
+  // the first don't re-show the browser's serial port picker.
+  async function acquirePort() {
+    if (sharedPort) return sharedPort;
+    const known = await navigator.serial.getPorts();
+    sharedPort = known.length === 1 ? known[0] : await navigator.serial.requestPort();
+    return sharedPort;
+  }
+
+  // Classic ESP32 reset-into-bootloader sequence - the same DTR/RTS toggle
+  // esptool-js's own ESPLoader.main() performs internally, reimplemented
+  // directly against the raw Web Serial API so entering download mode
+  // doesn't require pulling in a full ROM sync/stub upload.
+  async function resetToBootloaderMode(port) {
+    await port.setSignals({ dataTerminalReady: false, requestToSend: true });
+    await sleep(100);
+    await port.setSignals({ dataTerminalReady: true, requestToSend: false });
+    await sleep(50);
+    await port.setSignals({ dataTerminalReady: false });
+  }
+
+  // Normal (run-mode) reset - same idea as esptool-js's ESPLoader.hardReset(),
+  // but explicit about DTR so it boots the app regardless of what a prior
+  // bootloader-entry sequence left DTR set to.
+  async function resetToNormalMode(port) {
+    await port.setSignals({ dataTerminalReady: false, requestToSend: true });
+    await sleep(100);
+    await port.setSignals({ requestToSend: false });
+  }
+
+  // Streams sharedPort's raw bytes into the console panel until stopMonitor()
+  // cancels it or the port itself errors/disconnects. Not awaited by callers -
+  // it runs in the background for as long as the port stays open.
+  async function startMonitor() {
+    if (portReader || !sharedPort || !sharedPort.readable) return;
+    let reader;
+    try {
+      reader = sharedPort.readable.getReader();
+    } catch (e) {
+      consoleNote.textContent = `Could not start console: ${e.message || e}`;
+      return;
+    }
+    portReader = reader;
+    const decoder = new TextDecoder(); // stateful: handles multi-byte UTF-8 split across chunks
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        if (value) {
+          consoleBuffer += decoder.decode(value, { stream: true });
+          if (consoleBuffer.length > MAX_CONSOLE_CHARS) {
+            consoleBuffer = consoleBuffer.slice(consoleBuffer.length - MAX_CONSOLE_CHARS);
+          }
+          const atBottom = consoleLogEl.scrollTop + consoleLogEl.clientHeight >= consoleLogEl.scrollHeight - 4;
+          consoleLogEl.textContent = consoleBuffer;
+          if (atBottom) consoleLogEl.scrollTop = consoleLogEl.scrollHeight;
+        }
+      }
+    } catch (e) {
+      if (!monitorStopRequested) consoleNote.textContent = `Console stopped: ${e.message || e}`;
+    } finally {
+      portReader = null;
+      monitorStopRequested = false;
+    }
+  }
+
+  // Cancels the monitor's in-flight read() (which resolves it as done, so the
+  // loop above exits cleanly) so another consumer - a reboot action or the
+  // Flash button - can take over the port's reader lock.
+  async function stopMonitor() {
+    if (!portReader) return;
+    monitorStopRequested = true;
+    try {
+      await portReader.cancel();
+    } catch (e) {
+      // Already released/disconnected - nothing to clean up.
+    }
+  }
+
+  async function doReboot(intoBootloader, btn) {
+    btn.disabled = true;
+    try {
+      await stopMonitor();
+      const port = await acquirePort();
+      if (!port.readable) await port.open({ baudRate: 115200 });
+      await (intoBootloader ? resetToBootloaderMode(port) : resetToNormalMode(port));
+      consoleNote.textContent = intoBootloader
+        ? "Reset into bootloader/flash mode."
+        : "Reset into normal mode.";
+      startMonitor();
+    } catch (e) {
+      consoleNote.textContent = `Reboot failed: ${e.message || e}`;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // Console/reboot buttons are general debug tools, not gated on having a
+  // completed build - kept separate from updateFlashAvailability() below.
+  function initDeviceConsole() {
+    if (!navigator.serial) {
+      rebootBootloaderBtn.style.display = "none";
+      rebootNormalBtn.style.display = "none";
+      consoleNote.textContent = "Live device console needs the same Web Serial support as flashing above.";
+      return;
+    }
+    rebootBootloaderBtn.style.display = "inline-block";
+    rebootNormalBtn.style.display = "inline-block";
+    rebootBootloaderBtn.disabled = false;
+    rebootNormalBtn.disabled = false;
+    navigator.serial.addEventListener("disconnect", (event) => {
+      if (event.target !== sharedPort) return;
+      sharedPort = null;
+      portReader = null;
+      consoleNote.textContent = "Device disconnected.";
+    });
+  }
+
+  rebootBootloaderBtn.addEventListener("click", () => doReboot(true, rebootBootloaderBtn));
+  rebootNormalBtn.addEventListener("click", () => doReboot(false, rebootNormalBtn));
 
   function updateFlashAvailability() {
     if (!navigator.serial) {
@@ -207,11 +348,22 @@ document.addEventListener("DOMContentLoaded", () => {
   flashBtn.addEventListener("click", async () => {
     flashBtn.disabled = true;
     flashNote.textContent = "Requesting serial port...";
+    let transport = null;
+    let handedOffToConsole = false;
     try {
+      // The console monitor and Transport can't both hold the port open at
+      // once - release the monitor's reader lock and close the port first so
+      // Transport's own device.open() below doesn't fail on an already-open port.
+      await stopMonitor();
+      if (sharedPort) {
+        try { await sharedPort.close(); } catch (e) {}
+      }
+
       const { ESPLoader, Transport } = await import(ESPTOOL_JS_URL);
 
-      const port = await navigator.serial.requestPort();
-      const transport = new Transport(port);
+      const port = await acquirePort();
+      sharedPort = port;
+      transport = new Transport(port);
       const loader = new ESPLoader({
         transport,
         baudrate: 115200,
@@ -266,13 +418,29 @@ document.addEventListener("DOMContentLoaded", () => {
         },
       });
 
-      flashNote.textContent = "Flashed successfully. The device should now be advertising.";
+      // esptool-js leaves the chip halted in the bootloader/stub it flashed
+      // through - writeFlash() alone never reboots it, so without this the
+      // "flashed successfully" message would be a lie: the device stays
+      // stuck until someone manually resets or power-cycles it. Reuses the
+      // same reset the "Reboot to Normal Mode" button uses, then hands the
+      // port to the console monitor so the app's boot log shows up right away.
+      flashNote.textContent = "Rebooting into normal mode...";
+      await resetToNormalMode(port);
+      await transport.disconnect();
+      await port.open({ baudRate: 115200 });
+      handedOffToConsole = true;
+      startMonitor();
+      flashNote.textContent = "Flashed and rebooted. The device should now be advertising.";
     } catch (e) {
       flashNote.textContent = `Flashing failed: ${e.message || e}`;
     } finally {
+      if (transport && !handedOffToConsole) {
+        try { await transport.disconnect(); } catch (e) {}
+      }
       flashBtn.disabled = false;
     }
   });
 
   updateFlashAvailability();
+  initDeviceConsole();
 });

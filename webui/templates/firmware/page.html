@@ -127,6 +127,23 @@
   <p id="firmware-flash-note"></p>
 </div>
 
+<div id="device-console-panel">
+  <h3>Device Console</h3>
+  <p class="field-hint">Reboots the connected board and shows its live serial output. Needs the same
+     browser/USB support as flashing above. Some boards don't wire DTR/RTS to reset/boot pins - if a
+     reboot button doesn't do anything, power-cycle the board manually instead.</p>
+  <div id="device-console-controls">
+    <button id="reboot-bootloader-btn" type="button" class="btn-secondary" style="display:none;" disabled>
+      Reboot to Bootloader/Flash Mode
+    </button>
+    <button id="reboot-normal-btn" type="button" class="btn-secondary" style="display:none;" disabled>
+      Reboot to Normal Mode
+    </button>
+  </div>
+  <p id="device-console-note"></p>
+  <pre id="device-console-log" class="preview-block">No device connected yet - use Flash or one of the reboot buttons above.</pre>
+</div>
+
 <h2>Other Zephyr-supported boards</h2>
 <p>Nordic nRF5x, Silicon EFR32BG22, ST BlueNRG-LP, Quectel BC68-GV, TTGO T-BEAM, and other Zephyr-supported
    boards aren't built or flashed from this page - flashing those typically needs board-specific tools
