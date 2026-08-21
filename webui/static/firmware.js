@@ -215,6 +215,13 @@ document.addEventListener("DOMContentLoaded", () => {
       flashNote.textContent = "Flashing... do not disconnect the device.";
       await loader.writeFlash({
         fileArray: [{ data: binaryStr, address: 0x0 }],
+        // Without this, esptool-js calls its internal flashSizeBytes(undefined)
+        // to sanity-check the image against flash size and throws
+        // "Cannot read properties of undefined (reading 'indexOf')". The
+        // merged binary already has bootloader/partition/app at the right
+        // offsets with flash params baked in by the build, so there's
+        // nothing for esptool-js to rewrite here anyway.
+        flashSize: "keep",
         reportProgress: (_fileIndex, written, total) => {
           flashNote.textContent = `Flashing... ${Math.round((written / total) * 100)}%`;
         },
