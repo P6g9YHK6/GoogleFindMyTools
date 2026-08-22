@@ -27,12 +27,18 @@
 {% endif %}
 
 {% if oob_swaps %}
-<div id="map-links-{{ canonic_id }}" hx-swap-oob="true">
+{# Both OOB targets below must stay <td>, matching the actual element
+   _table.html gives each of these ids - htmx's OOB swap is an outerHTML
+   replace by id, and swapping a <td> for a bare <div> here left a <div>
+   sitting inside a <tr>, which isn't valid table content: the browser's
+   parser foster-parents it out of the table entirely, so it rendered as a
+   stray value to the left of the whole table instead of inside its cell. #}
+<td id="map-links-{{ canonic_id }}" hx-swap-oob="true">
   {% include "devices/_map_links_cell.html" %}
-</div>
+</td>
 {# "Polled at" used to be an inline line under the coordinate list itself -
    moved to its own column (see _table.html) since it's per-fetch metadata,
    not per-location, and having it only in this cell threw off row-for-row
    alignment against the Map column next to it. #}
-<div id="polled-at-{{ canonic_id }}" hx-swap-oob="true">{{ fetched_at_str or "-" }}</div>
+<td id="polled-at-{{ canonic_id }}" hx-swap-oob="true">{{ fetched_at_str or "-" }}</td>
 {% endif %}
