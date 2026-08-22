@@ -151,10 +151,12 @@
     const nextDir = th.dataset.sortDir === "asc" ? "desc" : "asc";
     table.querySelectorAll(":scope > thead > tr > th").forEach((h) => {
       delete h.dataset.sortDir;
-      h.querySelector(".sort-indicator").textContent = "";
+      h.querySelector(".sort-indicator").innerHTML = "";
     });
     th.dataset.sortDir = nextDir;
-    th.querySelector(".sort-indicator").textContent = nextDir === "asc" ? " ▲" : " ▼";
+    const arrowIcon = nextDir === "asc" ? "chevron-up" : "chevron-down";
+    th.querySelector(".sort-indicator").innerHTML =
+      `<svg class="icon" aria-hidden="true"><use href="#icon-${arrowIcon}"></use></svg>`;
 
     const valueOf = (row) => (row.children[colIndex]?.textContent || "").trim();
     // {numeric: true} makes this do the right thing for plain numbers,
@@ -217,6 +219,7 @@
     const handle = document.createElement("span");
     handle.className = "col-drag-handle";
     handle.setAttribute("aria-hidden", "true");
+    handle.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#icon-grip-vertical"></use></svg>';
     handle.title = "Drag to reorder";
     th.insertBefore(handle, th.firstChild);
 

@@ -489,6 +489,8 @@ th {
 }
 
 .sort-indicator {
+  display: inline-block;
+  margin-left: 0.25rem;
   color: var(--primary);
 }
 
@@ -529,15 +531,12 @@ body.col-resizing, body.col-resizing * {
    on the right, so a reorder drag and a resize drag can never be started
    by the same gesture. */
 .col-drag-handle {
-  display: inline-block;
+  display: inline-flex;
+  vertical-align: middle;
   margin-right: 0.3rem;
   cursor: grab;
   color: var(--text-muted);
   touch-action: none;
-}
-
-.col-drag-handle::before {
-  content: "⠿";
 }
 
 .col-dragging {
