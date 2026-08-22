@@ -27,6 +27,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const flashBtn = document.getElementById("flash-btn");
   const flashNote = document.getElementById("firmware-flash-note");
   const connectConsoleBtn = document.getElementById("connect-console-btn");
+  const disconnectConsoleBtn = document.getElementById("disconnect-console-btn");
   const rebootBootloaderBtn = document.getElementById("reboot-bootloader-btn");
   const rebootNormalBtn = document.getElementById("reboot-normal-btn");
   const consoleNote = document.getElementById("device-console-note");
@@ -341,20 +342,41 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // Stops the monitor and closes the port (but keeps sharedPort's permission
+  // grant, so Connect/reboot afterwards don't re-show the port picker) -
+  // lets you end the session without power-cycling or resetting the board.
+  async function doDisconnect() {
+    disconnectConsoleBtn.disabled = true;
+    try {
+      await stopMonitor();
+      if (sharedPort && sharedPort.readable) {
+        await sharedPort.close();
+      }
+      consoleNote.textContent = "Disconnected.";
+    } catch (e) {
+      consoleNote.textContent = `Disconnect failed: ${e.message || e}`;
+    } finally {
+      disconnectConsoleBtn.disabled = false;
+    }
+  }
+
   // Console/reboot buttons are general debug tools, not gated on having a
   // completed build - kept separate from updateFlashAvailability() below.
   function initDeviceConsole() {
     if (!navigator.serial) {
       connectConsoleBtn.hidden = true;
+      disconnectConsoleBtn.hidden = true;
       rebootBootloaderBtn.hidden = true;
       rebootNormalBtn.hidden = true;
       consoleNote.textContent = "Live device console needs the same Web Serial support as flashing above.";
       return;
     }
     connectConsoleBtn.hidden = false;
+    disconnectConsoleBtn.hidden = false;
     rebootBootloaderBtn.hidden = false;
     rebootNormalBtn.hidden = false;
     connectConsoleBtn.disabled = false;
+    disconnectConsoleBtn.disabled = false;
     rebootBootloaderBtn.disabled = false;
     rebootNormalBtn.disabled = false;
     navigator.serial.addEventListener("disconnect", (event) => {
@@ -366,6 +388,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   connectConsoleBtn.addEventListener("click", doConnect);
+  disconnectConsoleBtn.addEventListener("click", doDisconnect);
   rebootBootloaderBtn.addEventListener("click", () => doReboot(true, rebootBootloaderBtn));
   rebootNormalBtn.addEventListener("click", () => doReboot(false, rebootNormalBtn));
 
