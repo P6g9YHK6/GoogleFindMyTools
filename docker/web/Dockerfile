@@ -55,6 +55,19 @@ COPY . /app
 ARG GFMT_BUILD_SHA=dev
 ARG GFMT_BUILD_DATE=
 ARG GFMT_BUILD_BRANCH=
+# A bare ENV substitution below has been observed serving a stale cached
+# layer from the registry buildcache even when the ARG value passed in
+# differs from the previous build (seen 2026-08-22: the footer kept showing
+# a commit from a day and several pushes earlier, despite /app itself - the
+# COPY layer above, which did invalidate correctly - having the current
+# code). Same class of stale-cache-hit bug as .github/workflows/
+# docker-publish.yml's own comment on the registry cache describes, just
+# hitting this ENV layer instead this time. RUN's cache key reliably
+# incorporates any ARG it actually references, unlike a plain ENV assignment
+# in some BuildKit versions, so this forces a real cache-key check against
+# GFMT_BUILD_SHA's resolved value and makes a stale hit here impossible
+# regardless of cause.
+RUN echo "Building ${GFMT_BUILD_SHA} (${GFMT_BUILD_BRANCH}, ${GFMT_BUILD_DATE})"
 ENV DISPLAY=:99 \
     GFMT_BROWSER_RUNTIME_DIR=/run/gfmt-browser \
     GFMT_DATA_DIR=/data \
