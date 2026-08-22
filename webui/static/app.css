@@ -1569,32 +1569,46 @@ details ul {
 }
 
 /* Forwarding log */
+/* Status/level pills - same tinted-badge language as .method-badge, so a
+   long Logs table (or the Staleness status column, which reuses these same
+   classes) scans by color at a glance instead of relying on text color
+   alone to separate an error from routine activity. */
+.log-ok, .log-error, .log-skipped, .log-critical, .log-warning, .log-info {
+  display: inline-block;
+  font-weight: 500;
+  padding: 0.15rem 0.55rem;
+  border-radius: var(--radius-pill);
+}
+
 .log-ok {
   color: var(--success);
-  font-weight: 500;
+  background: color-mix(in srgb, var(--success) var(--tint-medium), transparent);
 }
 
 .log-error {
   color: var(--danger);
-  font-weight: 500;
+  background: color-mix(in srgb, var(--danger) var(--tint-medium), transparent);
 }
 
 .log-skipped {
   color: var(--text-muted);
+  background: color-mix(in srgb, var(--text-muted) var(--tint-medium), transparent);
 }
 
 .log-critical {
   color: var(--danger);
   font-weight: 700;
+  background: color-mix(in srgb, var(--danger) var(--tint-medium), transparent);
 }
 
 .log-warning {
   color: var(--warning);
-  font-weight: 500;
+  background: color-mix(in srgb, var(--warning) var(--tint-medium), transparent);
 }
 
 .log-info {
   color: var(--text);
+  background: var(--surface-alt);
 }
 
 .log-debug {
