@@ -14,8 +14,49 @@
   --purple: #7c3aed;
   --radius: 10px;
   --radius-sm: 6px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
   --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
   --shadow-md: 0 4px 10px rgba(16, 24, 40, 0.08), 0 2px 4px rgba(16, 24, 40, 0.06);
+  --shadow-lg: 0 12px 28px rgba(16, 24, 40, 0.16), 0 4px 8px rgba(16, 24, 40, 0.08);
+
+  /* 4px-based rem steps, following the values already scattered through
+     this file (0.3/0.4/0.5/0.6/0.75/0.85rem etc.) rather than a generic
+     8px scale that wouldn't match anything already here. Not adopted into
+     existing rules yet - introduced here so later passes can switch to
+     them one rule at a time instead of hand-picking a new value each time. */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-7: 2rem;
+  --space-8: 3rem;
+
+  /* Matches sizes already in use below (body 0.92rem-ish inputs, h2
+     1.2rem, h1 1.65rem) so switching a rule onto these later is a
+     non-visual swap, plus one new step (2xl) reserved for a stronger
+     page-title treatment. */
+  --font-size-xs: 0.78rem;
+  --font-size-sm: 0.85rem;
+  --font-size-base: 0.92rem;
+  --font-size-md: 1rem;
+  --font-size-lg: 1.2rem;
+  --font-size-xl: 1.65rem;
+  --font-size-2xl: 1.85rem;
+
+  /* Named percentages for the color-mix() tints repeated throughout this
+     file, so the same "how strong is this tint" decision reads as one
+     name instead of a bare number at every call site. Only covers the
+     percentages that actually repeat across unrelated components - one-off
+     percentages stay as literals rather than being force-fit into a name
+     that wouldn't mean anything at the next call site. */
+  --tint-weak: 10%;
+  --tint-medium: 16%;
+  --tint-strong: 30%;
+  --tint-border: 35%;
+  --tint-focus: 22%;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -35,6 +76,7 @@
     --purple: #a78bfa;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.3);
     --shadow-md: 0 4px 10px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 16px 32px rgba(0, 0, 0, 0.45), 0 4px 10px rgba(0, 0, 0, 0.35);
   }
 }
 
@@ -310,7 +352,7 @@ select {
 input:focus, select:focus, textarea:focus {
   outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 22%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) var(--tint-focus), transparent);
 }
 
 .yaml-editor {
@@ -607,7 +649,7 @@ details ul {
 
 #provision-bar-track {
   background: var(--surface-alt);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   height: 8px;
   overflow: hidden;
   margin: 0.75rem 0 0.5rem;
@@ -617,7 +659,7 @@ details ul {
   background: var(--primary);
   height: 100%;
   width: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   transition: width 0.3s ease;
 }
 
@@ -679,7 +721,7 @@ details ul {
 .url-input:focus {
   outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 22%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) var(--tint-focus), transparent);
 }
 
 /* Only the endpoint URL field is contenteditable (the Apprise/YAML reuses
@@ -739,7 +781,7 @@ details ul {
   letter-spacing: 0.04em;
   color: var(--primary);
   background: color-mix(in srgb, var(--primary) 14%, transparent);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 0.15rem 0.55rem;
 }
 
@@ -1147,9 +1189,9 @@ details ul {
   font-size: 0.76rem;
   font-weight: 500;
   color: var(--primary);
-  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
-  border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--border));
-  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) var(--tint-weak), var(--surface));
+  border: 1px solid color-mix(in srgb, var(--primary) var(--tint-strong), var(--border));
+  border-radius: var(--radius-pill);
   padding: 0.28rem 0.65rem;
   box-shadow: none;
   min-height: 2.1rem; /* the label itself stays compact; this just widens the tap target */
@@ -1215,15 +1257,15 @@ details ul {
   margin-right: 0.4rem;
 }
 
-.method-badge.get { color: var(--primary); background: color-mix(in srgb, var(--primary) 16%, transparent); }
-.method-badge.post { color: var(--success); background: color-mix(in srgb, var(--success) 16%, transparent); }
-.method-badge.put, .method-badge.patch { color: var(--warning); background: color-mix(in srgb, var(--warning) 16%, transparent); }
-.method-badge.delete { color: var(--danger); background: color-mix(in srgb, var(--danger) 16%, transparent); }
+.method-badge.get { color: var(--primary); background: color-mix(in srgb, var(--primary) var(--tint-medium), transparent); }
+.method-badge.post { color: var(--success); background: color-mix(in srgb, var(--success) var(--tint-medium), transparent); }
+.method-badge.put, .method-badge.patch { color: var(--warning); background: color-mix(in srgb, var(--warning) var(--tint-medium), transparent); }
+.method-badge.delete { color: var(--danger); background: color-mix(in srgb, var(--danger) var(--tint-medium), transparent); }
 
 .tok-resolved { color: var(--success); }
 .tok-unresolved {
   color: var(--warning);
-  background: color-mix(in srgb, var(--warning) 16%, transparent);
+  background: color-mix(in srgb, var(--warning) var(--tint-medium), transparent);
   border-radius: 3px;
   padding: 0 2px;
 }
@@ -1331,7 +1373,7 @@ details ul {
   font-weight: 500;
   color: var(--warning);
   background: color-mix(in srgb, var(--warning) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--warning) 35%, var(--border));
+  border: 1px solid color-mix(in srgb, var(--warning) var(--tint-border), var(--border));
   border-radius: var(--radius-sm);
   padding: 0.4rem 0.75rem;
   margin: 0 0 0.75rem;
@@ -1346,7 +1388,7 @@ details ul {
   font-weight: 500;
   color: var(--warning);
   background: color-mix(in srgb, var(--warning) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--warning) 35%, var(--border));
+  border: 1px solid color-mix(in srgb, var(--warning) var(--tint-border), var(--border));
   border-radius: var(--radius-sm);
   padding: 0.6rem 0.9rem;
   margin: 0 0 1rem;
