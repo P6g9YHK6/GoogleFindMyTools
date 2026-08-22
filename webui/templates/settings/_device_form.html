@@ -1,3 +1,4 @@
+{% from "_macros.html" import icon %}
 <form hx-post="/settings/devices/{{ row.canonic_id }}" hx-target="closest .device-editor" hx-swap="innerHTML">
   {# This device's real last-reported/synced values, for the Preview panel to
      prefer over its hardcoded placeholders (see SAMPLE_VALUES/blockVars in
@@ -61,7 +62,7 @@
                 hx-get="/settings/devices/{{ row.canonic_id }}"
                 hx-target="closest .device-editor" hx-swap="innerHTML"
                 hx-confirm="Discard unsaved changes to this device?">Revert</button>
-        {% if row.saved %}<span class="save-toast">✓ Saved</span>{% endif %}
+        {% if row.saved %}<span class="save-toast">{{ icon("check") }} Saved</span>{% endif %}
       </span>
     </div>
   </fieldset>

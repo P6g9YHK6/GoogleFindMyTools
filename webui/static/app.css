@@ -1484,8 +1484,8 @@ details ul {
   margin: 0 0 1rem;
 }
 
-.construction-banner::before {
-  content: "🚧 ";
+.construction-banner .icon {
+  margin-right: 0.3rem;
 }
 
 @media (prefers-reduced-motion: reduce) {

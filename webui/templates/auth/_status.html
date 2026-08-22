@@ -1,5 +1,6 @@
+{% from "_macros.html" import icon %}
 {% if status.cleanup_warning %}
-  <p class="form-error">⚠ {{ status.cleanup_warning }}</p>
+  <p class="form-error">{{ icon("alert-triangle") }} {{ status.cleanup_warning }}</p>
 {% endif %}
 
 {% if status.logged_in %}
