@@ -1,0 +1,4 @@
+{# {{ icon("map-pin") }} -> a small inline SVG referencing the matching
+   <symbol> in icons/_sprite.html (included once in base.html). class_ adds
+   extra classes alongside the base "icon" one, e.g. icon("x", "btn-icon"). #}
+{% macro icon(name, class_="") %}<svg class="icon {{ class_ }}" aria-hidden="true"><use href="#icon-{{ name }}"></use></svg>{% endmacro %}

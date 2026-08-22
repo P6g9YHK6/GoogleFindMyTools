@@ -1,0 +1,61 @@
+{# Self-hosted icon set, replacing the literal emoji glyphs the app used to
+   render as button/status content. One <symbol> per icon, referenced
+   elsewhere via the icon() macro in _macros.html (<use href="#icon-NAME">).
+   Included once by base.html right after <body> so every page gets these
+   defs for free without a network request or a build step - same outline
+   style throughout (24x24 viewBox, stroke currentColor, no fill) so nothing
+   looks mismatched next to anything else.
+
+   Kept as one hidden inline SVG rather than an external .svg file: browsers
+   only resolve <use href="file.svg#id"> reliably same-origin, and Safari
+   in particular has a history of not following cross-document fragment
+   references at all - inlining sidesteps that entirely. #}
+<svg style="display:none" aria-hidden="true">
+  <symbol id="icon-map-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+    <circle cx="12" cy="10" r="3"></circle>
+  </symbol>
+
+  <symbol id="icon-volume-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+    <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+  </symbol>
+
+  <symbol id="icon-volume-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+    <line x1="23" y1="9" x2="17" y2="15"></line>
+    <line x1="17" y1="9" x2="23" y2="15"></line>
+  </symbol>
+
+  <symbol id="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="20 6 9 17 4 12"></polyline>
+  </symbol>
+
+  <symbol id="icon-alert-triangle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+    <line x1="12" y1="9" x2="12" y2="13"></line>
+    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+  </symbol>
+
+  <symbol id="icon-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="18" y1="6" x2="6" y2="18"></line>
+    <line x1="6" y1="6" x2="18" y2="18"></line>
+  </symbol>
+
+  <symbol id="icon-grip-vertical" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+    <circle cx="9" cy="5" r="1.4"></circle>
+    <circle cx="9" cy="12" r="1.4"></circle>
+    <circle cx="9" cy="19" r="1.4"></circle>
+    <circle cx="15" cy="5" r="1.4"></circle>
+    <circle cx="15" cy="12" r="1.4"></circle>
+    <circle cx="15" cy="19" r="1.4"></circle>
+  </symbol>
+
+  <symbol id="icon-chevron-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="18 15 12 9 6 15"></polyline>
+  </symbol>
+
+  <symbol id="icon-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="6 9 12 15 18 9"></polyline>
+  </symbol>
+</svg>

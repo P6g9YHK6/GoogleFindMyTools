@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
+  {% include "icons/_sprite.html" %}
   <nav>
     <a href="/" class="brand"><img src="/static/logo.png" alt="GoogleFindMyToolsWebUi" height="28"></a>
     <a href="/" {% if active_page == "devices" %}class="active"{% endif %}>Devices</a>
