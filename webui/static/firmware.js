@@ -14,6 +14,22 @@ const CHIP_NAME_BY_TARGET = {
   esp32c3: "ESP32-C3",
 };
 
+// USB vendor IDs of the UART bridge chips actually found on ESP32/ESP32-C3 dev
+// boards, passed as requestPort()'s `filters` below - with no filters at all
+// the browser's native port picker lists every serial-capable device on the
+// system (Bluetooth SPP ports, modems, other boards entirely), which is a lot
+// of noise to pick a flashing target out of. Same short list ESPHome's own
+// web flasher uses. Doesn't cover every clone board in existence - if yours
+// isn't picked up, it's on a chip not in this list (or Firefox's still-new
+// Web Serial support not yet recognizing it - see updateFlashAvailability()
+// below); the Download .bin + esptool.py fallback always works regardless.
+const ESP_USB_FILTERS = [
+  { usbVendorId: 0x10c4 }, // Silicon Labs CP210x - most ESP32 DevKits
+  { usbVendorId: 0x1a86 }, // WCH CH340/CH341 - many ESP32-CAM boards and clones
+  { usbVendorId: 0x0403 }, // FTDI - some ESP32 boards
+  { usbVendorId: 0x303a }, // Espressif's own vendor ID - native USB CDC/JTAG on ESP32-C3
+];
+
 document.addEventListener("DOMContentLoaded", () => {
   const form = document.getElementById("firmware-build-form");
   if (!form) return;
@@ -276,7 +292,7 @@ document.addEventListener("DOMContentLoaded", () => {
   async function acquirePort() {
     if (sharedPort) return sharedPort;
     const known = await navigator.serial.getPorts();
-    sharedPort = known.length === 1 ? known[0] : await navigator.serial.requestPort();
+    sharedPort = known.length === 1 ? known[0] : await navigator.serial.requestPort({ filters: ESP_USB_FILTERS });
     return sharedPort;
   }
 
@@ -455,7 +471,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!navigator.serial) {
       flashBtn.hidden = true;
       flashNote.textContent = "In-browser flashing needs a secure context (this page loaded over " +
-        "HTTPS, or from localhost) and a browser that supports the Web Serial API (Chrome/Edge). " +
+        "HTTPS, or from localhost) and a browser that supports the Web Serial API (Chrome, Edge, " +
+        "or Firefox 151+ - Firefox's support is new as of mid-2026, so it may not yet recognize " +
+        "every board's USB-serial chip the way Chrome does). " +
         "Download the .bin above and flash it manually instead, e.g.: " +
         "esptool.py --chip <board> write_flash 0x0 <file>.bin";
       return;
