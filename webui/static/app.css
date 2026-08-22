@@ -366,6 +366,20 @@ form {
   margin: 0 0 1rem;
 }
 
+/* Same card look as fieldset below, for a plain <form> that isn't itself
+   wrapped in one (the firmware page's Register Tracker and build forms) -
+   share the values instead of a fieldset with an invisible legend, since
+   neither form actually groups multiple named field-sets, just one flow of
+   fields followed by a submit button. */
+.form-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.1rem 1.25rem 1.25rem;
+  margin-bottom: 1.5rem;
+  box-shadow: var(--shadow);
+}
+
 fieldset {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -387,6 +401,16 @@ fieldset fieldset {
   box-shadow: none;
   margin-top: 1rem;
   margin-bottom: 1rem;
+}
+
+/* Same nested-card flattening as fieldset fieldset above - the firmware
+   page's "Customize identity"/"Advanced" <details> sit inside a .form-card,
+   and without this they'd double up two identical card outlines instead of
+   reading as one card with a lighter sub-section inside it. */
+.form-card details {
+  background: var(--surface-alt);
+  box-shadow: none;
+  margin-top: 1rem;
 }
 
 legend {
