@@ -48,7 +48,7 @@
         {% endif %}
       </td>
       <td>
-        <details>
+        <details class="staleness-configure">
           <summary>Configure</summary>
           <form hx-post="/staleness/devices/{{ row.canonic_id }}" hx-target="#staleness-table" hx-swap="innerHTML">
             <label class="checkbox-label">

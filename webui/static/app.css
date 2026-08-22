@@ -1612,6 +1612,14 @@ details ul {
   color: var(--text-muted);
 }
 
+/* Otherwise stretches edge-to-edge across whatever's left of the row once
+   the other three columns take their share - a multi-field form reads
+   better as a contained panel than a form spread the full width of a wide
+   table cell. */
+.staleness-configure {
+  max-width: 32rem;
+}
+
 .duration-field {
   display: inline-flex;
   gap: 0.4rem;
