@@ -121,7 +121,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function handleUpdate(msg) {
-    panel.style.display = "block";
+    panel.hidden = false;
     barFill.style.width = `${msg.percent}%`;
     messageEl.textContent = msg.message;
     buildBtn.disabled = ACTIVE_PHASES.includes(msg.phase);
@@ -141,12 +141,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (msg.phase === "done") {
       lastBuiltChip = msg.built_chip || null;
-      downloadLink.style.display = "inline-block";
+      downloadLink.hidden = false;
       downloadLink.setAttribute("download", msg.download_name || "firmware.bin");
       updateFlashAvailability();
     } else {
-      downloadLink.style.display = "none";
-      flashBtn.style.display = "none";
+      downloadLink.hidden = true;
+      flashBtn.hidden = true;
       flashNote.textContent = "";
     }
   }
@@ -311,13 +311,13 @@ document.addEventListener("DOMContentLoaded", () => {
   // completed build - kept separate from updateFlashAvailability() below.
   function initDeviceConsole() {
     if (!navigator.serial) {
-      rebootBootloaderBtn.style.display = "none";
-      rebootNormalBtn.style.display = "none";
+      rebootBootloaderBtn.hidden = true;
+      rebootNormalBtn.hidden = true;
       consoleNote.textContent = "Live device console needs the same Web Serial support as flashing above.";
       return;
     }
-    rebootBootloaderBtn.style.display = "inline-block";
-    rebootNormalBtn.style.display = "inline-block";
+    rebootBootloaderBtn.hidden = false;
+    rebootNormalBtn.hidden = false;
     rebootBootloaderBtn.disabled = false;
     rebootNormalBtn.disabled = false;
     navigator.serial.addEventListener("disconnect", (event) => {
@@ -333,14 +333,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function updateFlashAvailability() {
     if (!navigator.serial) {
-      flashBtn.style.display = "none";
+      flashBtn.hidden = true;
       flashNote.textContent = "In-browser flashing needs a secure context (this page loaded over " +
         "HTTPS, or from localhost) and a browser that supports the Web Serial API (Chrome/Edge). " +
         "Download the .bin above and flash it manually instead, e.g.: " +
         "esptool.py --chip <board> write_flash 0x0 <file>.bin";
       return;
     }
-    flashBtn.style.display = "inline-block";
+    flashBtn.hidden = false;
     flashBtn.disabled = false;
     flashNote.textContent = "";
   }

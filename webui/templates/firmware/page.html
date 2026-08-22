@@ -115,15 +115,15 @@
   <button id="build-btn" type="submit">Build firmware</button>
 </form>
 
-<div id="firmware-build-panel" style="display:none;">
+<div id="firmware-build-panel" hidden>
   <div id="firmware-bar-track"><div id="firmware-bar-fill"></div></div>
   <p id="firmware-message"></p>
   <ul id="firmware-log"></ul>
 </div>
 
 <div id="firmware-result">
-  <a id="firmware-download-link" href="/firmware/build/download" style="display:none;">Download .bin</a>
-  <button id="flash-btn" type="button" style="display:none;" disabled>Flash via WebSerial</button>
+  <a id="firmware-download-link" href="/firmware/build/download" hidden>Download .bin</a>
+  <button id="flash-btn" type="button" hidden disabled>Flash via WebSerial</button>
   <p id="firmware-flash-note"></p>
 </div>
 
@@ -133,10 +133,10 @@
      browser/USB support as flashing above. Some boards don't wire DTR/RTS to reset/boot pins - if a
      reboot button doesn't do anything, power-cycle the board manually instead.</p>
   <div id="device-console-controls">
-    <button id="reboot-bootloader-btn" type="button" class="btn-secondary" style="display:none;" disabled>
+    <button id="reboot-bootloader-btn" type="button" class="btn-secondary" hidden disabled>
       Reboot to Bootloader/Flash Mode
     </button>
-    <button id="reboot-normal-btn" type="button" class="btn-secondary" style="display:none;" disabled>
+    <button id="reboot-normal-btn" type="button" class="btn-secondary" hidden disabled>
       Reboot to Normal Mode
     </button>
   </div>

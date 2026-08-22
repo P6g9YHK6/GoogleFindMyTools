@@ -56,7 +56,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function handleUpdate(msg) {
-    panel.style.display = "block";
+    panel.hidden = false;
     barFill.style.width = `${msg.percent}%`;
     messageEl.textContent = msg.message;
     signinBtn.disabled = ACTIVE_PHASES.includes(msg.phase);
@@ -97,7 +97,7 @@ document.addEventListener("DOMContentLoaded", () => {
       // instead of a hardcoded "Signed in." that doesn't reflect either.
       // The progress panel's job ends here too - its last message would
       // otherwise sit on screen forever since nothing else ever clears it.
-      panel.style.display = "none";
+      panel.hidden = true;
       fetch("/auth/status")
         .then(resp => resp.text())
         .then(html => { loginStatus.innerHTML = html; })
