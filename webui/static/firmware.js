@@ -26,6 +26,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const downloadLink = document.getElementById("firmware-download-link");
   const flashBtn = document.getElementById("flash-btn");
   const flashNote = document.getElementById("firmware-flash-note");
+  const connectConsoleBtn = document.getElementById("connect-console-btn");
   const rebootBootloaderBtn = document.getElementById("reboot-bootloader-btn");
   const rebootNormalBtn = document.getElementById("reboot-normal-btn");
   const consoleNote = document.getElementById("device-console-note");
@@ -322,17 +323,38 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // Opens the port and starts the monitor without touching DTR/RTS - unlike
+  // the reboot buttons, this doesn't reset the board, so it picks up
+  // whatever's already running (or lets you watch a device that only prints
+  // on its own, e.g. one boot-looping on its own bad firmware).
+  async function doConnect() {
+    connectConsoleBtn.disabled = true;
+    try {
+      const port = await acquirePort();
+      if (!port.readable) await port.open({ baudRate: 115200 });
+      consoleNote.textContent = "Connected.";
+      startMonitor();
+    } catch (e) {
+      consoleNote.textContent = `Connect failed: ${e.message || e}`;
+    } finally {
+      connectConsoleBtn.disabled = false;
+    }
+  }
+
   // Console/reboot buttons are general debug tools, not gated on having a
   // completed build - kept separate from updateFlashAvailability() below.
   function initDeviceConsole() {
     if (!navigator.serial) {
+      connectConsoleBtn.hidden = true;
       rebootBootloaderBtn.hidden = true;
       rebootNormalBtn.hidden = true;
       consoleNote.textContent = "Live device console needs the same Web Serial support as flashing above.";
       return;
     }
+    connectConsoleBtn.hidden = false;
     rebootBootloaderBtn.hidden = false;
     rebootNormalBtn.hidden = false;
+    connectConsoleBtn.disabled = false;
     rebootBootloaderBtn.disabled = false;
     rebootNormalBtn.disabled = false;
     navigator.serial.addEventListener("disconnect", (event) => {
@@ -343,6 +365,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  connectConsoleBtn.addEventListener("click", doConnect);
   rebootBootloaderBtn.addEventListener("click", () => doReboot(true, rebootBootloaderBtn));
   rebootNormalBtn.addEventListener("click", () => doReboot(false, rebootNormalBtn));
 

@@ -128,6 +128,9 @@
      browser/USB support as flashing above. Some boards don't wire DTR/RTS to reset/boot pins - if a
      reboot button doesn't do anything, power-cycle the board manually instead.</p>
   <div id="device-console-controls">
+    <button id="connect-console-btn" type="button" class="btn-secondary" hidden disabled>
+      Connect
+    </button>
     <button id="reboot-bootloader-btn" type="button" class="btn-secondary" hidden disabled>
       Reboot to Bootloader/Flash Mode
     </button>
@@ -136,7 +139,7 @@
     </button>
   </div>
   <p id="device-console-note"></p>
-  <pre id="device-console-log" class="preview-block">No device connected yet - use Flash or one of the reboot buttons above.</pre>
+  <pre id="device-console-log" class="preview-block">No device connected yet - use Connect, Flash, or one of the reboot buttons above.</pre>
 </div>
 
 <h2>Other Zephyr-supported boards</h2>
