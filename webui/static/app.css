@@ -1226,10 +1226,16 @@ details ul {
   padding-left: 1.1rem;
 }
 
-/* Devices page "Actions" column - Locate/Play sound/Stop sound, icon-only
-   so three buttons fit one cell without wrapping (see devices/_table.html). */
+/* Devices page "Actions" column - Locate/Play sound/Stop sound (see
+   devices/_table.html). Wraps onto more than one line (buttons stacking
+   above each other) instead of forcing the column wider or spilling into a
+   horizontal scroll once the cell is narrower than all three buttons side
+   by side (a resized/reordered column, a narrow viewport, ...). */
 .actions-cell {
-  white-space: nowrap;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  align-items: center;
 }
 
 .btn-icon {
@@ -1245,7 +1251,6 @@ details ul {
   line-height: 1;
   min-width: 2.1rem;
   min-height: 2.1rem;
-  margin-right: 0.3rem;
 }
 
 .btn-icon:hover:not(:disabled) {
