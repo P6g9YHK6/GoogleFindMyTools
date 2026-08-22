@@ -86,7 +86,8 @@
     tr.innerHTML =
       `<td><input type="text" class="kv-key" name="ep-${idx}-${keyName}" placeholder="${kp}"></td>` +
       `<td><input type="text" class="kv-value templatable" name="ep-${idx}-${valueName}" placeholder="${vp}"></td>` +
-      `<td class="kv-remove-cell"><button type="button" class="btn-remove-row" title="Remove row">✕</button></td>`;
+      `<td class="kv-remove-cell"><button type="button" class="btn-remove-row" title="Remove row">` +
+      `<svg class="icon" aria-hidden="true"><use href="#icon-x"></use></svg></button></td>`;
     tr.querySelector(".kv-key").value = key || "";
     tr.querySelector(".kv-value").value = value || "";
     return tr;
