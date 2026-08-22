@@ -1,5 +1,6 @@
+{% from "_macros.html" import icon %}
 {% if ok %}
-<span class="action-status action-status--ok" aria-hidden="true">✓</span>
+<span class="action-status action-status--ok" aria-hidden="true">{{ icon("check") }}</span>
 {% else %}
-<span class="action-status action-status--error" title="{{ error }}">⚠</span>
+<span class="action-status action-status--error" title="{{ error }}">{{ icon("alert-triangle") }}</span>
 {% endif %}
