@@ -86,4 +86,13 @@ PRESETS: dict[str, dict] = {
         "model_name": "Pet Collar",
         "image_url": "https://upload.wikimedia.org/wikipedia/commons/b/bc/083006_Romeo_collar_web.jpg",
     },
+    "bootleg_airtag": {
+        "label": "Bootleg Airtag",
+        "hint": "Yours if you want it.",
+        "display_name": "Bootleg Airtag",
+        "device_type": "DEVICE_TYPE_BEACON",
+        "manufacturer_name": "Bickbutt inc.",
+        "model_name": "ROFL",
+        "image_url": "https://raw.githubusercontent.com/gist/nothub/699a85b808276a406c2c3122a4761b8a/raw/354c91350739b78adb10ebba8a4bb7405dfc924f/dickbutt.svg",
+    },
 }
