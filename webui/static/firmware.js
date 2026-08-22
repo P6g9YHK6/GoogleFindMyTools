@@ -240,6 +240,23 @@ document.addEventListener("DOMContentLoaded", () => {
     await port.setSignals({ requestToSend: false });
   }
 
+  // Flushes consoleBuffer to the DOM at most once per animation frame -
+  // startMonitor()'s read() loop below can resolve hundreds of times a
+  // second (e.g. a board stuck boot-looping and spamming ROM output), and
+  // reassigning a growing textContent on every single chunk was pegging the
+  // main thread hard enough to look like a browser crash.
+  let consoleFlushPending = false;
+  function scheduleConsoleFlush() {
+    if (consoleFlushPending) return;
+    consoleFlushPending = true;
+    requestAnimationFrame(() => {
+      consoleFlushPending = false;
+      const atBottom = consoleLogEl.scrollTop + consoleLogEl.clientHeight >= consoleLogEl.scrollHeight - 4;
+      consoleLogEl.textContent = consoleBuffer;
+      if (atBottom) consoleLogEl.scrollTop = consoleLogEl.scrollHeight;
+    });
+  }
+
   // Streams sharedPort's raw bytes into the console panel until stopMonitor()
   // cancels it or the port itself errors/disconnects. Not awaited by callers -
   // it runs in the background for as long as the port stays open.
@@ -263,9 +280,7 @@ document.addEventListener("DOMContentLoaded", () => {
           if (consoleBuffer.length > MAX_CONSOLE_CHARS) {
             consoleBuffer = consoleBuffer.slice(consoleBuffer.length - MAX_CONSOLE_CHARS);
           }
-          const atBottom = consoleLogEl.scrollTop + consoleLogEl.clientHeight >= consoleLogEl.scrollHeight - 4;
-          consoleLogEl.textContent = consoleBuffer;
-          if (atBottom) consoleLogEl.scrollTop = consoleLogEl.scrollHeight;
+          scheduleConsoleFlush();
         }
       }
     } catch (e) {
