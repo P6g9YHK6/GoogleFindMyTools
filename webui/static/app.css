@@ -127,12 +127,13 @@ h1, h2, h3 {
 }
 
 h1 {
-  font-size: 1.65rem;
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
   margin: 1.75rem 0 1rem;
 }
 
 h2 {
-  font-size: 1.2rem;
+  font-size: var(--font-size-lg);
   margin: 2rem 0 0.75rem;
 }
 
@@ -323,7 +324,7 @@ footer a:hover {
 /* Buttons */
 button, input[type="submit"] {
   font-family: inherit;
-  font-size: 0.9rem;
+  font-size: var(--font-size-base);
   font-weight: 500;
   color: var(--primary-contrast);
   background: var(--primary);
@@ -411,7 +412,7 @@ input[type="email"],
 select,
 textarea {
   font-family: inherit;
-  font-size: 0.92rem;
+  font-size: var(--font-size-base);
   font-weight: 400;
   color: var(--text);
   background: var(--surface);
@@ -466,7 +467,7 @@ th, td {
 }
 
 th {
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-muted);
@@ -727,10 +728,14 @@ details ul {
 }
 
 /* Provisioning panel */
+/* Hero panels (this one, #firmware-build-panel, #device-console-panel) use
+   the larger radius - a bit more visual weight than an ordinary card/
+   fieldset, since each is the one thing actively happening on its page
+   while visible (a sign-in in progress, a build running, a live console). */
 #provision-panel {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   padding: 1rem 1.25rem;
   margin: 1.25rem 0;
   box-shadow: var(--shadow);
@@ -1163,7 +1168,7 @@ details ul {
   border: none;
   border-radius: var(--radius);
   background: var(--surface);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-lg);
 }
 
 .image-modal::backdrop {
@@ -1325,7 +1330,20 @@ details ul {
 #device-console-panel {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
+  padding: 1rem 1.25rem;
+  margin: 1.25rem 0;
+  box-shadow: var(--shadow);
+}
+
+/* firmware-build-panel had no styling of its own before - just plain
+   content - left that way while it was a rare page; sits alongside
+   #device-console-panel and #provision-panel above now, so it gets the
+   same hero-panel treatment instead of looking bare next to them. */
+#firmware-build-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
   padding: 1rem 1.25rem;
   margin: 1.25rem 0;
   box-shadow: var(--shadow);
