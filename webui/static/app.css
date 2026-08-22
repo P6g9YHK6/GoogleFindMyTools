@@ -1510,6 +1510,17 @@ details ul {
   color: var(--danger);
 }
 
+/* One .device-row per device on the Forwarding Settings page, each already
+   a bordered fieldset - without this, several devices (each with several
+   endpoint fieldsets of their own) run together into one long column of
+   near-identical boxes with nothing marking where one device ends and the
+   next begins. */
+.device-row + .device-row {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--border);
+}
+
 .unsaved-banner {
   font-size: 0.8rem;
   font-weight: 500;
