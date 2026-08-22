@@ -197,6 +197,11 @@ nav a:hover {
   text-decoration: none;
 }
 
+nav a.active {
+  color: var(--text);
+  background: var(--surface-alt);
+}
+
 nav a.brand {
   display: flex;
   align-items: center;
@@ -277,6 +282,11 @@ nav a.brand:hover {
 .nav-group menu a:hover {
   background: var(--surface-alt);
   text-decoration: none;
+}
+
+.nav-group menu a.active {
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) var(--tint-weak), transparent);
 }
 
 /* Footer */

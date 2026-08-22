@@ -37,7 +37,27 @@ def _build_info(request: Request) -> dict:
     }
 
 
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"), context_processors=[_build_info])
+# One entry per top-level page base.html's nav links to - lets it highlight
+# the current page (and pre-open the Settings group when landing directly on
+# one of its three pages) purely from the request path, the same
+# derive-it-once-in-a-context-processor approach _build_info uses above,
+# instead of every one of those six routers' TemplateResponse calls passing
+# an identical "which page is this" value along by hand.
+_NAV_PAGES = {
+    "/": "devices",
+    "/firmware": "firmware",
+    "/settings": "settings",
+    "/staleness": "staleness",
+    "/logs": "logs",
+    "/auth": "auth",
+}
+
+
+def _active_page(request: Request) -> dict:
+    return {"active_page": _NAV_PAGES.get(request.url.path)}
+
+
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"), context_processors=[_build_info, _active_page])
 # Lets the schedule editor's cron preview render inline on the initial page
 # load (settings/_endpoint_fields.html calls cron_preview(cron_value)
 # directly) without threading a computed value through every route that
