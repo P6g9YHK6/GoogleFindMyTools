@@ -501,7 +501,10 @@ body.col-reordering, body.col-reordering * {
   border-color: var(--primary);
 }
 
-.columns-menu menu {
+/* Shared popover-surface look for any <details><menu> dropdown - originally
+   written just for .columns-menu, now also used by .nav-group's Settings
+   menu, so it lives under its own name instead of being duplicated. */
+.menu-popover, .columns-menu menu {
   position: absolute;
   z-index: 5;
   top: calc(100% + 0.3rem);
