@@ -3,7 +3,7 @@ from datetime import datetime
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import FileResponse
 
-from webui import firmware_build, firmware_store, identity_validation, registration_presets
+from webui import firmware_build, firmware_store, flash_presets, identity_validation, registration_presets
 from webui.firmware_build import REPO_ROOT
 from webui.routers.devices import device_type_plain_label
 from webui.templating import templates
@@ -41,6 +41,7 @@ async def firmware_page(request: Request):
         "last_identity": firmware_store.load_last_identity(),
         "device_type_choices": device_type_choices,
         "identity_presets": registration_presets.PRESETS,
+        "flash_presets": flash_presets.PRESETS,
     })
 
 

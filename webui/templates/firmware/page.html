@@ -85,6 +85,15 @@
   <details id="firmware-advanced">
     <summary>Advanced</summary>
 
+    <label for="flash_preset">Preset</label>
+    <select id="flash_preset" class="preset-select">
+      <option value="">Custom (fill in manually)</option>
+      {% for key, preset in flash_presets.items() %}
+      <option value="{{ key }}">{{ preset.label }}</option>
+      {% endfor %}
+    </select>
+    <p class="field-hint" id="flash-preset-hint"></p>
+
     <label for="device_name">Device name</label>
     <input id="device_name" name="device_name" type="text" maxlength="20" value="GFMT Tracker" required>
 
@@ -162,5 +171,6 @@
 
 <script type="application/json" id="firmware-build-settings-by-eid">{{ build_settings_by_eid | tojson }}</script>
 <script type="application/json" id="identity-presets-data">{{ identity_presets | tojson }}</script>
+<script type="application/json" id="flash-presets-data">{{ flash_presets | tojson }}</script>
 <script type="module" src="/static/firmware.js"></script>
 {% endblock %}

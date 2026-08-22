@@ -101,6 +101,34 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // ---- flash presets (webui/flash_presets.py) ------------------------------
+  // Same idea as the identity presets above, but for the Advanced section's
+  // build settings (device name, advertising interval, TX power, tracking
+  // protection).
+  const flashPresetSelect = document.getElementById("flash_preset");
+  const flashPresetHint = document.getElementById("flash-preset-hint");
+  let flashPresets = {};
+  try {
+    flashPresets = JSON.parse(document.getElementById("flash-presets-data").textContent);
+  } catch (e) {
+    // Empty/malformed blob - Preset dropdown just won't fill anything in.
+  }
+
+  if (flashPresetSelect) {
+    flashPresetSelect.addEventListener("change", () => {
+      const preset = flashPresets[flashPresetSelect.value];
+      flashPresetHint.textContent = preset ? preset.hint : "";
+      if (!preset) return;
+      // A deliberately-picked preset should win over the known-EID autofill
+      // above, same as the user opening the section by hand would.
+      advancedTouchedByUser = true;
+      deviceNameInput.value = preset.device_name;
+      advIntervalInput.value = preset.adv_interval_ms;
+      txPowerSelect.value = String(preset.tx_power_dbm);
+      trackingProtectionSelect.value = preset.tracking_protection ? "1" : "0";
+    });
+  }
+
   // Register Tracker and the build form are now one page (see
   // webui/templates/firmware/_register_result.html) - carry a freshly
   // registered EID straight into the build form instead of making the user
