@@ -11,6 +11,15 @@
   <details id="register-identity">
     <summary>Customize identity (optional)</summary>
 
+    <label for="identity_preset">Preset</label>
+    <select id="identity_preset" class="preset-select">
+      <option value="">Custom (fill in manually)</option>
+      {% for key, preset in identity_presets.items() %}
+      <option value="{{ key }}">{{ preset.label }}</option>
+      {% endfor %}
+    </select>
+    <p class="field-hint" id="identity-preset-hint"></p>
+
     <label for="display_name">Display name</label>
     <input id="display_name" name="display_name" type="text" maxlength="40"
            value="{{ last_identity.display_name }}" required>
@@ -152,5 +161,6 @@
    for build/flash instructions.</p>
 
 <script type="application/json" id="firmware-build-settings-by-eid">{{ build_settings_by_eid | tojson }}</script>
+<script type="application/json" id="identity-presets-data">{{ identity_presets | tojson }}</script>
 <script type="module" src="/static/firmware.js"></script>
 {% endblock %}

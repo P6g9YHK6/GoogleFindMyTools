@@ -70,6 +70,37 @@ document.addEventListener("DOMContentLoaded", () => {
   eidInput.addEventListener("change", applyKnownEidSettings);
   applyKnownEidSettings();
 
+  // ---- identity presets (webui/registration_presets.py) --------------------
+  // Fills in the "Customize identity" fields for a common build (keys, bag,
+  // bike, ...) so it's not a blank form by default - purely a client-side
+  // convenience, nothing about which preset (if any) was picked is submitted.
+  const identityPresetSelect = document.getElementById("identity_preset");
+  const identityPresetHint = document.getElementById("identity-preset-hint");
+  const displayNameInput = document.getElementById("display_name");
+  const deviceTypeSelect = document.getElementById("device_type");
+  const manufacturerInput = document.getElementById("manufacturer_name");
+  const modelNameInput = document.getElementById("model_name");
+  const imageUrlInput = document.getElementById("image_url");
+  let identityPresets = {};
+  try {
+    identityPresets = JSON.parse(document.getElementById("identity-presets-data").textContent);
+  } catch (e) {
+    // Empty/malformed blob - Preset dropdown just won't fill anything in.
+  }
+
+  if (identityPresetSelect) {
+    identityPresetSelect.addEventListener("change", () => {
+      const preset = identityPresets[identityPresetSelect.value];
+      identityPresetHint.textContent = preset ? preset.hint : "";
+      if (!preset) return;
+      displayNameInput.value = preset.display_name;
+      deviceTypeSelect.value = preset.device_type;
+      manufacturerInput.value = preset.manufacturer_name;
+      modelNameInput.value = preset.model_name;
+      imageUrlInput.value = preset.image_url;
+    });
+  }
+
   // Register Tracker and the build form are now one page (see
   // webui/templates/firmware/_register_result.html) - carry a freshly
   // registered EID straight into the build form instead of making the user
