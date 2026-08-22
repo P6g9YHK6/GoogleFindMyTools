@@ -1541,21 +1541,6 @@ details ul {
   background: currentColor;
 }
 
-.construction-banner {
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--warning);
-  background: color-mix(in srgb, var(--warning) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--warning) var(--tint-border), var(--border));
-  border-radius: var(--radius-sm);
-  padding: 0.6rem 0.9rem;
-  margin: 0 0 1rem;
-}
-
-.construction-banner .icon {
-  margin-right: 0.3rem;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .save-toast,
   .action-status--ok {

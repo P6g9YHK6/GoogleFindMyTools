@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-{% from "_macros.html" import icon %}
 {% block title %}Firmware - GoogleFindMyToolsWebUi{% endblock %}
 {% block content %}
 <h1>Firmware</h1>
@@ -54,12 +53,6 @@
 <div id="result"></div>
 
 <h2>ESP32 / ESP32-C3</h2>
-<div class="construction-banner">
-  {{ icon("alert-triangle") }}
-  Under construction: firmware building/flashing is new and hasn't been tested on every setup yet.
-  Expect rough edges - if a build fails, check the server logs and consider building
-  <code>ESP32Firmware/</code> manually instead (see the README in that folder).
-</div>
 <p>Builds <code>ESP32Firmware/</code> with your tracker's advertisement key (EID) baked in, then lets you
    flash it straight from this browser over USB. Register a tracker above first if you don't have an
    EID yet - registering just now fills it in below automatically.</p>
