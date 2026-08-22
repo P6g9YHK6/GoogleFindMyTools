@@ -220,76 +220,6 @@ nav a.brand:hover {
   background: none;
 }
 
-/* Groups a few nav links (Forwarding/Staleness/Account) behind one
-   disclosure instead of listing them flat - same <details>/<menu> pattern
-   as .columns-menu, styled to sit inline with the plain nav links around
-   it rather than looking like the boxed "Columns" button. */
-.nav-group {
-  /* Cancel the generic `details` element rule's boxed-panel look (bg/
-     border/padding/margin/shadow) - that's right for a standalone
-     collapsible section in a page body, not for something sitting inline
-     among plain nav links. */
-  position: relative;
-  display: inline-block;
-  background: none;
-  border: none;
-  padding: 0;
-  margin-top: 0;
-  box-shadow: none;
-}
-
-.nav-group summary {
-  list-style: none;
-  color: var(--text-muted);
-  font-weight: 500;
-  font-size: 0.92rem;
-  padding: 0.45rem 0.75rem;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
-}
-
-.nav-group summary::-webkit-details-marker {
-  display: none;
-}
-
-.nav-group summary:hover {
-  color: var(--text);
-  background: var(--surface-alt);
-}
-
-.nav-group[open] summary {
-  color: var(--text);
-  background: var(--surface-alt);
-}
-
-.nav-group menu {
-  min-width: 10rem;
-}
-
-.nav-group menu li {
-  padding: 0.1rem 0;
-}
-
-.nav-group menu a {
-  display: block;
-  padding: 0.4rem 0.6rem;
-  border-radius: var(--radius-sm);
-  color: var(--text);
-  font-size: 0.9rem;
-  font-weight: 500;
-}
-
-.nav-group menu a:hover {
-  background: var(--surface-alt);
-  text-decoration: none;
-}
-
-.nav-group menu a.active {
-  color: var(--primary);
-  background: color-mix(in srgb, var(--primary) var(--tint-weak), transparent);
-}
-
 /* Footer */
 footer {
   max-width: min(1800px, 96vw); /* matches main's width above, see its comment */
@@ -601,10 +531,7 @@ body.col-reordering, body.col-reordering * {
   border-color: var(--primary);
 }
 
-/* Shared popover-surface look for any <details><menu> dropdown - originally
-   written just for .columns-menu, now also used by .nav-group's Settings
-   menu, so it lives under its own name instead of being duplicated. */
-.menu-popover, .columns-menu menu {
+.columns-menu menu {
   position: absolute;
   z-index: 5;
   top: calc(100% + 0.3rem);

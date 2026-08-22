@@ -13,20 +13,14 @@
   <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
-  {% include "icons/_sprite.html" %}
   <nav>
     <a href="/" class="brand"><img src="/static/logo.png" alt="GoogleFindMyToolsWebUi" height="28"></a>
     <a href="/" {% if active_page == "devices" %}class="active"{% endif %}>Devices</a>
     <a href="/firmware" {% if active_page == "firmware" %}class="active"{% endif %}>Firmware</a>
-    <details class="nav-group" {% if active_page in ("settings", "staleness", "auth") %}open{% endif %}>
-      <summary>Settings</summary>
-      <menu class="menu-popover">
-        <li><a href="/settings" {% if active_page == "settings" %}class="active"{% endif %}>Forwarding</a></li>
-        <li><a href="/staleness" {% if active_page == "staleness" %}class="active"{% endif %}>Staleness</a></li>
-        <li><a href="/auth" {% if active_page == "auth" %}class="active"{% endif %}>Account</a></li>
-      </menu>
-    </details>
+    <a href="/settings" {% if active_page == "settings" %}class="active"{% endif %}>Forwarding Settings</a>
+    <a href="/staleness" {% if active_page == "staleness" %}class="active"{% endif %}>Staleness</a>
     <a href="/logs" {% if active_page == "logs" %}class="active"{% endif %}>Logs</a>
+    <a href="/auth" {% if active_page == "auth" %}class="active"{% endif %}>Config</a>
   </nav>
   <main>
     {% block content %}{% endblock %}
