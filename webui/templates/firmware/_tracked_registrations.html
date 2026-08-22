@@ -1,0 +1,68 @@
+{# Rendered by webui/routers/firmware.py's firmware_tracked()/firmware_untrack() -
+   see the "Tracked Registrations" section in firmware/page.html, which loads
+   this on page view via hx-trigger="load" (same pattern as
+   devices/_table.html) and re-loads it after "Stop tracking" below. #}
+{% if tracked %}
+<div class="table-scroll">
+<table>
+  <thead>
+    <tr>
+      <th>Identity</th><th>EID</th><th>Registered</th><th>Status</th><th>Last seen</th><th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for entry in tracked %}
+    <tr>
+      <td>
+        <strong>{{ entry.display_name }}</strong>
+        {% if entry.manufacturer_name or entry.model_name %}
+          <br><span class="field-hint">{{ entry.manufacturer_name }}{% if entry.manufacturer_name and entry.model_name %} &middot; {% endif %}{{ entry.model_name }}</span>
+        {% endif %}
+      </td>
+      <td><code title="{{ entry.eid_hex }}">{{ entry.eid_hex[:10] }}&hellip;</code></td>
+      <td>{{ entry.pair_date_str }}</td>
+      <td>
+        {% if entry.status == "found" %}
+          Found on your account
+          <br><span class="field-hint">canonic id {{ entry.device.canonic_id }}</span>
+        {% elif entry.status == "not_found" %}
+          Not found, possibly deleted from your Google account
+        {% else %}
+          {{ entry.devices | length }} devices match this identity
+          <details>
+            <summary>Google doesn't expose enough info to tell which registration this is</summary>
+            <ul>
+            {% for device in entry.devices %}
+              <li>canonic id {{ device.canonic_id }}, last seen {{ device.last_seen_str or "never" }}</li>
+            {% endfor %}
+            </ul>
+          </details>
+        {% endif %}
+      </td>
+      <td>
+        {% if entry.status == "found" %}
+          {{ entry.device.last_seen_str or "-" }}
+          {% set loc = entry.device.last_locations[0] if entry.device.last_locations else None %}
+          {% if loc and loc.latitude is not none %}
+            <br>{{ "%.5f"|format(loc.latitude) }}, {{ "%.5f"|format(loc.longitude) }}
+          {% elif loc and loc.semantic_name %}
+            <br>{{ loc.semantic_name }}
+          {% endif %}
+        {% else %}
+          -
+        {% endif %}
+      </td>
+      <td>
+        <button type="button" class="btn-secondary"
+                hx-post="/firmware/tracked/{{ entry.eid_hex }}/untrack"
+                hx-target="#tracked-registrations" hx-swap="innerHTML">Stop tracking</button>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<p class="field-hint">No tracked registrations yet, register a tracker above with "Keep
+   track" checked to see it here.</p>
+{% endif %}

@@ -57,9 +57,25 @@
        from here whether the (closed-source) official app will actually show or locate this tracker as a
        result. This project's own tooling can locate the tracker either way.</p>
   </details>
+
+  <label class="checkbox-label">
+    <input id="keep_track" name="keep_track" type="checkbox" checked>
+    Keep track
+  </label>
+  <p class="field-hint">Saves this registration so its current status (still on your account, last
+     seen, and so on) can be checked below without digging through the full Devices page. Since
+     Google doesn't hand back anything linking a device to the EID that registered it, this is
+     matched by the identity above rather than a hard link (see the Tracked Registrations panel
+     below).</p>
+
   <button type="submit">Register new tracker</button>
 </form>
 <div id="result"></div>
+
+<h2>Tracked Registrations</h2>
+<p>Trackers registered above with "Keep track" checked, and whether Google's account still has
+   each one.</p>
+<div id="tracked-registrations" hx-get="/firmware/tracked" hx-trigger="load">Loading&hellip;</div>
 
 <h2>ESP32 / ESP32-C3</h2>
 <p>Builds <code>ESP32Firmware/</code> with your tracker's advertisement key (EID) baked in, then lets you

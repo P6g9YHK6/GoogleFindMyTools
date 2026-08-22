@@ -305,3 +305,150 @@ def test_register_submit_records_eid_for_firmware_page(client):
     client.post("/register")
     entries = firmware_store.list_registered()
     assert any(e["eid_hex"] == "deadbeef" for e in entries)
+
+
+def test_firmware_store_records_identity_and_keep_track():
+    firmware_store.record_registration(
+        "1" * 40, 1700000000, display_name="Store Round Trip Keys", device_type="DEVICE_TYPE_KEYS",
+        manufacturer_name="Acme", model_name="Tag v2", image_url="https://example.com/tag.png",
+        experimental_official_app_compat=True, keep_track=True,
+    )
+
+    entry = next(e for e in firmware_store.list_registered() if e["eid_hex"] == "1" * 40)
+    assert entry["display_name"] == "Store Round Trip Keys"
+    assert entry["device_type"] == "DEVICE_TYPE_KEYS"
+    assert entry["manufacturer_name"] == "Acme"
+    assert entry["model_name"] == "Tag v2"
+    assert entry["image_url"] == "https://example.com/tag.png"
+    assert entry["experimental_official_app_compat"] is True
+    assert entry["keep_track"] is True
+
+
+def test_firmware_store_backfills_keep_track_false_for_legacy_entries():
+    # An entry from before the "Keep track" toggle existed never opted in.
+    # _save_unlocked() replaces the whole file, so this deliberately starts
+    # from a clean slate rather than appending, unlike the other tests here.
+    firmware_store._save_unlocked({"entries": [{"eid_hex": "c" * 40, "pair_date": 1700000200}]})
+
+    entry = next(e for e in firmware_store.list_registered() if e["eid_hex"] == "c" * 40)
+    assert entry["keep_track"] is False
+
+
+def test_set_keep_track_flips_flag():
+    firmware_store.record_registration("2" * 40, 1700000300, keep_track=True)
+
+    firmware_store.set_keep_track("2" * 40, False)
+
+    entry = next(e for e in firmware_store.list_registered() if e["eid_hex"] == "2" * 40)
+    assert entry["keep_track"] is False
+
+
+def test_set_keep_track_is_a_noop_for_unknown_eid():
+    # The store is a real, session-shared singleton across this whole test
+    # file (see conftest.py's GFMT_DATA_DIR comment) - "1"*40/"2"*40 above
+    # are already in it by the time this runs, so this only asserts that an
+    # eid_hex nothing has ever registered stays absent, not that the store
+    # is empty.
+    firmware_store.set_keep_track("unknown" + "0" * 33, True)  # must not raise
+    assert not any(e["eid_hex"] == "unknown" + "0" * 33 for e in firmware_store.list_registered())
+
+
+def test_firmware_page_keep_track_checkbox_is_checked(client):
+    # The "on by default" behavior is purely the template's initial render -
+    # see webui/routers/register.py's keep_track: bool = Form(False) comment
+    # for why the server side can't default it to True.
+    resp = client.get("/firmware")
+    assert '<input id="keep_track" name="keep_track" type="checkbox" checked>' in resp.text
+
+
+def test_register_submit_keep_track_checked(client):
+    # A browser only posts a checkbox at all when it's checked - same
+    # pattern as test_register_submit_persists_custom_identity's
+    # experimental_official_app_compat: "on".
+    client.post("/register", data={"display_name": "My Keys", "keep_track": "on"})
+
+    entry = next(e for e in firmware_store.list_registered() if e["display_name"] == "My Keys")
+    assert entry["keep_track"] is True
+
+
+def test_register_submit_keep_track_unchecked(client):
+    client.post("/register", data={"display_name": "Untracked Keys"})  # keep_track omitted
+
+    entry = next(e for e in firmware_store.list_registered() if e["display_name"] == "Untracked Keys")
+    assert entry["keep_track"] is False
+
+
+def test_firmware_tracked_reports_not_found_for_no_matching_device(client):
+    firmware_store.record_registration(
+        "3" * 40, 1700000000, display_name="Tracked Not Found Keys",
+        manufacturer_name="Acme", model_name="Tag v2", keep_track=True,
+    )
+
+    resp = client.get("/firmware/tracked")
+
+    assert resp.status_code == 200
+    assert "Tracked Not Found Keys" in resp.text
+    assert "Not found" in resp.text
+
+
+def test_firmware_tracked_reports_found_for_matching_device(client, monkeypatch):
+    from webui.routers import devices
+
+    firmware_store.record_registration(
+        "4" * 40, 1700000000, display_name="Tracked Found Keys",
+        manufacturer_name="Acme", model_name="Tag v2", keep_track=True,
+    )
+
+    def fake_get_device_details(device_list):
+        return [{
+            "name": "Tracked Found Keys", "canonic_id": "keys-canonic-id", "last_seen": None,
+            "is_phone": False, "image_url": None, "device_type": None, "type_id": None,
+            "manufacturer": "Acme", "model": "Tag v2", "carrier": None, "codename": None,
+            "imei": None, "registered_at": None, "access": [],
+        }]
+
+    monkeypatch.setattr(devices, "get_device_details", fake_get_device_details)
+
+    resp = client.get("/firmware/tracked")
+
+    assert resp.status_code == 200
+    assert "Found on your account" in resp.text
+    assert "keys-canonic-id" in resp.text
+
+
+def test_firmware_tracked_reports_ambiguous_for_multiple_matching_devices(client, monkeypatch):
+    from webui.routers import devices
+
+    firmware_store.record_registration(
+        "5" * 40, 1700000000, display_name="Tracked Ambiguous Keys",
+        manufacturer_name="Acme", model_name="Tag v2", keep_track=True,
+    )
+
+    def fake_get_device_details(device_list):
+        base = {
+            "name": "Tracked Ambiguous Keys", "last_seen": None, "is_phone": False, "image_url": None,
+            "device_type": None, "type_id": None, "manufacturer": "Acme", "model": "Tag v2",
+            "carrier": None, "codename": None, "imei": None, "registered_at": None, "access": [],
+        }
+        return [{**base, "canonic_id": "keys-1"}, {**base, "canonic_id": "keys-2"}]
+
+    monkeypatch.setattr(devices, "get_device_details", fake_get_device_details)
+
+    resp = client.get("/firmware/tracked")
+
+    assert resp.status_code == 200
+    assert "2 devices match this identity" in resp.text
+
+
+def test_firmware_untrack_removes_entry_from_tracked_panel(client):
+    firmware_store.record_registration(
+        "6" * 40, 1700000000, display_name="Tracked Untrack Keys",
+        manufacturer_name="Acme", model_name="Tag v2", keep_track=True,
+    )
+
+    resp = client.post(f"/firmware/tracked/{'6' * 40}/untrack")
+
+    assert resp.status_code == 200
+    assert "Tracked Untrack Keys" not in resp.text
+    entry = next(e for e in firmware_store.list_registered() if e["eid_hex"] == "6" * 40)
+    assert entry["keep_track"] is False

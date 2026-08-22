@@ -57,7 +57,7 @@ def stub_backend(monkeypatch):
     specifically care about."""
     from webui.device_list_cache import device_list_cache
     from webui.forwarders import settings_service
-    from webui.routers import auth, devices, locate, logs, register, settings, sound
+    from webui.routers import auth, devices, firmware, locate, logs, register, settings, sound
     from webui.routers import staleness as staleness_router
 
     # webui/device_list_cache.py's singleton is a real module-level global
@@ -74,7 +74,7 @@ def stub_backend(monkeypatch):
             "model": None, "carrier": None, "codename": None, "imei": None, "registered_at": None, "access": [],
         }]
 
-    for mod in (devices, settings, logs, staleness_router):
+    for mod in (devices, firmware, settings, logs, staleness_router):
         monkeypatch.setattr(mod, "is_logged_in", lambda: True)
     # settings.py's own fetch-and-parse logic lives in settings_service.py
     # now (see webui/forwarders/settings_service.py) - patch there instead

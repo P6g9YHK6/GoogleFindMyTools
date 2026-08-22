@@ -4,8 +4,10 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import FileResponse
 
 from webui import firmware_build, firmware_store, flash_presets, identity_validation, registration_presets
+from webui import tracked_registrations
+from webui.auth_state import is_logged_in
 from webui.firmware_build import REPO_ROOT
-from webui.routers.devices import device_type_plain_label
+from webui.routers.devices import device_type_plain_label, get_devices
 from webui.templating import templates
 
 router = APIRouter()
@@ -76,6 +78,32 @@ async def firmware_build_download():
         raise HTTPException(404, "No completed build available - build one on the Firmware page first.")
     return FileResponse(state["artifact_path"], filename=state["download_name"],
                          media_type="application/octet-stream")
+
+
+@router.get("/firmware/tracked")
+async def firmware_tracked(request: Request):
+    """The Tracked Registrations panel (firmware/page.html) - loaded via
+    hx-trigger="load", same auto-load-on-page-view pattern as
+    webui/routers/devices.py's /devices/table, so it needs no separate
+    button and reuses that same 8s device-list cache rather than issuing its
+    own uncached fetch."""
+    if not is_logged_in():
+        return templates.TemplateResponse(request, "_not_signed_in.html", {})
+    entries = [entry for entry in firmware_store.list_registered() if entry["keep_track"]]
+    tracked = []
+    if entries:
+        devices = await get_devices()
+        tracked = [
+            {**entry, "pair_date_str": datetime.fromtimestamp(entry["pair_date"]).strftime("%Y-%m-%d %H:%M:%S")}
+            for entry in tracked_registrations.resolve_tracked_status(entries, devices)
+        ]
+    return templates.TemplateResponse(request, "firmware/_tracked_registrations.html", {"tracked": tracked})
+
+
+@router.post("/firmware/tracked/{eid_hex}/untrack")
+async def firmware_untrack(request: Request, eid_hex: str):
+    firmware_store.set_keep_track(eid_hex, False)
+    return await firmware_tracked(request)
 
 
 @router.get("/firmware/zephyr-readme")

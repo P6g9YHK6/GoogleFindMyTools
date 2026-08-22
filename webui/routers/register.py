@@ -30,6 +30,14 @@ async def register_submit(
     # correctly resolves that absence to False (same pattern as
     # webui/routers/auth.py's devices_page_most_recent_only).
     experimental_official_app_compat: bool = Form(False),
+    # Same "unchecked checkbox posts nothing" story as the one above -
+    # Form(False) has to stay the server-side default regardless of the
+    # checkbox's own checked-by-default *appearance* in the form (see
+    # firmware/page.html): an HTML checkbox never distinguishes "present and
+    # unchecked" from "absent", so the moment a user actually unchecks it,
+    # it drops out of the POST body just the same. Defaulting to True here
+    # instead would mean unchecking it silently did nothing.
+    keep_track: bool = Form(False),
 ):
     display_name, manufacturer_name = display_name.strip(), manufacturer_name.strip()
     model_name, image_url = model_name.strip(), image_url.strip()
@@ -54,8 +62,16 @@ async def register_submit(
                                       image_url=image_url,
                                       experimental_official_app_compat=experimental_official_app_compat)
     # Remember the (public) EID so the Firmware page can offer it again later
-    # instead of requiring it be copy-pasted from this one-time display.
-    firmware_store.record_registration(result["eid_hex"], result.get("pair_date", 0))
+    # instead of requiring it be copy-pasted from this one-time display -
+    # plus the identity actually submitted and the Keep track flag, so a
+    # tracked entry is a standalone record (see firmware_store.py's
+    # record_registration docstring / webui/tracked_registrations.py).
+    firmware_store.record_registration(
+        result["eid_hex"], result.get("pair_date", 0),
+        display_name=display_name, device_type=device_type,
+        manufacturer_name=manufacturer_name, model_name=model_name, image_url=image_url,
+        experimental_official_app_compat=experimental_official_app_compat, keep_track=keep_track,
+    )
     firmware_store.record_identity(display_name, device_type, manufacturer_name, model_name, image_url,
                                     experimental_official_app_compat)
     return templates.TemplateResponse(request, "firmware/_register_result.html",

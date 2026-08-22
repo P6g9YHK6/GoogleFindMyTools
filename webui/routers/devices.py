@@ -164,6 +164,11 @@ async def get_devices() -> list[dict]:
         devices.append({
             "name": detail["name"],
             "canonic_id": canonic_id,
+            # Lets webui/tracked_registrations.py's matching exclude phones
+            # up front - a registered tracker's identity should never
+            # legitimately collide with one, but there's no reason to risk
+            # it (see that module's docstring).
+            "is_phone": detail["is_phone"],
             "alias": device_cfg.get("display_name") if device_cfg else None,
             "endpoint_count": len(device_cfg.get("endpoints") or []) if device_cfg else 0,
             "last_locations": last_locations,
