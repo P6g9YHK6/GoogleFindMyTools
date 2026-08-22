@@ -1468,8 +1468,13 @@ details ul {
   margin: 0 0 0.75rem;
 }
 
-.unsaved-banner::before {
-  content: "● ";
+.status-dot {
+  display: inline-block;
+  width: 0.5em;
+  height: 0.5em;
+  margin-right: 0.4em;
+  border-radius: 50%;
+  background: currentColor;
 }
 
 .construction-banner {
