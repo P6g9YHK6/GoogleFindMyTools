@@ -13,7 +13,7 @@
 
 <button id="signin-btn">Sign in with Google</button>
 <button hx-get="/auth/status" hx-target="#login-status" hx-swap="innerHTML">Refresh status</button>
-<button id="clear-btn" hx-post="/auth/clear" hx-target="#login-status" hx-swap="innerHTML"
+<button id="clear-btn" class="btn-outline-danger" hx-post="/auth/clear" hx-target="#login-status" hx-swap="innerHTML"
         hx-confirm="Clear all saved credentials? You'll need to sign in again.">
   Clear credentials
 </button>
@@ -45,12 +45,14 @@
    account credentials or forwarding-endpoint tokens. Optionally set a password to encrypt the
    archive before sharing it.</p>
 
-<label><input type="checkbox" id="debug-export-include-live" checked>
-  Live API query (fresh device list + locate every device)</label><br>
-<label><input type="checkbox" id="debug-export-include-logs"> Recent app logs</label><br>
-<label><input type="checkbox" id="debug-export-anonymize">
-  Anonymize location data (randomizes coordinates/place names, and leaves out each device's raw
-  locate response since that part can't be anonymized)</label><br>
+<div class="checkbox-stack">
+  <label class="checkbox-label"><input type="checkbox" id="debug-export-include-live" checked>
+    Live API query (fresh device list + locate every device)</label>
+  <label class="checkbox-label"><input type="checkbox" id="debug-export-include-logs"> Recent app logs</label>
+  <label class="checkbox-label"><input type="checkbox" id="debug-export-anonymize">
+    Anonymize location data (randomizes coordinates/place names, and leaves out each device's raw
+    locate response since that part can't be anonymized)</label>
+</div>
 <input type="password" id="debug-export-password" placeholder="Optional password to encrypt the archive">
 <button id="debug-export-btn" type="button">Export debug info</button>
 <p id="debug-export-status"></p>
