@@ -17,10 +17,15 @@
     <a href="/" class="brand"><img src="/static/logo.png" alt="GoogleFindMyToolsWebUi" height="28"></a>
     <a href="/">Devices</a>
     <a href="/firmware">Firmware</a>
-    <a href="/settings">Forwarding Settings</a>
-    <a href="/staleness">Staleness</a>
+    <details class="nav-group">
+      <summary>Settings</summary>
+      <menu class="menu-popover">
+        <li><a href="/settings">Forwarding</a></li>
+        <li><a href="/staleness">Staleness</a></li>
+        <li><a href="/auth">Account</a></li>
+      </menu>
+    </details>
     <a href="/logs">Logs</a>
-    <a href="/auth">Config</a>
   </nav>
   <main>
     {% block content %}{% endblock %}
