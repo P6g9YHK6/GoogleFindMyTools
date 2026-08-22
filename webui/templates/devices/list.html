@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-{% from "_macros.html" import icon %}
 {% block title %}Devices - GoogleFindMyToolsWebUi{% endblock %}
 {% block content %}
 <h1>Devices</h1>
@@ -14,7 +13,7 @@
    <dialog> handles the centered layout, the dimmed ::backdrop (styled in
    app.css), and Escape-to-close for free. #}
 <dialog id="device-image-modal" class="image-modal">
-  <button type="button" class="btn-icon image-modal-close" aria-label="Close">{{ icon("x") }}</button>
+  <button type="button" class="btn-icon image-modal-close" aria-label="Close">✕</button>
   <img class="image-modal-img" alt="">
   <p class="image-modal-caption"></p>
 </dialog>

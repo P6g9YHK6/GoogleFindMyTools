@@ -1,4 +1,3 @@
-{% from "_macros.html" import icon %}
 <div class="table-toolbar">
   {# Show/hide checkboxes, one per data-col below - static/tables.js reads
      this menu's checkboxes on load/change and persists the result (see
@@ -77,15 +76,15 @@
         <button type="button" class="btn-icon" title="Locate"
                 hx-post="/devices/{{ device.canonic_id }}/locate?name={{ device.name | urlencode }}"
                 hx-target="#locate-result-{{ loop.index }}" hx-swap="innerHTML"
-                hx-indicator="#action-spinner-{{ device.canonic_id }}">{{ icon("map-pin") }}</button>
+                hx-indicator="#action-spinner-{{ device.canonic_id }}">📍</button>
         <button type="button" class="btn-icon" title="Play sound"
                 hx-post="/devices/{{ device.canonic_id }}/sound/start"
                 hx-target="#sound-status-{{ device.canonic_id }}" hx-swap="innerHTML"
-                hx-indicator="#action-spinner-{{ device.canonic_id }}">{{ icon("volume-2") }}</button>
+                hx-indicator="#action-spinner-{{ device.canonic_id }}">🔊</button>
         <button type="button" class="btn-icon" title="Stop sound"
                 hx-post="/devices/{{ device.canonic_id }}/sound/stop"
                 hx-target="#sound-status-{{ device.canonic_id }}" hx-swap="innerHTML"
-                hx-indicator="#action-spinner-{{ device.canonic_id }}">{{ icon("volume-x") }}</button>
+                hx-indicator="#action-spinner-{{ device.canonic_id }}">🔇</button>
         {# Shared by all three buttons above - htmx shows/hides this
            automatically while any of their requests is in flight, via its
            own "htmx-indicator" class (auto-injected opacity rules; see

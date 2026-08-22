@@ -166,18 +166,6 @@ code {
   color: var(--text);
 }
 
-/* Self-hosted svg icons (see templates/icons/_sprite.html and the icon()
-   macro) - sized off font-size and colored off currentColor so an icon
-   dropped into a button/link/status message automatically matches its
-   surrounding text color (including across light/dark) and scales with it,
-   instead of needing its own color/size rule at every call site. */
-.icon {
-  width: 1em;
-  height: 1em;
-  vertical-align: -0.125em;
-  flex-shrink: 0;
-}
-
 /* Nav */
 nav {
   display: flex;
@@ -514,8 +502,6 @@ th {
 }
 
 .sort-indicator {
-  display: inline-block;
-  margin-left: 0.25rem;
   color: var(--primary);
 }
 
@@ -556,12 +542,15 @@ body.col-resizing, body.col-resizing * {
    on the right, so a reorder drag and a resize drag can never be started
    by the same gesture. */
 .col-drag-handle {
-  display: inline-flex;
-  vertical-align: middle;
+  display: inline-block;
   margin-right: 0.3rem;
   cursor: grab;
   color: var(--text-muted);
   touch-action: none;
+}
+
+.col-drag-handle::before {
+  content: "⠿";
 }
 
 .col-dragging {

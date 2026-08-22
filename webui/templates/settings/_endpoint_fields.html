@@ -9,7 +9,6 @@
    namespaced "ep-{{ idx }}-..." so one endpoint's variable-length headers
    rows never get mixed up with another's - see routers/settings.py's
    update_device_settings. #}
-{% from "_macros.html" import icon %}
 {% set is_new = is_new if is_new is defined else False %}
 <fieldset class="endpoint-block{% if is_new %} endpoint-block--new{% endif %}" data-ep-idx="{{ idx }}"
           data-device-alias="{{ row.name if row is defined else '' }}"
@@ -106,7 +105,7 @@
             <tr>
               <td><input type="text" class="kv-key" name="ep-{{ idx }}-header_key" value="{{ key }}"></td>
               <td><input type="text" class="kv-value templatable" name="ep-{{ idx }}-header_value" value="{{ value }}"></td>
-              <td class="kv-remove-cell"><button type="button" class="btn-remove-row" title="Remove row">{{ icon("x") }}</button></td>
+              <td class="kv-remove-cell"><button type="button" class="btn-remove-row" title="Remove row">✕</button></td>
             </tr>
           {% endfor %}
         </tbody>

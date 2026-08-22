@@ -1,4 +1,3 @@
-{% from "_macros.html" import icon %}
 <form hx-post="/auth/settings" hx-target="this" hx-swap="outerHTML">
   <button type="button" class="btn-secondary"
           hx-get="/auth/settings/yaml" hx-target="closest .app-settings-editor" hx-swap="innerHTML">
@@ -90,7 +89,7 @@
                   <option value="partial" {% if coords.match_mode == "partial" %}selected{% endif %}>Partial match</option>
                 </select>
               </td>
-              <td class="kv-remove-cell"><button type="button" class="btn-remove-row" title="Remove row">{{ icon("x") }}</button></td>
+              <td class="kv-remove-cell"><button type="button" class="btn-remove-row" title="Remove row">✕</button></td>
             </tr>
           {% endfor %}
         </tbody>
@@ -116,8 +115,7 @@
           '<td><input type="number" step="any" name="semantic_lat"></td>' +
           '<td><input type="number" step="any" name="semantic_lon"></td>' +
           '<td><select name="semantic_match_mode"><option value="full" selected>Full match</option><option value="partial">Partial match</option></select></td>' +
-          '<td class="kv-remove-cell"><button type="button" class="btn-remove-row" title="Remove row">' +
-          '<svg class="icon" aria-hidden="true"><use href="#icon-x"></use></svg></button></td>';
+          '<td class="kv-remove-cell"><button type="button" class="btn-remove-row" title="Remove row">✕</button></td>';
         body.appendChild(tr);
       });
       fieldset.addEventListener("click", function (e) {
@@ -129,7 +127,7 @@
   </script>
 
   {% if saved %}
-    <p class="endpoint-status endpoint-status--ok">{{ icon("check") }} Saved.</p>
+    <p class="endpoint-status endpoint-status--ok">✓ Saved.</p>
   {% endif %}
 
   <button type="submit">Save settings</button>
