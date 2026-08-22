@@ -1130,7 +1130,7 @@ details ul {
   color: var(--text-muted);
   border: none;
   box-shadow: none;
-  padding: 0.5rem 0.6rem; /* the ✕ glyph itself stays small (font-size below); this just widens the tap target */
+  padding: 0.5rem 0.6rem; /* the x icon itself stays small (font-size below); this just widens the tap target */
   font-size: 0.85rem;
   line-height: 1;
   min-width: 2.1rem;

@@ -332,7 +332,7 @@ document.addEventListener("click", (event) => {
     return;
   }
 
-  // Closes on the ✕ button, or on the dialog's own ::backdrop - a native
+  // Closes on the x button, or on the dialog's own ::backdrop - a native
   // <dialog>'s backdrop click bubbles with the dialog element itself as
   // the target, which is what the equality check below actually detects
   // (a click landing on the image or caption instead leaves event.target
